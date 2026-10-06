@@ -1,0 +1,9 @@
+{
+  "bookSourceName": "脚本不能执行的本地夹具",
+  "bookSourceUrl": "https://unsupported.fixture.invalid/",
+  "searchUrl": "<js>java.ajax('/search')</js>",
+  "ruleSearch": { "bookList": "class.book", "name": "tag.a@text", "bookUrl": "tag.a@href" },
+  "ruleBookInfo": { "name": "tag.h1@text" },
+  "ruleToc": { "chapterList": "tag.a", "chapterName": "@text", "chapterUrl": "@href" },
+  "ruleContent": { "content": "@js:java.getString('text')" }
+}

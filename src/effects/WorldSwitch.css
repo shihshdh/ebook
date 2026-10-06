@@ -1,0 +1,76 @@
+.ws {
+  --p: 0;
+  position: relative; height: clamp(440px, 64vh, 660px); border-radius: 30px; overflow: hidden; isolation: isolate;
+  /* 拉远时背景由黑转暖灰，底部亮起主题色光晕 */
+  background:
+    radial-gradient(60% 46% at 50% 108%, var(--wg), transparent 70%),
+    linear-gradient(180deg, #1d1915, #2a241d);
+  border: 1px solid var(--line);
+  transition: background .6s;
+}
+.ws-back { position: absolute; left: clamp(20px, 5vw, 56px); top: clamp(28px, 7vh, 64px); z-index: 1; max-width: 520px; pointer-events: none; }
+.ws-back-title { margin: 0 0 14px; font-size: clamp(34px, 5vw, 64px); line-height: 1.12; font-weight: 600; color: #f4ecdc; letter-spacing: .02em; }
+.ws-back-sub { margin: 0; font-size: 14px; }
+
+.ws-scene { position: absolute; inset: 0; z-index: 2; clip-path: inset(50% 50% 50% 50%); will-change: clip-path; background: #0b0a08; }
+.ws-collage {
+  position: absolute; inset: -12% -6%; display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; transform: rotate(-8deg) scale(1.08);
+  /* 省电：40 秒挪 6%，每秒更新 10 次足够 */
+  animation: ws-drift 40s steps(400) infinite alternate;
+}
+.ws-c { display: block; aspect-ratio: 5 / 7; border-radius: 10px; overflow: hidden; box-shadow: 0 20px 40px -20px #000; }
+.ws-c img { width: 100%; height: 100%; object-fit: cover; }
+.ws-c:nth-child(even) { transform: translateY(38%); }
+@keyframes ws-drift { to { transform: rotate(-8deg) scale(1.08) translate3d(-6%, -4%, 0); } }
+.ws-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 7, 6, .92) 0%, rgba(8, 7, 6, .55) 45%, rgba(8, 7, 6, .1) 80%), linear-gradient(0deg, rgba(8, 7, 6, .7), transparent 40%); }
+/* 推进初段：场景先是一整块主题色，再淡出露出拼贴 */
+.ws-veil { position: absolute; inset: 0; background: var(--w); }
+.ws-headline { position: absolute; left: clamp(20px, 5vw, 56px); bottom: clamp(110px, 18vh, 150px); max-width: 560px; opacity: 0; }
+.ws-headline .eyebrow { margin: 0 0 10px; }
+.ws-headline h2 { margin: 0; font-size: clamp(48px, 7.5vw, 104px); line-height: .95; font-weight: 900; letter-spacing: .02em; color: #fff8ea; }
+.ws-headline h2 em { font-style: italic; font-weight: 400; font-size: .5em; margin-left: .2em; color: var(--w); filter: brightness(1.35); }
+.ws-tagline { margin: 16px 0 0; font-size: 15px; color: var(--ink2); }
+
+/* 前景大字：位置和大小永远不变，是镜头运动里的视觉锚点 */
+.ws-glyph {
+  position: absolute; right: clamp(12px, 6vw, 90px); top: 50%; z-index: 4; transform: translateY(-58%);
+  font-size: clamp(200px, 30vw, 420px); line-height: 1; font-weight: 900; pointer-events: none;
+  filter: drop-shadow(0 30px 60px rgba(0, 0, 0, .55));
+}
+
+/* 图标排 */
+.ws-dock {
+  position: absolute; left: 50%; bottom: 24px; z-index: 5; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px; padding: 8px; max-width: calc(100% - 24px);
+  border-radius: 999px; background: rgba(12, 10, 8, .5); border: 1px solid var(--line);
+  -webkit-backdrop-filter: blur(16px) saturate(150%); backdrop-filter: blur(16px) saturate(150%);
+}
+.ws-all { flex: none; white-space: nowrap; height: 44px; padding: 0 16px; border: 0; border-radius: 999px; background: none; color: var(--ink2); font-size: 13px; }
+.ws-all.on { color: #1a140a; background: var(--gold); }
+.ws-cap {
+  display: flex; align-items: center; gap: 0; height: 44px; padding: 0 4px; border: 0; border-radius: 999px;
+  background: color-mix(in srgb, var(--c) 22%, rgba(255, 255, 255, .04)); color: var(--ink);
+  transition: background .4s, padding .5s var(--ease-back);
+}
+.ws-cap-glyph { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; font-size: 18px; font-weight: 900; background: var(--c); color: #120e0a; flex: none; }
+.ws-cap-label { max-width: 0; overflow: hidden; white-space: nowrap; font-size: 13px; transition: max-width .7s var(--ease), margin .5s var(--ease); }
+.ws-cap-label small { color: var(--ink2); font-size: 12px; }
+.ws-cap:hover .ws-cap-label { max-width: 4em; margin: 0 10px 0 8px; }
+.ws-cap.on { padding-right: 6px; background: color-mix(in srgb, var(--c) 32%, rgba(255, 255, 255, .06)); }
+.ws-cap.on .ws-cap-label { max-width: 26em; margin: 0 12px 0 10px; }
+.ws-caret { display: inline-block; width: 1px; height: 1em; margin-left: 2px; vertical-align: -.15em; background: currentColor; animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+.ws-try { position: absolute; right: -96px; top: -26px; font-family: 'Segoe Script', 'Brush Script MT', cursive; font-size: 15px; color: var(--gold); transform: rotate(-6deg); white-space: nowrap; pointer-events: none; }
+
+@media (max-width: 760px) {
+  .ws { height: 520px; border-radius: 22px; }
+  .ws-glyph { font-size: 190px; right: -6px; top: 60%; opacity: .92; }
+  .ws-dock { left: 12px; right: 12px; transform: none; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; }
+  .ws-dock::-webkit-scrollbar { display: none; }
+  .ws-cap.on .ws-cap-label { max-width: 6em; }
+  .ws-cap-label small { display: none; }
+  .ws-try { display: none; }
+  .ws-headline { bottom: 96px; }
+  .ws-collage { grid-template-columns: repeat(4, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { .ws-collage { animation: none; } }

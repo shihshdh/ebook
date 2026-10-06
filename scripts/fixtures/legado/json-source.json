@@ -1,0 +1,8 @@
+{
+  "bookSourceName": "本地 JSON 夹具", "bookSourceUrl": "https://json.fixture.invalid/api/",
+  "searchUrl": "search?q={{key}}&p={{page}}",
+  "ruleSearch": { "bookList": "@json:$.results[*]", "name": "$.name", "author": "$.author", "bookUrl": "$.url", "coverUrl": "$.cover", "wordCount": "$.words" },
+  "ruleBookInfo": { "name": "$.title", "author": "$.author", "intro": "$.intro", "coverUrl": "$.cover", "tocUrl": "$.toc" },
+  "ruleToc": { "chapterList": "$.chapters[*]", "chapterName": "$.title", "chapterUrl": "$.url", "nextTocUrl": "$.next" },
+  "ruleContent": { "content": "$.paragraphs[*]", "nextContentUrl": "$.next", "replaceRegex": "广告##" }
+}

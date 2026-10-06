@@ -1,0 +1,40 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-capability",
+  "description": "主阅读窗口：自绘标题栏的窗口控制，以及书源的原生网络访问（Legado 书源由用户导入，可能访问任意站点）",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "core:window:allow-start-dragging",
+    "core:window:allow-minimize",
+    "core:window:allow-toggle-maximize",
+    "core:window:allow-close",
+    "core:window:allow-show",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-is-maximized",
+    "core:window:allow-set-background-color",
+    "core:window:allow-set-focus",
+    "window-state:default",
+    "opener:default",
+    {
+      "identifier": "http:default",
+      "allow": [
+        {
+          "url": "https://*"
+        },
+        {
+          "url": "http://*"
+        },
+        {
+          "url": "https://*:*"
+        },
+        {
+          "url": "http://*:*"
+        }
+      ]
+    }
+  ]
+}

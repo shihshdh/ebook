@@ -1,0 +1,16 @@
+{
+  "appId": "app.librarium.reader",
+  "appName": "EBOOK",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#f4efe6"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

@@ -1,0 +1,78 @@
+/* ============================================================
+   EBOOK —— 视觉系统
+   同一家族：ORACULUM 的黑金 + 淡紫点缀、Noël 的金箔、Pixel Reconstruction 的液态玻璃。
+     · 底色是暖黑，像夜里只开一盏台灯的书房；金色只给"重要的一笔"
+     · 面板是有厚度的玻璃：渐变着色 + 背景模糊增饱和 + 顶部内高光 + 描边光环 + 指针高光
+     · 标题用衬线（Noto Serif SC / 宋体），字标用 Cinzel；正文用系统无衬线
+     · 动效只动 transform / opacity / clip-path，统一自然减速
+   ============================================================ */
+@import url('https://fonts.loli.net/css2?family=Noto+Serif+SC:wght@400;600;900&display=swap');
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: block;
+  src: url('../assets/fonts/cinzel-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+2000-206F;
+}
+
+:root {
+  --bg: #080706;
+  --bg-2: #0e0c0a;
+  --ink: #f4efe3;
+  --ink2: rgba(244, 239, 227, 0.68);
+  --ink3: rgba(244, 239, 227, 0.5);   /* 小字在黑底上 4.5:1（.42 只有 3.6:1） */
+  --line: rgba(255, 246, 225, 0.11);
+  --line2: rgba(255, 246, 225, 0.2);
+
+  --gold: #e9cb8b;
+  --gold-deep: #b8914a;
+  --gold-foil: linear-gradient(100deg, #a8823f 0%, #f6e3b4 38%, #d9b46c 55%, #fff4d6 70%, #b8914a 100%);
+  --lilac: #cfc5e8;
+  --rose: #ff9c8f;
+  --jade: #93dcb6;
+  --accent: var(--gold);
+
+  --surface-tint: rgba(255, 255, 255, 0.075);
+  --surface-rim: rgba(255, 249, 232, 0.34);
+  --surface-shadow: rgba(2, 0, 12, 0.55);
+  --card: rgba(20, 17, 14, 0.74);
+  --glass-base: rgba(14, 12, 10, .46);
+  --glass-hi: rgba(255, 248, 228, .13);
+  --glass-dense: rgba(16, 13, 11, .94);
+  --soft: rgba(255, 255, 255, .04);      /* 次级按钮、卡片的底 */
+  --soft-2: rgba(255, 255, 255, .08);    /* 悬停 */
+  --tile: #14110e;                        /* 封面加载前的底色 */
+  --scrim: rgba(4, 3, 2, .55);
+  --on-accent: #1a140a;                   /* 金色底上的字 */
+
+  --r-lg: 28px;
+  --r-md: 18px;
+  --r-sm: 12px;
+  --r-pill: 999px;
+
+  --ease: cubic-bezier(.16, 1, .3, 1);
+  --ease-back: cubic-bezier(.34, 1.45, .64, 1);
+  --d-fb: 120ms;
+  --d-state: 220ms;
+  --d-layout: 380ms;
+  --d-hero: 640ms;
+
+  --serif: 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
+  --display: 'Cinzel', 'Noto Serif SC', serif;
+  --sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Segoe UI Variable Text', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+  --mono: 'SFMono-Regular', 'Cascadia Mono', Consolas, monospace;
+
+  --gutter: clamp(16px, 4vw, 56px);
+  --bar-h: 64px;          /* 桌面顶栏 */
+  --tab-h: 68px;          /* 手机底栏 */
+  /* 安卓 WebView 的 env() 靠不住：原生侧量好系统栏 / 刘海，写进 --native-safe-*（见 MainActivity），两者取大 */
+  --safe-b: max(env(safe-area-inset-bottom, 0px), var(--native-safe-bottom, 0px));
+  --safe-t: max(env(safe-area-inset-top, 0px), var(--native-safe-top, 0px));
+
+  /* 远景：深午夜紫只留一点，主体黑金 */
+  --nebula-1: rgba(120, 96, 170, 0.16);
+  --nebula-2: rgba(233, 203, 139, 0.08);
+  --nebula-3: rgba(70, 60, 110, 0.12);
+  color-scheme: dark;
+}

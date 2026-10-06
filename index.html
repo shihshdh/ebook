@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f4efe6" />
+    <!-- 封面走这两个图片代理：页面一加载就先把连接建好，第一批封面省掉一次 TLS 握手 -->
+    <link rel="preconnect" href="https://wsrv.nl" />
+    <link rel="preconnect" href="https://i0.wp.com" />
+    <!-- 首帧前定好明暗，避免先闪一下另一种底色 -->
+    <script>try{var a=(JSON.parse(localStorage.getItem('librarium.accounts')||'null')||{}).current,k='librarium.theme'+(a&&a!=='default'?'@'+a:'');document.documentElement.setAttribute('data-theme',localStorage.getItem(k)==='dark'?'dark':'light')}catch(e){document.documentElement.setAttribute('data-theme','light')}</script>
+    <title>EBOOK</title>
+    <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

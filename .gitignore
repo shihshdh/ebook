@@ -1,0 +1,21 @@
+# 依赖与构建产物
+node_modules/
+dist/
+release/
+*.log
+
+# Rust / Tauri（src-tauri/target 在本机是指向 D:\DevCache 的链接）
+src-tauri/target
+src-tauri/gen/schemas/
+
+# 安卓正式签名：密钥文件和口令永远不进仓库
+android/keystore/
+android/keystore.properties
+*.jks
+*.keystore
+
+# 本地缓存、测试截图
+scripts/.npm-cache/
+src/reader/.verify/
+.DS_Store
+Thumbs.db

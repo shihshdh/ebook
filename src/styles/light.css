@@ -1,0 +1,158 @@
+/* ============================================================
+   浅色主题「象牙纸」—— 白天的书房：暖白纸底、墨色字、深一点的金色做点缀，玻璃是带一点奶白的清玻璃。
+   做法：只在 [data-theme="light"] 下覆盖，深色的原样式一行不动。
+   变量块同时声明一份 [data-theme="dark"]：阅读器会按纸张给自己设主题，浅色页面里的夜读纸张也要拿到深色变量。
+   ============================================================ */
+[data-theme="light"] {
+  --bg: #f4efe6;
+  --bg-2: #ebe4d6;
+  --ink: #211c15;
+  --ink2: rgba(33, 28, 21, .68);
+  --ink3: rgba(33, 28, 21, .62);   /* 小字也要 4.5:1：.46 只有 2.8:1，看着发灰 */
+  --line: rgba(60, 44, 20, .12);
+  --line2: rgba(60, 44, 20, .22);
+  --gold: #8a5f1c;   /* 金色字在象牙纸上 4.9:1（原 #a5762a 只有 3.5:1） */
+  --gold-deep: #7f5a1c;
+  --gold-foil: linear-gradient(100deg, #6d4c16 0%, #b8862f 36%, #8a6421 55%, #cf9f48 70%, #6d4c16 100%);
+  --accent: var(--gold);
+  --surface-tint: rgba(255, 255, 255, .6);
+  --surface-rim: rgba(255, 255, 255, .95);
+  --surface-shadow: rgba(90, 66, 30, .22);
+  --glass-base: rgba(255, 252, 246, .55);
+  --glass-hi: rgba(255, 255, 255, .7);
+  --glass-dense: rgba(252, 249, 243, .97);
+  --soft: rgba(255, 255, 255, .55);
+  --soft-2: rgba(255, 255, 255, .9);
+  --tile: #e6decd;
+  --scrim: rgba(60, 44, 20, .22);
+  --on-accent: #1a140a;
+  --nebula-1: rgba(222, 196, 150, .45);
+  --nebula-2: rgba(233, 210, 160, .35);
+  --nebula-3: rgba(196, 206, 220, .35);
+  color-scheme: light;
+}
+[data-theme="dark"] {
+  --bg: #080706; --bg-2: #0e0c0a;
+  --ink: #f4efe3; --ink2: rgba(244, 239, 227, .68); --ink3: rgba(244, 239, 227, .5);
+  --line: rgba(255, 246, 225, .11); --line2: rgba(255, 246, 225, .2);
+  --gold: #e9cb8b; --gold-deep: #b8914a; --accent: var(--gold);
+  --surface-tint: rgba(255, 255, 255, .075); --surface-rim: rgba(255, 249, 232, .34); --surface-shadow: rgba(2, 0, 12, .55);
+  --glass-base: rgba(14, 12, 10, .46); --glass-hi: rgba(255, 248, 228, .13); --glass-dense: rgba(16, 13, 11, .94);
+  --soft: rgba(255, 255, 255, .04); --soft-2: rgba(255, 255, 255, .08); --tile: #14110e; --scrim: rgba(4, 3, 2, .55);
+  color-scheme: dark;
+}
+
+/* 切换主题时整页过渡一下 */
+html.theme-fade, html.theme-fade * { transition: background-color .45s ease, color .45s ease, border-color .45s ease !important; }
+
+[data-theme="light"] body::after { opacity: .045; }
+[data-theme="light"] ::selection { background: rgba(165, 118, 42, .22); }
+
+/* ---------- 通用 ---------- */
+[data-theme="light"] .chip[aria-pressed="true"] { color: #f7f1e6; background: #2a2218; border-color: #2a2218; }
+[data-theme="light"] .btn-gold { box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 10px 26px -12px rgba(165, 118, 42, .55); }
+[data-theme="light"] .glass { box-shadow: inset 0 1px 1px var(--surface-rim), inset 0 -1px 1px rgba(165, 118, 42, .06), 0 20px 50px -26px var(--surface-shadow); }
+
+/* ---------- 顶栏 / 开屏 / 提示 ---------- */
+[data-theme="light"] .topbar::before { background: linear-gradient(180deg, rgba(244, 239, 230, .9), rgba(244, 239, 230, .55) 60%, rgba(244, 239, 230, 0)); }
+[data-theme="light"] .splash { background: radial-gradient(60% 50% at 50% 46%, #fbf6ec, #efe7d8 70%); }
+[data-theme="light"] .splash.is-fly { background: transparent; }
+[data-theme="light"] .tabbar .liquid-thumb { background: linear-gradient(180deg, rgba(255, 255, 255, .9), rgba(246, 227, 180, .45)); box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(165, 118, 42, .3), 0 6px 14px -8px rgba(165, 118, 42, .5); }
+
+/* ---------- 首页 ---------- */
+[data-theme="light"] .hero-title { text-shadow: 0 10px 40px rgba(244, 239, 230, .9); }
+[data-theme="light"] .river-fallback { background: radial-gradient(40% 50% at 70% 55%, rgba(216, 180, 108, .28), transparent 70%), radial-gradient(30% 40% at 20% 30%, rgba(180, 196, 216, .3), transparent 70%); }
+[data-theme="light"] .page-river { background: var(--bg) !important; }
+[data-theme="light"] .page-river-still { background: radial-gradient(ellipse at 70% 48%, rgba(216, 180, 108, .3), transparent 45%) !important; }
+[data-theme="light"] .continue-card, [data-theme="light"] .result { background: rgba(255, 255, 255, .55); }
+[data-theme="light"] .continue-card:hover, [data-theme="light"] .result:hover { background: rgba(255, 255, 255, .85); border-color: rgba(165, 118, 42, .35); }
+[data-theme="light"] .world-card { background: linear-gradient(170deg, rgba(255, 255, 255, .7), rgba(255, 255, 255, .25)); }
+[data-theme="light"] .world-glyph { filter: none; }
+[data-theme="light"] .skeleton-disc { background: linear-gradient(100deg, rgba(0, 0, 0, .03) 30%, rgba(0, 0, 0, .06) 50%, rgba(0, 0, 0, .03) 70%); background-size: 300% 100%; }
+
+/* ② 光盘 */
+[data-theme="light"] .disc-title { background: linear-gradient(180deg, #1c1710, #5b4a30); -webkit-background-clip: text; background-clip: text; }
+[data-theme="light"] .disc { filter: drop-shadow(0 calc(10px + 16px * var(--lift, 0)) calc(16px + 14px * var(--lift, 0)) rgba(90, 66, 30, .38)); }
+[data-theme="light"] .disc-face { background: var(--tile); }
+
+/* ③ 瀑布流 */
+[data-theme="light"] .mw-tile { background: var(--tile); box-shadow: 0 1px 0 rgba(255, 255, 255, .8) inset, 0 16px 34px -22px rgba(90, 66, 30, .55); }
+[data-theme="light"] .mw-quote { background: linear-gradient(160deg, #fffaf0, #efe6d3); border-color: var(--line2); }
+[data-theme="light"] .mw-quote p { color: #241d13; }
+[data-theme="light"] .select select { background-color: rgba(255, 255, 255, .6); }
+[data-theme="light"] .select option { background: #fff; }
+
+/* ① 世界切换 */
+[data-theme="light"] .ws { background: radial-gradient(60% 46% at 50% 108%, var(--wg), transparent 70%), linear-gradient(180deg, #fbf7ef, #ece3d2); }
+[data-theme="light"] .ws-back-title { color: #211c15; }
+[data-theme="light"] .ws-scene { background: #efe7d8; }
+[data-theme="light"] .ws-shade { background: linear-gradient(90deg, rgba(246, 241, 232, .95) 0%, rgba(246, 241, 232, .65) 45%, rgba(246, 241, 232, .08) 80%), linear-gradient(0deg, rgba(246, 241, 232, .85), transparent 40%); }
+[data-theme="light"] .ws-headline h2 { color: #1c1710; }
+[data-theme="light"] .ws-headline h2 em { filter: brightness(.8) saturate(1.2); }
+[data-theme="light"] .ws-glyph { filter: drop-shadow(0 24px 40px rgba(120, 86, 30, .28)); }
+[data-theme="light"] .ws-dock { background: rgba(255, 252, 246, .62); }
+[data-theme="light"] .ws-all.on { color: #f7f1e6; background: #2a2218; }
+
+/* ⑤ 文件夹：奶油色牛皮纸文件夹 */
+[data-theme="light"] .ff-stage {
+  --f-back: linear-gradient(170deg, #ead9b8, #d9c196 55%, #c9ab78); --f-tab: #efdfc0;
+  --f-pocket: linear-gradient(165deg, #fdf7eac8, #ecdcbcbc 58%, #dcc59ac8); --f-rim: #ffffffc0; --f-deep: #7a5a2a26; --f-shadow: #5a422055;
+  --f-ink: #3a2c16; --f-accent: #9a6c22; --f-badge: radial-gradient(circle at 35% 30%, #fff6dc, #e9cb8b 55%, #c49a50);
+}
+[data-theme="light"] .ff-face { background: var(--tile); border-color: #ffffffe6; }
+[data-theme="light"] .ff-sticker, [data-theme="light"] .ff-tag, [data-theme="light"] .ff-arrow { background: #fff; }
+[data-theme="light"] .ff-puff {
+  color: #fbf3e2; opacity: 1;
+  text-shadow: 0 1px 0 #f3e6cb, 0 2px 0 #eedebe, 0 3px 0 #e8d5b1, 0 4px 0 #e2cca4, 0 5px 0 #dcc398, 0 6px 0 #d6bb8d,
+    0 14px 22px #a07a3a33, 0 28px 50px #8a663022, 0 -2px 2px #ffffffcc;
+}
+
+/* ④ 搜索页玻璃（静态降级版） */
+[data-theme="light"] .prism-glass { background: #e9e2d3; color: #211c15; }
+[data-theme="light"] .prism-glass.is-static { background: radial-gradient(ellipse at 80% 28%, #d8b46c40, transparent 55%), radial-gradient(ellipse at 18% 90%, #a9b8c840, transparent 55%), #e9e2d3; }
+[data-theme="light"] .prism-glass.is-static::before, [data-theme="light"] .prism-glass.is-static::after { border-color: #ffffffaa; background: linear-gradient(125deg, #ffffff66, transparent 55%, #d8b46c14); }
+[data-theme="light"] .prism-copy p, [data-theme="light"] .prism-caption { color: #6b6253; }
+[data-theme="light"] .prism-fallback { background: radial-gradient(40% 50% at 78% 30%, rgba(216, 180, 108, .3), transparent 70%), radial-gradient(40% 50% at 18% 90%, rgba(169, 184, 200, .3), transparent 70%); }
+
+/* ---------- 详情 / 书架 / 插件 ---------- */
+[data-theme="light"] .sheet-scrim { background: var(--scrim); }
+[data-theme="light"] .sheet-cover { box-shadow: 0 26px 44px -20px rgba(90, 66, 30, .6), 0 0 0 1px rgba(60, 44, 20, .1); }
+[data-theme="light"] .sheet-cover-glow { background: radial-gradient(closest-side, rgba(216, 180, 108, .4), transparent); }
+[data-theme="light"] .shelf-cover { box-shadow: inset 6px 0 8px -6px rgba(60, 44, 20, .45), 0 20px 28px -18px rgba(90, 66, 30, .6), 0 0 0 1px rgba(60, 44, 20, .08); }
+[data-theme="light"] .shelf-ext { background: rgba(255, 252, 246, .85); }
+[data-theme="light"] .shelf-del { background: #fff; }
+[data-theme="light"] .drop-hint { background: rgba(244, 239, 230, .92); }
+[data-theme="light"] .plugin-facts div { background: rgba(255, 255, 255, .55); }
+[data-theme="light"] .switch { background: rgba(60, 44, 20, .08); }
+[data-theme="light"] .switch i { background: #fff; box-shadow: 0 1px 3px rgba(60, 44, 20, .3); }
+[data-theme="light"] .switch.on { background: rgba(165, 118, 42, .25); }
+[data-theme="light"] .switch.on i { background: #b8862f; }
+
+/* ---------- 阅读器：浅色纸张时的工具栏 ---------- */
+.reader2[data-theme="light"] .rd-btn:hover { background: rgba(60, 44, 20, .06); }
+.reader2[data-theme="light"] .liquid-tabs { background: rgba(60, 44, 20, .07); box-shadow: inset 0 1px 2px rgba(60, 44, 20, .12); }
+.reader2[data-theme="light"] .liquid-tabs-thumb { background: linear-gradient(180deg, #fff, rgba(255, 249, 235, .85)); box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(165, 118, 42, .3), 0 6px 14px -8px rgba(90, 66, 30, .45); }
+.reader2[data-theme="light"] .rd-track { background: rgba(60, 44, 20, .12); }
+.reader2[data-theme="light"] .rd-tick { background: rgba(60, 44, 20, .3); }
+.reader2[data-theme="light"] .rd-ribbon svg { fill: rgba(60, 44, 20, .1); stroke: rgba(60, 44, 20, .2); }
+.reader2[data-theme="light"] .rd-ribbon.on svg { fill: #c99b46; stroke: #fff4d6; }
+.reader2[data-theme="light"] .rd-scrim { background: rgba(60, 44, 20, .14); }
+.reader2[data-theme="light"] .rd-toc li button:hover { background: rgba(60, 44, 20, .05); }
+.reader2[data-theme="light"] .rd-toc li.is-current button { background: linear-gradient(90deg, rgba(165, 118, 42, .14), transparent); }
+.reader2[data-theme="light"] .rd-row .rd-btn { background: rgba(60, 44, 20, .05); }
+.reader2[data-theme="light"] .rd-papers button { border-color: rgba(60, 44, 20, .15); }
+.is-desk.mode-paginated .rd-content { box-shadow: 0 0 0 1px var(--line), 0 30px 90px -40px var(--surface-shadow); }
+
+/* 首页：浅色下纸页更显眼，标题后面垫一层象牙色柔光，纸河整体淡一点 */
+[data-theme="light"] .hero-copy::before {
+  content: ""; position: absolute; z-index: -1; left: -8%; top: -18%; width: 115%; height: 136%; pointer-events: none;
+  background: radial-gradient(closest-side, rgba(244, 239, 230, .92), rgba(244, 239, 230, .7) 55%, rgba(244, 239, 230, 0));
+}
+[data-theme="light"] .hero-river { opacity: .82; }
+@media (max-width: 760px) {
+  [data-theme="light"] .hero-copy::before { left: -20%; width: 140%; top: -12%; height: 124%; background: radial-gradient(closest-side, rgba(244, 239, 230, .97), rgba(244, 239, 230, .85) 60%, rgba(244, 239, 230, 0)); }
+  [data-theme="light"] .hero-river { opacity: .6; }
+}
+
+[data-theme="light"] .netdiag-group h3 em { color: #b0473a; }
+[data-theme="light"] .netdiag-group li.is-bad .netdiag-bar b { background: #b0473a; }

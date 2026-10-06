@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- 安卓自适应图标前景：透明底，E 缩到中间 66% 安全区内；底色由原生侧铺 #0d0b09 -->
+  <defs>
+    <linearGradient id="foil" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a8823f"/>
+      <stop offset=".38" stop-color="#f6e3b4"/>
+      <stop offset=".55" stop-color="#d9b46c"/>
+      <stop offset=".7" stop-color="#fff4d6"/>
+      <stop offset="1" stop-color="#b8914a"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(512 512) scale(.86) translate(-526 -512)">
+    <path fill="url(#foil)" d="M336 272H688V384H676C666 346 640 318 584 318H456V494H566C588 494 598 480 602 452H616V578H602C598 550 588 536 566 536H456V706H598C660 706 690 680 702 626H716L704 752H336V730Q380 726 384 700V324Q380 298 336 294Z"/>
+  </g>
+</svg>

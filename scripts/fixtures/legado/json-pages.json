@@ -1,0 +1,8 @@
+{
+  "search": { "results": [{ "name": "夜读", "author": "乙作者", "url": "books/1", "cover": "//images.fixture.invalid/1.jpg", "words": "12000" }] },
+  "book": { "title": "夜读", "author": "乙作者", "intro": "另一份夹具", "cover": "../../covers/1.jpg", "toc": "../toc/1?page=1" },
+  "toc1": { "chapters": [{ "title": "第一章", "url": "../chapter/1?part=1" }], "next": "?page=2" },
+  "toc2": { "chapters": [{ "title": "第一章", "url": "../chapter/1?part=1" }, { "title": "第二章", "url": "../chapter/2?part=1" }], "next": "?page=1" },
+  "content1": { "paragraphs": ["一。", "二。广告"], "next": "?part=2" },
+  "content2": { "paragraphs": ["三。", "四。"], "next": "2?part=1" }
+}

@@ -1,0 +1,53 @@
+.mw-grid { columns: 5 200px; column-gap: 16px; }
+.mw-tile {
+  position: relative; margin: 0 0 16px; break-inside: avoid; border-radius: 14px; overflow: hidden; cursor: pointer;
+  background: #14110e; aspect-ratio: 5 / 7; isolation: isolate;
+  box-shadow: 0 1px 0 rgba(255, 246, 225, .08) inset, 0 18px 40px -24px rgba(0, 0, 0, .9);
+  animation: mw-in .7s var(--ease) both; animation-delay: calc(var(--i, 0) * 35ms);
+}
+@keyframes mw-in { from { opacity: 0; transform: translate3d(0, 18px, 0); } }
+.mw-tile .cover, .mw-tile .cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.mw-tile .cover img { transition: transform .7s var(--ease), filter .5s; }
+.mw-tile:hover .cover img { transform: scale(1.04); }
+.mw-tile:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.mw-glitch { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+.mw-badge {
+  position: absolute; top: 10px; left: 10px; z-index: 3; padding: 2px 9px; border-radius: 99px;
+  font-size: 11px; letter-spacing: .08em; color: #1a140a; background: linear-gradient(180deg, #f3dca6, #d8b56f);
+}
+.mw-tile figcaption {
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 3; display: flex; flex-direction: column; gap: 2px;
+  padding: 40px 14px 12px; background: linear-gradient(180deg, transparent, rgba(8, 7, 6, .92));
+  transform: translate3d(0, 12px, 0); opacity: 0; transition: transform .5s var(--ease), opacity .4s;
+}
+.mw-tile:hover figcaption, .mw-tile figcaption.always { transform: none; opacity: 1; }
+.mw-tile figcaption strong { font-family: var(--serif); font-weight: 600; font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mw-tile figcaption span { font-size: 11.5px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 文字卡：大字短句里嵌一个小金点（仿灵感站 "Your ◎ doesn't know…"） */
+.mw-quote {
+  aspect-ratio: auto; padding: 22px 20px 18px; background: linear-gradient(160deg, #1b1712, #110e0b);
+  border: 1px solid var(--line);
+}
+.mw-quote p { margin: 0 0 14px; font-size: 21px; line-height: 1.5; font-weight: 600; color: #f1e7d2; letter-spacing: .01em; }
+.mw-quote small { color: var(--ink3); font-size: 12px; }
+.mw-dot { display: inline-block; width: .62em; height: .62em; margin: 0 .12em; border-radius: 50%; vertical-align: .05em;
+  background: radial-gradient(circle at 35% 30%, #fff4d6, #d9b46c 60%, #8a6a32); box-shadow: 0 0 14px rgba(233, 203, 139, .5); }
+
+/* 翻页书：所有帧叠放，只切 opacity */
+.mw-flip { outline: 1px solid rgba(233, 203, 139, .35); outline-offset: -1px; }
+.mw-flip img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; }
+.mw-flip img.on { opacity: 1; }
+
+.mw-more { padding: 30px 0 10px; text-align: center; font-size: 12px; letter-spacing: .1em; }
+
+@media (max-width: 760px) {
+  .mw-grid { columns: 2; column-gap: 10px; }
+  .mw-tile { margin-bottom: 10px; border-radius: 12px; }
+  .mw-tile figcaption { transform: none; opacity: 1; padding: 30px 10px 9px; }
+  .mw-tile figcaption strong { font-size: 13px; }
+  .mw-quote p { font-size: 17px; }
+}
+@media (prefers-reduced-motion: reduce) { .mw-tile { animation: none; } }
+/* 台版：官方彩插，但要去蓝奏云手动下——用描边款和"插图"（应用内一键下）区分开 */
+.mw-badge.is-taiban { color: #f6e3b4; background: rgba(20, 16, 10, .62); box-shadow: inset 0 0 0 1px rgba(233, 203, 139, .55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }

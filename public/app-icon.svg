@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- EBOOK 图标：暖黑底 + 台灯一样的顶光 + 金箔书衣线框 + 衬线 E（和生成封面同一套书衣语言） -->
+  <defs>
+    <radialGradient id="bg" cx=".5" cy=".26" r=".95">
+      <stop offset="0" stop-color="#33261a"/>
+      <stop offset=".55" stop-color="#15110d"/>
+      <stop offset="1" stop-color="#0b0907"/>
+    </radialGradient>
+    <linearGradient id="foil" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a8823f"/>
+      <stop offset=".38" stop-color="#f6e3b4"/>
+      <stop offset=".55" stop-color="#d9b46c"/>
+      <stop offset=".7" stop-color="#fff4d6"/>
+      <stop offset="1" stop-color="#b8914a"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
+  <rect x="120" y="120" width="784" height="784" rx="112" fill="none" stroke="url(#foil)" stroke-width="5" opacity=".7"/>
+  <rect x="142" y="142" width="740" height="740" rx="94" fill="none" stroke="#d9b46c" stroke-width="2" opacity=".32"/>
+  <path transform="translate(-14 0)" fill="url(#foil)" d="M336 272H688V384H676C666 346 640 318 584 318H456V494H566C588 494 598 480 602 452H616V578H602C598 550 588 536 566 536H456V706H598C660 706 690 680 702 626H716L704 752H336V730Q380 726 384 700V324Q380 298 336 294Z"/>
+</svg>

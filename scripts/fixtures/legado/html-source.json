@@ -1,0 +1,9 @@
+{
+  "bookSourceName": "本地 HTML 夹具", "bookSourceUrl": "https://html.fixture.invalid/",
+  "header": "{\"User-Agent\":\"Fixture Reader\"}",
+  "searchUrl": "/search,{\"method\":\"POST\",\"body\":\"q={{key}}&page={{page}}\"}",
+  "ruleSearch": { "bookList": "class.book", "name": "tag.a@text", "author": "class.author@text", "bookUrl": "tag.a@href", "coverUrl": "tag.img@src" },
+  "ruleBookInfo": { "name": "tag.h1@text", "author": "class.author@text", "intro": "class.intro@text", "coverUrl": "tag.img@src", "tocUrl": "id.toc@href" },
+  "ruleToc": { "chapterList": "class.chapter", "chapterName": "@text", "chapterUrl": "@href", "nextTocUrl": "id.next@href" },
+  "ruleContent": { "content": "id.content@html", "nextContentUrl": "id.next@href", "replaceRegex": "广告##" }
+}

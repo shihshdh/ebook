@@ -1,0 +1,74 @@
+.ff-stage {
+  --f-back: linear-gradient(170deg, #3b372f, #2b2823 55%, #211f1b); --f-tab: #423d34;
+  --f-pocket: linear-gradient(165deg, #504a3ec0, #302d27b8 58%, #25231ec4); --f-rim: #d4af6a59; --f-deep: #0006; --f-shadow: #000a;
+  --f-ink: #f3eee4; --f-accent: #b8935a; --f-badge: radial-gradient(circle at 35% 30%, #f6e3b8, #d4af6a 55%, #a9843f);
+  position: relative; height: 470px; display: grid; place-items: end center; padding-bottom: 20px; overflow: visible;
+}
+
+/* 充气金箔气球字：一层正文 + 逐像素下移的阴影叠出厚度 + 一层柔和投影；遮罩从左扫到右像笔尖写过去 */
+.ff-puff {
+  position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%) rotate(-6deg);
+  font: italic 700 clamp(120px, 16vw, 230px)/1 'Segoe Script', 'Brush Script MT', 'Snell Roundhand', cursive;
+  letter-spacing: -.02em; white-space: nowrap; pointer-events: none; user-select: none;
+  color: #e9cb8b;
+  text-shadow: 0 1px 0 #d9b46c, 0 2px 0 #c9a35c, 0 3px 0 #b8914a, 0 4px 0 #a8823f, 0 5px 0 #957233, 0 6px 0 #82632b,
+    0 14px 22px #0009, 0 28px 50px #0006, 0 -2px 2px #fff4d6aa;
+  -webkit-mask-image: linear-gradient(104deg, #000 42%, transparent 58%); mask-image: linear-gradient(104deg, #000 42%, transparent 58%);
+  -webkit-mask-size: 320% 100%; mask-size: 320% 100%; -webkit-mask-position: 100% 0; mask-position: 100% 0;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  opacity: .9;
+}
+.ff-puff[data-written] { animation: ff-write 3.6s cubic-bezier(.42, 0, .38, 1) .2s forwards; }
+@keyframes ff-write { to { -webkit-mask-position: 0 0; mask-position: 0 0; } }
+
+.ff-folder { position: relative; width: 320px; height: 222px; }
+.ff-back { position: absolute; inset: 0; border-radius: 22px; background: var(--f-back); box-shadow: 0 26px 50px -24px var(--f-shadow), inset 0 1px 0 var(--f-rim); }
+.ff-back::before { content: ""; position: absolute; left: 18px; top: -14px; width: 112px; height: 34px; border-radius: 14px 14px 0 0; background: var(--f-tab); }
+
+/* 外层 .ff-card 是感应区，只随展开移动；里层 .ff-face 是卡面，悬停时在感应区里抬起——鼠标不会从卡片下面滑出去再滑回来 */
+.ff-card {
+  position: absolute; left: calc(50% - 60px); bottom: 38px; width: 120px; height: 168px; padding: 0; border: 0; background: none; cursor: pointer;
+  transform-origin: 50% 100%; transform: translate3d(var(--rest-x), 0, 0) rotate(var(--rest-r));
+  transition: transform .95s cubic-bezier(.34, 1.45, .64, 1) var(--delay);
+}
+.ff-face {
+  position: absolute; inset: 0; border: 3px solid #f3eee4cc; border-radius: 12px; background: #1a1612;
+  box-shadow: 0 10px 22px -12px var(--f-shadow); transform-origin: 50% 100%;
+  transition: transform .6s cubic-bezier(.34, 1.45, .64, 1), box-shadow .45s, border-color .45s;
+}
+.ff-photo { display: block; width: 100%; height: 100%; border-radius: 9px; overflow: hidden; }
+.ff-photo img, .ff-photo .cover { display: block; width: 100%; height: 100%; object-fit: cover; }
+.ff-tag {
+  position: absolute; top: -12px; left: 50%; transform: translateX(-50%) rotate(-4deg); max-width: 112px; padding: 3px 9px; border-radius: 99px;
+  background: #f3eee4; color: #6b5328; font: 10px/1.3 var(--mono); letter-spacing: .02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  box-shadow: 0 4px 10px -4px #0008;
+}
+.ff-stage[data-open] .ff-card { transform: translate3d(var(--open-x), var(--open-y), 0) rotate(var(--open-r)) scale(1.12); }
+.ff-card:hover, .ff-card:focus-visible { z-index: 20 !important; }
+.ff-card:hover .ff-face, .ff-card:focus-visible .ff-face { transform: translate3d(0, -32px, 0) scale(1.08); border-color: #fff; box-shadow: 0 26px 40px -16px var(--f-shadow); }
+
+/* 前袋：磨砂玻璃 */
+.ff-pocket {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 158px; z-index: 30; padding: 0; border: 0; border-radius: 22px; cursor: pointer; text-align: left;
+  background: var(--f-pocket); -webkit-backdrop-filter: blur(12px) saturate(1.3); backdrop-filter: blur(12px) saturate(1.3);
+  box-shadow: inset 0 1.5px 0 var(--f-rim), inset 0 -10px 24px var(--f-deep), 0 18px 30px -18px var(--f-shadow);
+}
+.ff-badge { position: absolute; left: 28px; top: 22px; width: 56px; height: 56px; border-radius: 50%; background: var(--f-badge); box-shadow: 0 0 0 4px #f3eee4, 0 8px 14px -6px #0008; transform: rotate(-10deg); }
+.ff-badge i { position: absolute; top: 19px; width: 12px; height: 15px; border-radius: 50%; background: #fff; box-shadow: inset 3px 2px 0 1px #222; }
+.ff-badge i:first-child { left: 14px; } .ff-badge i:last-child { left: 30px; }
+.ff-sticker { position: absolute; right: 60px; top: 28px; padding: 6px 9px; border-radius: 9px; background: #f3eee4; color: color-mix(in srgb, var(--f-accent) 68%, #000); font: 800 12px/1 var(--mono); transform: rotate(9deg); box-shadow: 0 6px 12px -6px #0008; }
+.ff-label { position: absolute; left: 24px; bottom: 18px; color: var(--f-ink); font-size: 20px; font-weight: 700; display: flex; align-items: baseline; gap: 8px; font-family: var(--serif); }
+.ff-label small { font-size: 11px; font-weight: 500; opacity: .8; font-family: var(--sans); }
+.ff-arrow { position: absolute; right: 18px; bottom: 16px; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #f3eee4; color: var(--f-accent); font-size: 16px; transition: transform .3s cubic-bezier(.34, 1.56, .64, 1); }
+.ff-stage[data-open] .ff-arrow { transform: translateX(3px); }
+
+@media (max-width: 760px) {
+  .ff-stage { height: 400px; }
+  .ff-folder { transform: scale(.82); transform-origin: 50% 100%; }
+  .ff-stage[data-open] .ff-card { transform: translate3d(calc(var(--open-x) * .62), var(--open-y), 0) rotate(calc(var(--open-r) * .8)) scale(1.04); }
+  .ff-puff { font-size: 110px; top: 30%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ff-card, .ff-face, .ff-arrow { transition: none; }
+  .ff-puff, .ff-puff[data-written] { -webkit-mask-image: none; mask-image: none; animation: none; }
+}

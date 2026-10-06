@@ -1,0 +1,31 @@
+[package]
+name = "librarium"
+version = "0.3.6"
+description = "EBOOK"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+# unsafe-headers：Legado 书源常要带 Referer / Cookie，默认会被当成禁用头丢掉
+tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
+tauri-plugin-opener = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2"
+url = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+percent-encoding = "2"
+
+# 再次启动时探测旧实例是否卡死（见 main.rs guard_frozen_instance）；单实例插件已经在用 0.59，不额外下载
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

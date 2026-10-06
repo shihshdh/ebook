@@ -1,0 +1,61 @@
+.discshelf { position: relative; padding: 8px 0 0; }
+
+/* 片名表：衬线大标题 + 细线资料行（唱片封底的编辑感） */
+.disc-sheet { position: relative; z-index: 300; max-width: 460px; pointer-events: none; animation: sheet-in .62s var(--ease) both; }
+.disc-sheet .eyebrow { margin: 0 0 12px; }
+.disc-title {
+  margin: 0 0 16px; font-size: clamp(30px, 3.8vw, 52px); line-height: 1.05; font-weight: 600; letter-spacing: .01em;
+  text-wrap: balance; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+  background: linear-gradient(180deg, #fff8ea, #e6d6b6); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.disc-facts { margin: 0; max-width: 340px; font-size: 12px; color: var(--ink2); }
+.disc-facts div { display: flex; justify-content: space-between; gap: 18px; padding: 6px 0; border-top: 1px solid var(--line); }
+.disc-facts div:last-child { border-bottom: 1px solid var(--line); }
+.disc-facts dt { font-family: var(--display); letter-spacing: .2em; font-size: 9.5px; color: var(--ink3); padding-top: 2px; }
+.disc-facts dd { margin: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@keyframes sheet-in { from { opacity: 0; transform: translate3d(0, 10px, 0); filter: blur(4px); } }
+
+/* 舞台：光盘绝对定位，变换由脚本逐帧写入 */
+.disc-stage { position: relative; height: clamp(340px, 40vw, 500px); margin-top: -170px; touch-action: pan-y; cursor: grab; outline: none; user-select: none; -webkit-user-select: none; }
+.disc-stage:active { cursor: grabbing; }
+.disc-stage:focus-visible { box-shadow: 0 0 0 2px var(--gold); border-radius: 18px; }
+.disc {
+  position: absolute; left: 0; top: 0; padding: 0; border: 0; background: none; border-radius: 50%; cursor: pointer;
+  transform-origin: 50% 50%; will-change: transform, opacity;
+  filter: drop-shadow(0 calc(10px + 16px * var(--lift, 0)) calc(16px + 14px * var(--lift, 0)) rgba(0, 0, 0, .65));
+}
+.disc-face, .disc-sheen {
+  position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
+  -webkit-mask: radial-gradient(circle closest-side, transparent 0 7%, #000 calc(7% + .6px));
+  mask: radial-gradient(circle closest-side, transparent 0 7%, #000 calc(7% + .6px));
+}
+.disc-face { background: #1a1612; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .4), inset 0 0 26px rgba(0, 0, 0, .45); }
+.disc-face .cover, .disc-face img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+/* 彩虹反光：随盘一起转 = 光扫过数据面 */
+.disc-sheen { background: conic-gradient(from 20deg, transparent 0 8%, rgba(255, 255, 255, .3) 12%, rgba(160, 220, 255, .2) 15%, transparent 20% 50%, rgba(255, 230, 190, .26) 58%, rgba(255, 255, 255, .3) 61%, transparent 66%); mix-blend-mode: screen; }
+.disc-sheen::after { content: ""; position: absolute; inset: 0; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .5), inset 0 2px 1px rgba(255, 255, 255, .3); }
+/* 中心：小孔 → 细金环 → 半透明夹持区（黑金版的轮毂） */
+.disc-hub { position: absolute; left: 31%; top: 31%; width: 38%; height: 38%; border-radius: 50%;
+  background: radial-gradient(circle closest-side, transparent 0 36%, #8a6f3c 37%, #f6e3b4 41%, #b8914a 46%, #efdcb0 52%, rgba(40, 32, 22, .78) 53%, rgba(30, 24, 18, .55) 80%, rgba(246, 227, 180, .85) 81.5%, rgba(140, 110, 60, .6) 84%, transparent 86%); }
+
+.disc-quotes { position: relative; z-index: 300; display: flex; gap: 28px; justify-content: center; margin: -8px auto 18px; max-width: 760px; }
+.disc-quotes blockquote { margin: 0; flex: 1; font-family: var(--serif); font-size: 13.5px; line-height: 1.7; color: var(--ink2); animation: sheet-in .7s var(--ease) both .08s; }
+.disc-quotes cite { display: block; margin-top: 4px; font-style: normal; font-family: var(--display); font-size: 9.5px; letter-spacing: .24em; color: var(--ink3); }
+
+.disc-footer { position: relative; z-index: 300; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.disc-hint { flex: 1; margin: 0 0 8px; text-align: center; font-size: 11px; letter-spacing: .08em; color: var(--ink3); }
+.disc-counter { margin: 0; display: flex; align-items: baseline; gap: 8px; color: var(--ink); }
+.disc-counter strong { font-family: var(--display); font-size: 46px; font-weight: 400; letter-spacing: -.02em; line-height: 1; }
+.disc-counter span { font-size: 12px; color: var(--ink3); }
+
+@media (max-width: 760px) {
+  .disc-sheet { max-width: none; }
+  .disc-title { font-size: 30px; }
+  .disc-facts { max-width: none; }
+  .disc-stage { margin-top: -10px; height: 320px; }
+  .disc-quotes { flex-direction: column; gap: 10px; margin-top: 0; }
+  .disc-quotes blockquote:nth-child(2) { display: none; }
+  .disc-hint { display: none; }
+  .disc-counter strong { font-size: 34px; }
+}
+@media (prefers-reduced-motion: reduce) { .disc-sheet, .disc-quotes blockquote { animation: none; } }

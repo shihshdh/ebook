@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">EBOOK</string>
+    <string name="title_activity_main">EBOOK</string>
+    <string name="package_name">app.librarium.reader</string>
+    <string name="custom_url_scheme">app.librarium.reader</string>
+</resources>

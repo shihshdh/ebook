@@ -1,0 +1,40 @@
+{
+  "name": "librarium",
+  "private": true,
+  "version": "0.3.6",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
+    "android:sync": "npm run build && cap sync android",
+    "android:build": "npm run android:sync && cd android && gradlew.bat assembleDebug",
+    "android:release": "npm run android:sync && cd android && gradlew.bat assembleRelease",
+    "icons": "node scripts/make-icons.mjs && tauri icon src-tauri/app-icon.png"
+  },
+  "dependencies": {
+    "@capacitor/app": "^6.0.3",
+    "@capacitor/core": "^6.2.2",
+    "@capacitor/haptics": "^6.0.3",
+    "@tauri-apps/api": "^2.12.1",
+    "@tauri-apps/plugin-http": "^2.8.0",
+    "epubjs": "^0.3.93",
+    "jszip": "^3.10.2",
+    "opencc-js": "^1.4.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.6",
+    "three": "^0.168.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^6.2.2",
+    "@capacitor/cli": "^6.2.2",
+    "@tauri-apps/cli": "^2.12.1",
+    "@vitejs/plugin-react": "^4.7.0",
+    "linkedom": "^0.18.13",
+    "sharp": "^0.35.5",
+    "vite": "^5.4.21"
+  }
+}

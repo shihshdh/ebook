@@ -1,0 +1,124 @@
+/* ================= 本地账户：头像、顶栏菜单、设置页、编辑、解锁 ================= */
+.avatar {
+  display: inline-grid; place-items: center; flex: none; border-radius: 50%; overflow: hidden; color: #f6e3b4;
+  background: radial-gradient(120% 120% at 30% 20%, color-mix(in srgb, var(--av) 70%, #fff 30%), var(--av) 55%, color-mix(in srgb, var(--av) 70%, #000 30%));
+  box-shadow: inset 0 0 0 1px rgba(246, 227, 180, .35), 0 6px 16px -8px rgba(0, 0, 0, .5);
+}
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar .serif { font-weight: 600; line-height: 1; transform: translateY(-.04em); }
+
+/* 切账户：整页淡出再重载，不是生硬地闪一下 */
+html.account-switching body { opacity: 0; transition: opacity .24s var(--ease); }
+
+/* ---------- 顶栏头像菜单 ---------- */
+.acct-menu { position: relative; margin-right: 10px; }
+.acct-trigger { width: 42px; height: 42px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
+.acct-pop {
+  position: absolute; right: 0; top: calc(100% + 10px); z-index: 80; width: 250px; padding: 14px; border-radius: 20px;
+  animation: pop-in .28s var(--ease-back) both; transform-origin: 90% 0;
+}
+.acct-pop .eyebrow { margin: 0 0 8px 6px; font-size: 9.5px; }
+.acct-pop ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.acct-pop li button {
+  width: 100%; display: flex; align-items: center; gap: 10px; padding: 7px 8px; border: 0; border-radius: 12px;
+  background: none; color: var(--ink2); font-size: 14px; text-align: left;
+}
+.acct-pop li button > span:not(.avatar) { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.acct-pop li button:hover { background: var(--soft-2); color: var(--ink); }
+.acct-pop li button.on { color: var(--ink); }
+.acct-pop li button.on svg:last-child { color: var(--gold); }
+.acct-pop-link {
+  display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 10px 8px 2px; border-top: 1px solid var(--line);
+  color: var(--ink2); font-size: 13px; text-decoration: none;
+}
+.acct-pop-link:hover { color: var(--gold); }
+
+/* ---------- 设置页 · 账户 ---------- */
+.acct { margin-bottom: 8px; scroll-margin-top: 120px; }
+.acct-current { display: flex; align-items: center; gap: 16px; padding: 14px; border-radius: var(--r-md); background: var(--soft); border: 1px solid var(--line); }
+.acct-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.acct-who strong { font-size: 19px; }
+.acct-who small { font-size: 12px; }
+.acct-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.acct-list { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.acct-list li { display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 14px; border-radius: var(--r-sm); border: 1px solid var(--line); }
+.acct-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.acct-name svg { color: var(--ink3); }
+.acct-ask { width: 230px; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line2); background: var(--soft); color: var(--ink); font-size: 13px; }
+.acct-ask.is-bad { border-color: #c4563f; animation: lock-shake .36s; }
+.btn.is-danger { color: #fff; background: #b0473a; border-color: #b0473a; }
+.acct-box { margin-top: 10px; padding: 14px 16px; border-radius: var(--r-sm); border: 1px dashed var(--line2); background: var(--soft); animation: fade-in var(--d-layout) var(--ease) both; }
+.acct-box.is-ok { border-style: solid; border-color: rgba(147, 220, 182, .45); }
+.acct-box p { margin: 6px 0 12px; font-size: 13px; line-height: 1.7; }
+.acct-check { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.acct-check input { width: 16px; height: 16px; accent-color: var(--gold); }
+.acct-row-inline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.acct-more { margin-top: 12px; }
+.acct-note { margin: 8px 0 0; font-size: 12px; }
+.acct-bar { width: 220px; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.acct-bar b { display: block; height: 100%; background: var(--gold); transform-origin: left; transition: transform .2s; }
+
+/* ---------- 编辑账户 ---------- */
+.acct-modal { position: fixed; inset: 0; z-index: 140; display: grid; place-items: center; padding: 16px; }
+.acct-scrim { position: absolute; inset: 0; background: var(--scrim); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: fade-in .25s both; }
+.acct-dialog {
+  position: relative; width: min(460px, 100%); max-height: calc(100dvh - 32px); overflow: auto; padding: 20px 22px; border-radius: 24px;
+  animation: pop-in .32s var(--ease-back) both;
+  /* 实底：弹窗里要填字，背后的页面不能透出来 */
+  background: linear-gradient(145deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .015)), var(--bg-2);
+  box-shadow: 0 30px 80px -30px rgba(0, 0, 0, .55), inset 0 1px 0 var(--glass-hi);
+}
+.acct-dialog header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.acct-dialog h3 { margin: 0; font-size: 19px; }
+.acct-dialog footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 18px; }
+.acct-ed-top { display: flex; align-items: flex-end; gap: 16px; margin-bottom: 16px; }
+.acct-ed-top .acct-field { flex: 1; margin: 0; }
+.acct-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; font-size: 13px; }
+.acct-field > span { color: var(--ink3); font-size: 12px; letter-spacing: .08em; }
+.acct-field input:not([type="file"]), .acct-pins input {
+  height: 40px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line2); background: var(--soft); color: var(--ink); font: 15px var(--sans);
+}
+.acct-field input:focus, .acct-pins input:focus { border-color: var(--gold); }
+.acct-field small { font-size: 11.5px; line-height: 1.6; }
+.acct-colors { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.acct-swatch { width: 26px; height: 26px; border-radius: 50%; border: 0; padding: 0; background: var(--av); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); transition: transform var(--d-fb); }
+.acct-swatch:hover { transform: scale(1.1); }
+.acct-swatch.on { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--gold); }
+.acct-pins { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+.acct-err { margin: 0; color: #c4563f; font-size: 13px; }
+
+/* ---------- 解锁 ---------- */
+.lock { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; padding: 16px; background: var(--bg); }
+.lock::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 50% at 50% 30%, color-mix(in srgb, var(--gold) 16%, transparent), transparent 70%); pointer-events: none; }
+.lock-card { position: relative; width: min(360px, 100%); padding: 30px 26px 22px; border-radius: 30px; display: flex; flex-direction: column; align-items: center; text-align: center; animation: pop-in .45s var(--ease-back) both; }
+.lock-card h1 { margin: 14px 0 2px; font-size: 24px; }
+.lock-card > p { margin: 0; font-size: 13px; }
+.lock-dots { display: flex; gap: 14px; margin: 22px 0 6px; }
+.lock-dots i { width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--gold); transition: background var(--d-fb), transform var(--d-fb); }
+.lock-dots i.on { background: var(--gold); transform: scale(1.05); }
+.lock-dots.is-bad { animation: lock-shake .36s; }
+.lock-dots.is-bad i { border-color: #c4563f; }
+.lock-dots.is-bad i.on { background: #c4563f; }
+@keyframes lock-shake { 20% { transform: translateX(-8px); } 40% { transform: translateX(7px); } 60% { transform: translateX(-5px); } 80% { transform: translateX(3px); } }
+.lock-msg { margin: 0 0 10px; height: 18px; font-size: 12.5px; color: #c4563f; }
+.lock-pad { display: grid; grid-template-columns: repeat(3, 66px); gap: 10px; }
+.lock-key {
+  width: 66px; height: 66px; border-radius: 50%; border: 1px solid var(--line); background: var(--soft); color: var(--ink);
+  font: 400 24px/1 var(--serif); display: grid; place-items: center; transition: background var(--d-fb), transform var(--d-fb);
+}
+.lock-key:hover { background: var(--soft-2); }
+.lock-key:active { transform: scale(.94); background: color-mix(in srgb, var(--gold) 22%, transparent); }
+.lock-foot { display: flex; gap: 8px; margin-top: 16px; }
+.lock-others { list-style: none; margin: 8px 0 0; padding: 0; width: 100%; display: grid; gap: 4px; }
+.lock-others button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 0; border-radius: 12px; background: var(--soft); color: var(--ink2); font-size: 14px; }
+.lock-others button > span:not(.avatar) { flex: 1; text-align: left; }
+.lock-others button:hover { color: var(--ink); background: var(--soft-2); }
+.lock-note { margin: 12px 0 0; font-size: 12px; line-height: 1.7; text-align: left; }
+
+@media (max-width: 600px) {
+  .acct-current { flex-wrap: wrap; }
+  .acct-actions { width: 100%; justify-content: flex-start; }
+  .acct-list li { flex-wrap: wrap; }
+  .acct-ask { width: 100%; order: 5; }
+  .acct-pins { grid-template-columns: 1fr 1fr; }
+}

@@ -1,0 +1,84 @@
+import { useMemo, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import WorldSwitch from '../effects/WorldSwitch.jsx';
+import MasonryWall from '../effects/MasonryWall.jsx';
+import { artRank, classicScore, worldScore, searchBooks, useLibrary, WORLDS, isLightNovel } from '../lib/library.js';
+import { useUI } from '../lib/ui.jsx';
+
+const SORTS = [
+  { id: 'classic', label: '精选优先' },
+  { id: 'updated', label: '最近更新' },
+  { id: 'illustrated', label: '插图优先' },
+  { id: 'length', label: '篇幅最长' },
+];
+const parseLen = (s = '') => parseFloat(s) * (/K/i.test(s) ? 1e3 : /M/i.test(s) ? 1e6 : 1) || 0;
+
+export default function Explore() {
+  const { world } = useParams();
+  const navigate = useNavigate();
+  const lib = useLibrary();
+  const { openBook } = useUI();
+  const active = WORLDS.find(w => w.id === world)?.id || null;
+  const [status, setStatus] = useState('');
+  const [params] = useSearchParams();
+  const [onlyIll, setOnlyIll] = useState(() => params.get('art') === '1');
+  const [extra, setExtra] = useState([]);
+  const [sort, setSort] = useState('classic');
+
+  // 每个世界的拼贴：该题材的精选（近年佳作）在前的 14 本
+  const collage = useMemo(() => Object.fromEntries(WORLDS.map(w => {
+    const list = lib.books.filter(b => b.tags.includes(w.tag));
+    list.sort((a, b) => worldScore(b, w.id) - worldScore(a, w.id));
+    return [w.id, list.slice(0, 14)];
+  })), [lib.books]);
+
+  const worldTag = WORLDS.find(w => w.id === active)?.tag;
+  const books = useMemo(() => {
+    const list = searchBooks(lib.books, '', { tags: [worldTag, ...extra].filter(Boolean), status, illustrated: onlyIll });
+    // 精选优先：进了某个世界就按该世界的精选排，没选世界按全站的细腻之选排
+    if (sort === 'classic') list.sort(active ? (a, b) => worldScore(b, active) - worldScore(a, active) : (a, b) => classicScore(b) - classicScore(a));
+    if (sort === 'illustrated') list.sort((a, b) => artRank(b) - artRank(a) || classicScore(b) - classicScore(a));
+    if (sort === 'length') list.sort((a, b) => parseLen(b.length) - parseLen(a.length));
+    return list;
+  }, [lib.books, worldTag, extra, status, onlyIll, sort, active]);
+  const flip = useMemo(() => lib.books.filter(b => b.illustrated).slice(0, 12), [lib.books]);
+  const topTags = lib.tags.filter(([t]) => t !== worldTag).slice(0, 14);
+
+  const toggleTag = (t) => setExtra(x => x.includes(t) ? x.filter(y => y !== t) : [...x, t]);
+
+  return (
+    <div className="page explore">
+      <WorldSwitch worlds={WORLDS} active={active} total={lib.books.filter(isLightNovel).length} collage={collage}
+        onChange={(id) => navigate(id ? `/explore/${id}` : '/explore', { replace: true })} />
+
+      <div className="filters">
+        <div className="filters-row">
+          <div className="seg" role="group" aria-label="状态">
+            {[['', '全部'], ['连载中', '连载中'], ['已完结', '已完结']].map(([v, l]) =>
+              <button key={l} className="chip" aria-pressed={status === v} onClick={() => setStatus(v)}>{l}</button>)}
+          </div>
+          <button className="chip" aria-pressed={onlyIll} onClick={() => setOnlyIll(v => !v)} title="插图重制版 + 台版（官方彩插）">有插图</button>
+          <span className="filters-spacer" />
+          <label className="select">
+            <span className="muted">排序</span>
+            <select value={sort} onChange={(e) => setSort(e.target.value)}>
+              {SORTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="filters-tags" role="group" aria-label="标签">
+          {topTags.map(([t, c]) => (
+            <button key={t} className="chip" aria-pressed={extra.includes(t)} onClick={() => toggleTag(t)}>
+              {t}<span className="chip-count num">{c}</span>
+            </button>
+          ))}
+        </div>
+        <p className="filters-count muted"><span className="num">{books.length.toLocaleString()}</span> 本{worldTag ? ` · ${worldTag}` : ''}{extra.length ? ` · ${extra.join(' · ')}` : ''}</p>
+      </div>
+
+      {lib.status === 'loading' && <div className="loading-line"><span />{lib.message}</div>}
+      {lib.status === 'error' && <p className="center-note">{lib.message}</p>}
+      <MasonryWall books={books} flip={flip} onOpen={openBook} />
+    </div>
+  );
+}
