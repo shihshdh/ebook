@@ -1,26 +1,54 @@
+<div align="center">
+
 # EBOOK
 
-一个好看的轻小说阅读器：黑金 / 象牙纸两套主题、液态玻璃界面，Windows（Tauri）、安卓（Capacitor）和网页三端同一套代码。
+**好看的轻小说阅读器** · Windows / 安卓 / 网页
+
+[下载最新版](https://github.com/shihshdh/ebook/releases/latest) · [运行与打包](docs/BUILD.md)
+
+</div>
+
+![EBOOK 首页（深色）](docs/screenshots/hero.jpg)
+
+## 下载
+
+| 平台 | 文件 |
+|---|---|
+| Windows 10 / 11 | [EBOOK_0.3.6_x64-setup.exe](https://github.com/shihshdh/ebook/releases/download/v0.3.6/EBOOK_0.3.6_x64-setup.exe) |
+| 安卓 | [EBOOK_0.3.6.apk](https://github.com/shihshdh/ebook/releases/download/v0.3.6/EBOOK_0.3.6.apk) |
+
+> Windows 第一次运行如果提示「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」。
 
 ## 功能
 
-- **书库**：轻小说文库书目约 4300 本（读取 [mojimoon/wenku8](https://github.com/mojimoon/wenku8) 公开的整理结果，插图重制版按卷下载）；Project Gutenberg 中文公版书 427 本（四大名著、诸子、史书……，可下繁体原文或自动转换的简体版，自动分章）；本地 TXT / EPUB 导入
-- **自定义书源**：兼容 Legado（阅读 App）书源规则的子集，书源由用户自己导入，不执行书源里的脚本
-- **阅读器**：分页 / 滚动、四种纸张、字体字号行距、目录侧栏、书签、划线笔记、书内全文搜索（Ctrl+F）
-- **书架**：继续阅读、阅读统计（今日 / 本周 / 连续天数）、筛选搜索排序、最近划线（导出 Markdown）、按书架题材推荐
-- **推荐**：近年口碑佳作，偏文笔细腻的作品；探索页按奇幻 / 校园 / 科幻 / 恋爱 / 悬疑五个题材分区
-- **客户端**：多镜像竞速（国内直连优先）、低功耗（空闲限帧）、本地多账户与备份、Windows 无边框玻璃标题栏
+- **书库**：轻小说文库约 4300 本（插图版按卷下载）、427 本中文公版古籍（简体 / 繁体）、本地 TXT / EPUB 导入
+- **推荐**：近几年的口碑佳作，偏文笔细腻的作品；按奇幻、校园、科幻、恋爱、悬疑分区
+- **阅读器**：分页 / 滚动、四种纸张、划线笔记、书内全文搜索
+- **书架**：继续阅读、阅读统计、筛选排序、笔记导出 Markdown
+- **自定义书源**：兼容 Legado（阅读 App）书源规则，书源自己导入
 
-## 运行与打包
+## 截图
+
+| 首页 · 细腻之选 | 探索 · 题材分区 |
+|---|---|
+| ![首页](docs/screenshots/home.jpg) | ![探索](docs/screenshots/explore.jpg) |
+| **详情 · 插图版按卷下载** | **阅读器 · 书内搜索** |
+| ![详情](docs/screenshots/book.jpg) | ![阅读器](docs/screenshots/reader.jpg) |
+
+![书架：继续阅读与阅读统计](docs/screenshots/shelf.jpg)
+
+![手机：首页、书架、阅读器](docs/screenshots/mobile.jpg)
+
+## 开发
 
 ```bash
 npm install
-npm run dev               # 网页预览 http://localhost:5180
-npm run desktop:build     # Windows 安装包
+npm run dev              # 网页预览 http://localhost:5180
+npm run desktop:build    # Windows 安装包
 ```
 
-安卓与签名、版本号等细节见 [docs/BUILD.md](docs/BUILD.md)；开发进度看 [docs/PROGRESS.md](docs/PROGRESS.md)。
+安卓打包和签名见 [docs/BUILD.md](docs/BUILD.md)。
 
 ## 说明
 
-EBOOK 本身不存放任何书籍内容，书目和文件都来自上面列出的第三方公开来源或用户自己导入；请支持正版。
+EBOOK 本身不存放任何书籍内容：书目来自 [mojimoon/wenku8](https://github.com/mojimoon/wenku8) 和 Project Gutenberg 的公开数据，或你自己导入。请支持正版。
