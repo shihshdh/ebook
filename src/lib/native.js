@@ -299,6 +299,19 @@ export function onOpenedFile(cb) {
   return () => { dead = true; handle?.remove(); };
 }
 
+// ---------- 网页（订阅源）：Windows 开一个网页窗口，安卓开 EBOOK 自带的网页页面，网页版开新标签 ----------
+// 远程网页拿不到 EBOOK 的任何本地能力；页面里下载到的 EPUB / TXT / ZIP 走蓝奏云同一条路进书架
+export const browser = {
+  async open({ url, title = '' }) {
+    if (platform === 'capacitor') return (await nativePlugin()).openWeb({ url, title });
+    if (platform === 'tauri') {
+      const { invoke } = await import('@tauri-apps/api/core');
+      return invoke('open_web', { url, title });
+    }
+    window.open(url, '_blank', 'noopener');
+  },
+};
+
 // ---------- 蓝奏云：Windows 是小窗，安卓是一个全屏下载页。提取码自动填好，用户点下载，下完自动进书架 ----------
 export const lanzou = {
   available: platform !== 'web',

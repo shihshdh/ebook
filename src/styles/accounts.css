@@ -15,7 +15,7 @@ html.account-switching body { opacity: 0; transition: opacity .24s var(--ease); 
 .acct-trigger { width: 42px; height: 42px; padding: 0; border-radius: 50%; display: grid; place-items: center; }
 .acct-pop {
   position: absolute; right: 0; top: calc(100% + 10px); z-index: 80; width: 250px; padding: 14px; border-radius: 20px;
-  animation: pop-in .28s var(--ease-back) both; transform-origin: 90% 0;
+  animation: pop-in .28s var(--ease-back) backwards; transform-origin: 90% 0;
 }
 .acct-pop .eyebrow { margin: 0 0 8px 6px; font-size: 9.5px; }
 .acct-pop ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
@@ -47,7 +47,7 @@ html.account-switching body { opacity: 0; transition: opacity .24s var(--ease); 
 .acct-ask { width: 230px; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line2); background: var(--soft); color: var(--ink); font-size: 13px; }
 .acct-ask.is-bad { border-color: #c4563f; animation: lock-shake .36s; }
 .btn.is-danger { color: #fff; background: #b0473a; border-color: #b0473a; }
-.acct-box { margin-top: 10px; padding: 14px 16px; border-radius: var(--r-sm); border: 1px dashed var(--line2); background: var(--soft); animation: fade-in var(--d-layout) var(--ease) both; }
+.acct-box { margin-top: 10px; padding: 14px 16px; border-radius: var(--r-sm); border: 1px dashed var(--line2); background: var(--soft); animation: fade-in var(--d-layout) var(--ease) backwards; }
 .acct-box.is-ok { border-style: solid; border-color: rgba(147, 220, 182, .45); }
 .acct-box p { margin: 6px 0 12px; font-size: 13px; line-height: 1.7; }
 .acct-check { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
@@ -60,10 +60,10 @@ html.account-switching body { opacity: 0; transition: opacity .24s var(--ease); 
 
 /* ---------- 编辑账户 ---------- */
 .acct-modal { position: fixed; inset: 0; z-index: 140; display: grid; place-items: center; padding: 16px; }
-.acct-scrim { position: absolute; inset: 0; background: var(--scrim); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: fade-in .25s both; }
+.acct-scrim { position: absolute; inset: 0; background: var(--scrim); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); animation: fade-in .25s backwards; }
 .acct-dialog {
   position: relative; width: min(460px, 100%); max-height: calc(100dvh - 32px); overflow: auto; padding: 20px 22px; border-radius: 24px;
-  animation: pop-in .32s var(--ease-back) both;
+  animation: pop-in .32s var(--ease-back) backwards;
   /* 实底：弹窗里要填字，背后的页面不能透出来 */
   background: linear-gradient(145deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .015)), var(--bg-2);
   box-shadow: 0 30px 80px -30px rgba(0, 0, 0, .55), inset 0 1px 0 var(--glass-hi);
@@ -90,7 +90,7 @@ html.account-switching body { opacity: 0; transition: opacity .24s var(--ease); 
 /* ---------- 解锁 ---------- */
 .lock { position: fixed; inset: 0; z-index: 9500; display: grid; place-items: center; padding: 16px; background: var(--bg); }
 .lock::before { content: ""; position: absolute; inset: 0; background: radial-gradient(60% 50% at 50% 30%, color-mix(in srgb, var(--gold) 16%, transparent), transparent 70%); pointer-events: none; }
-.lock-card { position: relative; width: min(360px, 100%); padding: 30px 26px 22px; border-radius: 30px; display: flex; flex-direction: column; align-items: center; text-align: center; animation: pop-in .45s var(--ease-back) both; }
+.lock-card { position: relative; width: min(360px, 100%); padding: 30px 26px 22px; border-radius: 30px; display: flex; flex-direction: column; align-items: center; text-align: center; animation: pop-in .45s var(--ease-back) backwards; }
 .lock-card h1 { margin: 14px 0 2px; font-size: 24px; }
 .lock-card > p { margin: 0; font-size: 13px; }
 .lock-dots { display: flex; gap: 14px; margin: 22px 0 6px; }

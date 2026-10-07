@@ -21,6 +21,7 @@ const P = {
   lock: <><rect x="5.5" y="10.5" width="13" height="9" rx="2" /><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" /></>,
   user: <><circle cx="12" cy="8.5" r="3.5" /><path d="M5 19.5c1.2-3.6 3.8-5.5 7-5.5s5.8 1.9 7 5.5" /></>,
   plus: <path d="M12 5v14M5 12h14" />,
+  rss: <><path d="M5.5 5.5a13 13 0 0 1 13 13" /><path d="M5.5 10.5a8 8 0 0 1 8 8" /><circle cx="6.5" cy="17.5" r="1.4" /></>,
   edit: <><path d="M5 19l1-4L15.5 5.5a2 2 0 0 1 3 3L9 18z" /><path d="M13.5 7.5l3 3" /></>,
   grid: <><rect x="4.5" y="4.5" width="6" height="6" rx="1.5" /><rect x="13.5" y="4.5" width="6" height="6" rx="1.5" /><rect x="4.5" y="13.5" width="6" height="6" rx="1.5" /><rect x="13.5" y="13.5" width="6" height="6" rx="1.5" /></>,
 };

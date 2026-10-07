@@ -1,6 +1,8 @@
 package app.librarium.reader;
 
 import android.annotation.SuppressLint;
+import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.graphics.Typeface;
 import android.net.Uri;
 import android.os.Bundle;
@@ -8,6 +10,8 @@ import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.WebChromeClient;
+import android.widget.FrameLayout;
 import android.webkit.CookieManager;
 import android.webkit.URLUtil;
 import android.webkit.WebResourceRequest;
@@ -36,12 +40,14 @@ import java.util.regex.Pattern;
 import org.json.JSONObject;
 
 /**
- * 安卓的蓝奏云下载页（对应 Windows 客户端的蓝奏云小窗，见 src-tauri/src/main.rs 的 open_lanzou）：
- * 提取码自动填好，用户自己点下载；下完的文件交给 EbookNative，走「用 EBOOK 打开」同一条入架路，然后自动关掉回到 EBOOK。
- * 不绕过蓝奏云的任何校验：页面、验证、点击都是用户在真实 WebView 里完成的，这里只接住最后那个下载。
+ * EBOOK 自带的网页页面，两种用法（对应 Windows 客户端 src-tauri/src/main.rs 的 open_lanzou / open_web）：
+ *   蓝奏云：提取码自动填好，用户自己点下载；下完的文件交给 EbookNative，走「用 EBOOK 打开」同一条入架路，然后自动关掉回到 EBOOK。
+ *           不绕过蓝奏云的任何校验：页面、验证、点击都是用户在真实 WebView 里完成的，这里只接住最后那个下载。
+ *   网页：  订阅源里只给了网址、或规则要执行脚本的，在这里看它的网页。下载到的 EPUB / TXT / ZIP 同样进书架，
+ *           别的文件交给系统浏览器去下。订阅源里的 injectJs 不注入（不执行源里的脚本）。视频可以全屏。
  */
-public class LanzouActivity extends AppCompatActivity {
-    static final String EXTRA_URL = "url", EXTRA_PWD = "pwd", EXTRA_TITLE = "title";
+public class WebActivity extends AppCompatActivity {
+    static final String EXTRA_URL = "url", EXTRA_PWD = "pwd", EXTRA_TITLE = "title", EXTRA_MODE = "mode";
     private static final long MAX_FILE = 120L * 1024 * 1024;
 
     /** 蓝奏云的文件链接、下载按钮（在 iframe 里）常用 target=_blank / window.open：统统改成在本页打开，下载才接得住 */
@@ -52,6 +58,15 @@ public class LanzouActivity extends AppCompatActivity {
     private ProgressBar bar;
     private volatile boolean downloading = false;
     private String pageUrl = "";
+    private boolean lanzou = true;
+    private FrameLayout fullscreen;
+    private View customView;
+    private WebChromeClient.CustomViewCallback customCallback;
+
+    static boolean isWeb(Uri u) {
+        String sch = u == null ? null : u.getScheme();
+        return u != null && u.getHost() != null && ("https".equals(sch) || "http".equals(sch));
+    }
 
     static boolean isLanzou(Uri u) {
         String host = u == null ? null : u.getHost();
@@ -63,7 +78,8 @@ public class LanzouActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         String url = getIntent().getStringExtra(EXTRA_URL);
-        if (url == null || !isLanzou(Uri.parse(url))) { finish(); return; }
+        lanzou = !"web".equals(getIntent().getStringExtra(EXTRA_MODE));
+        if (url == null || !(lanzou ? isLanzou(Uri.parse(url)) : isWeb(Uri.parse(url)))) { finish(); return; }
         String pwd = getIntent().getStringExtra(EXTRA_PWD);
         String title = getIntent().getStringExtra(EXTRA_TITLE);
 
@@ -87,14 +103,14 @@ public class LanzouActivity extends AppCompatActivity {
         LinearLayout texts = new LinearLayout(this);
         texts.setOrientation(LinearLayout.VERTICAL);
         TextView name = new TextView(this);
-        name.setText(title == null || title.isEmpty() ? "蓝奏云" : title);
+        name.setText(title == null || title.isEmpty() ? (lanzou ? "蓝奏云" : "网页") : title);
         name.setTextColor(0xFF1E1A14);
         name.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         name.setTypeface(Typeface.DEFAULT_BOLD);
         name.setSingleLine(true);
         name.setEllipsize(android.text.TextUtils.TruncateAt.END);
         status = new TextView(this);
-        status.setText(pwd == null || pwd.isEmpty() ? "点下载，下完自动放进书架" : "提取码已自动填好 · 点下载，下完自动放进书架");
+        status.setText(!lanzou ? Uri.parse(url).getHost() : pwd == null || pwd.isEmpty() ? "点下载，下完自动放进书架" : "提取码已自动填好 · 点下载，下完自动放进书架");
         status.setTextColor(0xFF8A7A62);
         status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 12);
         texts.addView(name);
@@ -109,17 +125,27 @@ public class LanzouActivity extends AppCompatActivity {
 
         web = new WebView(this);
         root.addView(web, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1));
-        setContentView(root);
+        // 网页里的视频点全屏时，把播放器搬到这一层盖满屏幕
+        FrameLayout stack = new FrameLayout(this);
+        stack.addView(root, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        fullscreen = new FrameLayout(this);
+        fullscreen.setBackgroundColor(0xFF000000);
+        fullscreen.setVisibility(View.GONE);
+        stack.addView(fullscreen, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(stack);
 
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setSupportMultipleWindows(false);           // 新窗口请求留在本页打开
         s.setJavaScriptCanOpenWindowsAutomatically(true);
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        s.setLoadWithOverviewMode(true);
+        s.setUseWideViewPort(true);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
 
-        String fill = "(function(){var P=" + JSONObject.quote(pwd == null ? "" : pwd) + ";if(!P||window.top!==window)return;var n=0;var t=setInterval(function(){n++;var i=document.querySelector('#pwd,input[name=\"pwd\"]');if(i&&!i.dataset.ebook){i.dataset.ebook='1';i.value=P;i.dispatchEvent(new Event('input',{bubbles:true}));var b=document.querySelector('#sub,.passwddiv-btn,#passwddiv .btn,input[type=\"submit\"]');if(b)b.click();clearInterval(t);}if(n>40)clearInterval(t);},250);})();";
+        String fill = !lanzou ? "" : "(function(){var P=" + JSONObject.quote(pwd == null ? "" : pwd) + ";if(!P||window.top!==window)return;var n=0;var t=setInterval(function(){n++;var i=document.querySelector('#pwd,input[name=\"pwd\"]');if(i&&!i.dataset.ebook){i.dataset.ebook='1';i.value=P;i.dispatchEvent(new Event('input',{bubbles:true}));var b=document.querySelector('#sub,.passwddiv-btn,#passwddiv .btn,input[type=\"submit\"]');if(b)b.click();clearInterval(t);}if(n>40)clearInterval(t);},250);})();";
         final boolean startScripts = WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT);
         if (startScripts) {
             // 注入到所有 frame（下载按钮在 iframe 里）
@@ -139,12 +165,41 @@ public class LanzouActivity extends AppCompatActivity {
                 if (!startScripts) view.evaluateJavascript(SAME_WINDOW + fill, null);   // 老 WebView：只能顾到主页面
             }
         });
-        web.setDownloadListener((dlUrl, ua, disposition, mime, length) -> download(dlUrl, ua, disposition, mime));
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onProgressChanged(WebView view, int p) {
+                if (downloading) return;
+                bar.setVisibility(p < 100 ? View.VISIBLE : View.GONE);
+                bar.setIndeterminate(false);
+                bar.setProgress(p * 10);
+            }
+            @Override
+            public void onShowCustomView(View view, CustomViewCallback callback) {
+                if (customView != null) { callback.onCustomViewHidden(); return; }
+                customView = view;
+                customCallback = callback;
+                fullscreen.addView(view, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                fullscreen.setVisibility(View.VISIBLE);
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
+                fullscreen.setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+            }
+            @Override
+            public void onHideCustomView() { exitFullscreen(); }
+        });
+        web.setDownloadListener((dlUrl, ua, disposition, mime, length) -> {
+            // 网页模式：只收书；别的文件（安装包、视频、图片…）交给系统浏览器去下
+            if (!lanzou && !looksLikeBook(URLUtil.guessFileName(dlUrl, disposition, mime), mime)) {
+                try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(dlUrl))); } catch (Exception ignored) {}
+                return;
+            }
+            download(dlUrl, ua, disposition, mime);
+        });
 
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
-                if (web.canGoBack()) web.goBack(); else finish();
+                if (customView != null) exitFullscreen();
+                else if (web.canGoBack()) web.goBack(); else finish();
             }
         });
         web.loadUrl(url);
@@ -199,8 +254,12 @@ public class LanzouActivity extends AppCompatActivity {
                 File fin = fixExt(out, head, headLen);
                 EbookNative.offerFile(fin);
                 runOnUiThread(() -> {
-                    status.setText("下好了，正在放进书架…");
-                    finish();
+                    if (lanzou) { status.setText("下好了，正在放进书架…"); finish(); return; }
+                    // 网页模式留在页面上，可以接着看
+                    downloading = false;
+                    bar.setVisibility(View.GONE);
+                    status.setTextColor(0xFF3F8F5F);
+                    status.setText(fin.getName() + " 已放进书架");
                 });
             } catch (Exception e) {
                 if (out != null) //noinspection ResultOfMethodCallIgnored
@@ -258,6 +317,22 @@ public class LanzouActivity extends AppCompatActivity {
         String ext = h.startsWith("PK") ? (h.contains("epub") ? ".epub" : ".zip") : ".txt";
         File to = new File(f.getParentFile(), f.getName() + ext);
         return f.renameTo(to) ? to : f;
+    }
+
+    private void exitFullscreen() {
+        if (customView == null) return;
+        fullscreen.removeView(customView);
+        fullscreen.setVisibility(View.GONE);
+        customView = null;
+        if (customCallback != null) customCallback.onCustomViewHidden();
+        customCallback = null;
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED);
+    }
+
+    static boolean looksLikeBook(String name, String mime) {
+        String n = name == null ? "" : name.toLowerCase(Locale.ROOT);
+        String m = mime == null ? "" : mime.toLowerCase(Locale.ROOT);
+        return n.endsWith(".epub") || n.endsWith(".txt") || n.endsWith(".zip") || m.contains("epub") || m.equals("text/plain") || m.contains("zip");
     }
 
     private int dp(int v) { return Math.round(v * getResources().getDisplayMetrics().density); }

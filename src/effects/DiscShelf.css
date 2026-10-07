@@ -1,7 +1,7 @@
 .discshelf { position: relative; padding: 8px 0 0; }
 
 /* 片名表：衬线大标题 + 细线资料行（唱片封底的编辑感） */
-.disc-sheet { position: relative; z-index: 300; max-width: 460px; pointer-events: none; animation: sheet-in .62s var(--ease) both; }
+.disc-sheet { position: relative; z-index: 300; max-width: 460px; pointer-events: none; animation: sheet-in .62s var(--ease) backwards; }
 .disc-sheet .eyebrow { margin: 0 0 12px; }
 .disc-title {
   margin: 0 0 16px; font-size: clamp(30px, 3.8vw, 52px); line-height: 1.05; font-weight: 600; letter-spacing: .01em;
@@ -13,7 +13,7 @@
 .disc-facts div:last-child { border-bottom: 1px solid var(--line); }
 .disc-facts dt { font-family: var(--display); letter-spacing: .2em; font-size: 9.5px; color: var(--ink3); padding-top: 2px; }
 .disc-facts dd { margin: 0; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@keyframes sheet-in { from { opacity: 0; transform: translate3d(0, 10px, 0); filter: blur(4px); } }
+@keyframes sheet-in { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
 
 /* 舞台：光盘绝对定位，变换由脚本逐帧写入 */
 .disc-stage { position: relative; height: clamp(340px, 40vw, 500px); margin-top: -170px; touch-action: pan-y; cursor: grab; outline: none; user-select: none; -webkit-user-select: none; }
@@ -39,7 +39,7 @@
   background: radial-gradient(circle closest-side, transparent 0 36%, #8a6f3c 37%, #f6e3b4 41%, #b8914a 46%, #efdcb0 52%, rgba(40, 32, 22, .78) 53%, rgba(30, 24, 18, .55) 80%, rgba(246, 227, 180, .85) 81.5%, rgba(140, 110, 60, .6) 84%, transparent 86%); }
 
 .disc-quotes { position: relative; z-index: 300; display: flex; gap: 28px; justify-content: center; margin: -8px auto 18px; max-width: 760px; }
-.disc-quotes blockquote { margin: 0; flex: 1; font-family: var(--serif); font-size: 13.5px; line-height: 1.7; color: var(--ink2); animation: sheet-in .7s var(--ease) both .08s; }
+.disc-quotes blockquote { margin: 0; flex: 1; font-family: var(--serif); font-size: 13.5px; line-height: 1.7; color: var(--ink2); animation: sheet-in .7s var(--ease) backwards .08s; }
 .disc-quotes cite { display: block; margin-top: 4px; font-style: normal; font-family: var(--display); font-size: 9.5px; letter-spacing: .24em; color: var(--ink3); }
 
 .disc-footer { position: relative; z-index: 300; display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }

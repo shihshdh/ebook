@@ -1,0 +1,60 @@
+[
+ {
+  "sourceName": "古诗文网",
+  "sourceUrl": "https://www.gushiwen.cn/",
+  "sourceIcon": "https://ts2.cn.mm.bing.net/th?id=ODLS.0fb30a7c-5c0c-461f-a214-20ac5d3cd0b4&w=32&h=32&qlt=91&pcl=fffffa&o=6&pid=1.2",
+  "singleUrl": true,
+  "header": "{\n    'User-Agent': 'Mozilla/5.0 (Linux; Android 11; Pixel 3 XL Build/RQ3A.211001.001; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/102.0.4988.0 Mobile Safari/537.36 SearchCraft/3.9.2 (Baidu; P1 11) '\n}",
+  "sourceGroup": "默认",
+  "enabled": true
+ },
+ {
+  "sourceName": "读书网·国学",
+  "sourceUrl": "https://www.dushu.com/guoxue",
+  "header": "{\n  \"User-Agent\": \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36\"\n}",
+  "ruleContent": "{\"content\":\"class.content_txt@html\",\"nextContentUrl\":\"\",\"webJs\":\"\",\"sourceRegex\":\"\",\"replaceRegex\":\"\"}",
+  "sourceGroup": "默认",
+  "enabled": true
+ },
+ {
+  "sourceName": "豆瓣读书",
+  "sourceUrl": "https://book.douban.com",
+  "ruleContent": "{\"content\":\"class.review-content@html\",\"nextContentUrl\":\"\",\"webJs\":\"\",\"sourceRegex\":\"\",\"replaceRegex\":\"\"}",
+  "sourceGroup": "默认",
+  "enabled": true
+ },
+ {
+  "sourceName": "知乎日报",
+  "sourceUrl": "https://daily.zhihu.com",
+  "sourceIcon": "http://static.daily.zhihu.com/img/app-logo.png",
+  "ruleArticles": "class.wrap",
+  "ruleTitle": "class.title@text",
+  "ruleImage": "tag.img@src",
+  "ruleLink": "class.link-button@href",
+  "ruleContent": "@js:String(result).replace(/<html[\\s\\S]*class=\"main-wrap/,'<body><div class=\"main-wrap>').replace(/<div class=\"qr\">[\\s\\S]*/,\"</body>\")",
+  "sourceGroup": "默认",
+  "enabled": true
+ },
+ {
+  "sourceName": "少数派",
+  "sourceUrl": "https://sspai.com/feed",
+  "sourceIcon": "https://ss2.bdstatic.com/70cFvnSh_Q1YnxGkpoWK1HF6hhy/it/u=3752866850,588898846&fm=26&gp=0.jpg",
+  "sourceGroup": "默认",
+  "enabled": true
+ },
+ {
+  "sourceName": "果壳",
+  "sourceUrl": "https://m.guokr.com",
+  "sourceIcon": "https://bkimg.cdn.bcebos.com/pic/c8ea15ce36d3d539399dfbaa3087e950352ab033",
+  "singleUrl": true,
+  "sourceGroup": "默认",
+  "enabled": true
+ },
+ {
+  "sourceName": "IT之家",
+  "sourceUrl": "http://www.ithome.com/rss/",
+  "sourceIcon": "https://ss1.bdstatic.com/70cFvXSh_Q1YnxGkpoWK1HF6hhy/it/u=1872717013,2999958568&fm=26&gp=0.jpg",
+  "sourceGroup": "默认",
+  "enabled": true
+ }
+]

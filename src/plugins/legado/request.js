@@ -1,5 +1,8 @@
 import { absoluteUrl, assertNoScript, UnsupportedRuleError } from './safety.js';
 import { keywordEncoder } from './encoding.js';
+import { parseLenientJson } from './lenient-json.js';
+import { inertTemplate } from './templates.js';
+import { getVariable, validateGets } from './variables.js';
 
 function arithmetic(expression, page) {
   const compact = expression.replace(/\s/g, '');
@@ -30,15 +33,20 @@ function arithmetic(expression, page) {
   return String(value);
 }
 
-export function renderTemplate(text, { key = '', page = 1, encode = encodeURIComponent } = {}) {
+export function renderTemplate(text, { key = '', page = 1, encode = encodeURIComponent, sourceUrl = '', variables = {} } = {}) {
   assertNoScript(text);
-  return String(text ?? '').replace(/\{\{([\s\S]*?)\}\}/g, (_, expression) => expression.trim() === 'key' ? encode(String(key)) : arithmetic(expression, page));
+  validateGets(String(text ?? ''));
+  return String(text ?? '').replace(/\{\{\s*@get:\{([^{}]*)\}\s*\}\}|@get:\{([^{}]*)\}|\{\{([\s\S]*?)\}\}/g, (_, wrapped, get, expression) => {
+    if (wrapped !== undefined || get !== undefined) return getVariable({ variables }, wrapped ?? get);
+    return inertTemplate(expression, sourceUrl) ?? (expression.trim() === 'key' ? encode(String(key)) : arithmetic(expression, page));
+  });
 }
 
 export function parseHeaders(value) {
   if (value == null || value === '') return {};
   assertNoScript(typeof value === 'string' ? value : JSON.stringify(value));
-  const headers = typeof value === 'string' ? JSON.parse(value) : value;
+  if (typeof value === 'string' && /^Mozilla\/5\.0(?:\s|$)/.test(value.trim())) return { 'User-Agent': value.trim() };
+  const headers = typeof value === 'string' ? parseLenientJson(value) : value;
   if (!headers || Array.isArray(headers) || typeof headers !== 'object' || Object.values(headers).some(v => typeof v !== 'string')) throw new UnsupportedRuleError('请求头必须是字符串键值对象');
   return { ...headers };
 }
@@ -49,16 +57,16 @@ export function requestParts(template) {
   const at = /,\s*\{/.exec(text);
   if (!at) return { address: text, options: {} };
   let options;
-  try { options = JSON.parse(text.slice(at.index + 1)); } catch { throw new UnsupportedRuleError('请求选项不是有效 JSON'); }
+  try { options = parseLenientJson(text.slice(at.index + 1)); } catch { throw new UnsupportedRuleError('请求选项不是有效 JSON'); }
   const allowed = ['method', 'body', 'charset', 'headers'];
   const unknown = Object.keys(options).filter(key => !allowed.includes(key));
   if (unknown.length) throw new UnsupportedRuleError(`不支持的请求选项：${unknown.join('、')}`);
   return { address: text.slice(0, at.index), options };
 }
 
-export function buildRequest(source, template, { key = '', page = 1, base = source.bookSourceUrl, signal, encode } = {}) {
+export function buildRequest(source, template, { key = '', page = 1, base = source.bookSourceUrl, signal, encode, variables } = {}) {
   const { address, options } = requestParts(template);
-  const vars = { key, page, encode: encode || keywordEncoder(options.charset) };
+  const vars = { key, page, encode: encode || keywordEncoder(options.charset), sourceUrl: source.bookSourceUrl, variables };
   const method = String(options.method || 'GET').toUpperCase();
   if (!['GET', 'POST'].includes(method)) throw new UnsupportedRuleError(`不支持的请求方法：${method}`);
   if (options.body != null && typeof options.body !== 'string') throw new UnsupportedRuleError('请求体必须为字符串');

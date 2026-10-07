@@ -4,6 +4,7 @@ import Icon from '../components/Icon.jsx';
 import NetDiag from '../components/NetDiag.jsx';
 import AccountPanel from '../components/AccountPanel.jsx';
 import LegadoSources from '../components/LegadoSources.jsx';
+import RssSources from '../components/RssSources.jsx';
 import { useSources } from '../lib/legado.js';
 import { PLUGINS, enabledPlugins, setPluginEnabled } from '../plugins/registry.js';
 import { loadLibrary, useLibrary } from '../lib/library.js';
@@ -97,6 +98,7 @@ export default function Plugins() {
       </section>
 
       <LegadoSources />
+      <RssSources />
 
       <section className="settings glass">
         <h2 className="serif">账户</h2>

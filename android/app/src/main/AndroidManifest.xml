@@ -49,9 +49,9 @@
 
         </activity>
 
-        <!-- 蓝奏云下载页：提取码自动填，下完自动进书架（见 LanzouActivity） -->
+        <!-- EBOOK 自带的网页页面：蓝奏云（提取码自动填，下完自动进书架）和订阅源的网页（见 WebActivity） -->
         <activity
-            android:name=".LanzouActivity"
+            android:name=".WebActivity"
             android:theme="@style/AppTheme.NoActionBar"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode"
             android:exported="false" />

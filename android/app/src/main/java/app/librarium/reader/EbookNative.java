@@ -38,7 +38,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  *   setImmersive({on})    阅读时藏起系统栏，从边缘划一下临时呼出；离开阅读器恢复
  *   consumeFile()         取走「用 EBOOK 打开 / 分享到 EBOOK」带进来的文件：{ name, data(base64) }，没有就 {}
  *   事件 fileOpened         有新文件带进来了（应用已在运行时），前端收到后调 consumeFile
- *   openLanzou({url,pwd,title})  打开蓝奏云下载页（LanzouActivity）：提取码自动填，下完的文件同样经 consumeFile 交给前端
+ *   openLanzou({url,pwd,title})  打开蓝奏云下载页（WebActivity）：提取码自动填，下完的文件同样经 consumeFile 交给前端
+ *   openWeb({url,title})  订阅源的网页（WebActivity 网页模式），下到的书同样经 consumeFile 进书架
  *   beginSave / appendSave / endSave   账户导出：分块写临时文件，最后放进「下载/EBOOK」（大文件不经一整串 base64）
  *   installApk({token})   检查更新：beginSave/appendSave 写好的新版 APK 交给系统安装器（签名不同的包系统会拒装）
  * 安全区不在这里：MainActivity 监听 WindowInsets，直接把像素值写进 CSS 变量。
@@ -63,7 +64,7 @@ public class EbookNative extends Plugin {
         if (instance != null) instance.notifyListeners("fileOpened", new JSObject(), true);
     }
 
-    /** LanzouActivity 下完一个文件时调用 */
+    /** WebActivity 下完一个文件时调用 */
     static void offerFile(File f) {
         pendingFile = f;
         if (instance != null) instance.notifyListeners("fileOpened", new JSObject(), true);
@@ -72,11 +73,24 @@ public class EbookNative extends Plugin {
     @PluginMethod
     public void openLanzou(PluginCall call) {
         String url = call.getString("url", "");
-        if (!LanzouActivity.isLanzou(Uri.parse(url))) { call.reject("只支持蓝奏云链接"); return; }
-        Intent i = new Intent(getContext(), LanzouActivity.class);
-        i.putExtra(LanzouActivity.EXTRA_URL, url);
-        i.putExtra(LanzouActivity.EXTRA_PWD, call.getString("pwd", ""));
-        i.putExtra(LanzouActivity.EXTRA_TITLE, call.getString("title", ""));
+        if (!WebActivity.isLanzou(Uri.parse(url))) { call.reject("只支持蓝奏云链接"); return; }
+        Intent i = new Intent(getContext(), WebActivity.class);
+        i.putExtra(WebActivity.EXTRA_URL, url);
+        i.putExtra(WebActivity.EXTRA_PWD, call.getString("pwd", ""));
+        i.putExtra(WebActivity.EXTRA_TITLE, call.getString("title", ""));
+        getActivity().startActivity(i);
+        call.resolve();
+    }
+
+    /** 订阅源的网页：在 WebActivity 的网页模式里打开 */
+    @PluginMethod
+    public void openWeb(PluginCall call) {
+        String url = call.getString("url", "");
+        if (!WebActivity.isWeb(Uri.parse(url))) { call.reject("只能打开网页地址"); return; }
+        Intent i = new Intent(getContext(), WebActivity.class);
+        i.putExtra(WebActivity.EXTRA_URL, url);
+        i.putExtra(WebActivity.EXTRA_TITLE, call.getString("title", ""));
+        i.putExtra(WebActivity.EXTRA_MODE, "web");
         getActivity().startActivity(i);
         call.resolve();
     }

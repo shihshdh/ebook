@@ -6,6 +6,7 @@ import Icon from './Icon.jsx';
 import { LiquidSpring, prefersReduced } from '../lib/motion.js';
 import { useTheme } from '../lib/theme.js';
 import AccountMenu from './AccountMenu.jsx';
+import { useRss } from '../lib/rss.js';
 
 export const TABS = [
   { to: '/', label: '首页', en: 'HOME', icon: 'home' },
@@ -26,7 +27,8 @@ function useLiquidThumb(trackRef, thumbRef, activeIndex) {
     if (!el) { thumb.style.opacity = '0'; return; }
     thumb.style.opacity = '1';
     const target = { left: el.offsetLeft, right: el.offsetLeft + el.offsetWidth };
-    if (!spring.current || prefersReduced()) {
+    // 这条导航此刻没显示（手机上的顶栏、电脑上的底栏）：直接落位，不空跑弹簧动画
+    if (!spring.current || prefersReduced() || !track.offsetParent) {
       spring.current = new LiquidSpring(target);
       thumb.style.transform = `translate3d(${target.left}px,0,0)`;
       thumb.style.width = `${target.right - target.left}px`;
@@ -64,9 +66,14 @@ function useLiquidThumb(trackRef, thumbRef, activeIndex) {
   useEffect(() => () => cancelAnimationFrame(raf.current), []);
 }
 
+// 「订阅」只在导入过订阅源后出现，没用这功能的人导航不多一格
+const RSS_TAB = { to: '/rss', label: '订阅', en: 'FEEDS', icon: 'rss' };
+
 export default function NavBar({ hidden }) {
   const { pathname } = useLocation();
-  const active = TABS.findIndex(t => t.to === '/' ? pathname === '/' : pathname.startsWith(t.to));
+  const rss = useRss();
+  const tabs = rss?.length ? [...TABS.slice(0, 4), RSS_TAB, TABS[4]] : TABS;
+  const active = tabs.findIndex(t => t.to === '/' ? pathname === '/' : pathname.startsWith(t.to));
   const topTrack = useRef(null), topThumb = useRef(null);
   const botTrack = useRef(null), botThumb = useRef(null);
   useLiquidThumb(topTrack, topThumb, active);
@@ -81,7 +88,7 @@ export default function NavBar({ hidden }) {
         </NavLink>
         <nav className="topnav glass" ref={topTrack} aria-label="主导航">
           <span className="liquid-thumb" ref={topThumb} aria-hidden="true" />
-          {TABS.map(t => (
+          {tabs.map(t => (
             <NavLink key={t.to} to={t.to} end={t.to === '/'} data-tab className="topnav-item">
               {t.label}
             </NavLink>
@@ -98,7 +105,7 @@ export default function NavBar({ hidden }) {
 
       <nav className={`tabbar glass ${hidden ? 'is-hidden' : ''}`} ref={botTrack} aria-label="主导航">
         <span className="liquid-thumb" ref={botThumb} aria-hidden="true" />
-        {TABS.map(t => (
+        {tabs.map(t => (
           <NavLink key={t.to} to={t.to} end={t.to === '/'} data-tab className="tabbar-item">
             <Icon name={t.icon} size={22} />
             <span>{t.label}</span>

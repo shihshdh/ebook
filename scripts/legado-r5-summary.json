@@ -1,0 +1,57 @@
+{
+  "date": "2026-10-07",
+  "command": "node scripts/legado-check-dir.mjs \"C:\\Users\\ys221\\Desktop\\书源\" --json",
+  "files": 4,
+  "sources": 852,
+  "skippedSubscriptions": 2589,
+  "importErrors": 27,
+  "stages": [
+    {
+      "stage": "before",
+      "pass": 266,
+      "script": 491,
+      "unknown": 95,
+      "tests": 79
+    },
+    {
+      "stage": "R5-1",
+      "pass": 279,
+      "script": 495,
+      "unknown": 78,
+      "tests": 81
+    },
+    {
+      "stage": "R5-2",
+      "pass": 298,
+      "script": 475,
+      "unknown": 79,
+      "tests": 83
+    },
+    {
+      "stage": "R5-3",
+      "pass": 299,
+      "script": 475,
+      "unknown": 78,
+      "tests": 86
+    },
+    {
+      "stage": "R5-4",
+      "pass": 301,
+      "script": 475,
+      "unknown": 76,
+      "tests": 89
+    },
+    {
+      "stage": "R5-5",
+      "pass": 301,
+      "script": 475,
+      "unknown": 76,
+      "tests": 93
+    }
+  ],
+  "notes": [
+    "按应用 fatalOf 的必经规则判断；每条源只归一类，原因可重叠。",
+    "仅静态检查，不代表站点可访问或实际搜读成功。",
+    "Node/linkedom 缺少 XPath 校验能力，相关规则保守计入规则不认识。"
+  ]
+}

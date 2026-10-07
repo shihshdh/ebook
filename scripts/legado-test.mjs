@@ -6,6 +6,9 @@ import { evaluateRule, strings, parseDocument, plainText } from '../src/plugins/
 import { parseSources, checkSource, search, bookInfo, toc, content } from '../src/plugins/legado/index.js';
 import { buildRequest, renderTemplate } from '../src/plugins/legado/request.js';
 import { encodeGbk } from '../src/plugins/legado/encoding.js';
+import { classifySource, checkDirectory, formatReport } from './legado-check-dir.mjs';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
 
 globalThis.DOMParser = DOMParser;
 
@@ -356,7 +359,7 @@ test('checkSource: lastChapter 认得；校验词等只影响显示的字段不�
   assert.deepEqual(checkSource(base).unsupported, []);
   const optionalBroken = { ...base, ruleSearch: { ...base.ruleSearch, kind: 'td.5:4@text', intro: '{{baseUrl}}' } };
   const check = checkSource(optionalBroken);
-  assert.equal(check.unsupported.length, 2);
+  assert.equal(check.unsupported.length, 1);
   assert.deepEqual(fatalOf(check), []);
   const requiredBroken = { ...base, ruleToc: { ...base.ruleToc, chapterUrl: '{{baseUrl}}' } };
   assert.equal(fatalOf(checkSource(requiredBroken)).length, 1);
@@ -367,6 +370,149 @@ test('详情: lastChapter 取到最新章节', async () => {
   const source = { bookSourceName: 'x', bookSourceUrl: 'https://x.test/', ruleBookInfo: { name: 'tag.h1@text', lastChapter: 'class.last@text' } };
   const info = await bookInfo(source, 'https://x.test/b/1', { http: async () => ({ status: 200, url: 'https://x.test/b/1', text: '<h1>夜读</h1><p class="last">第九章</p>' }) });
   assert.equal(info.latestChapter, '第九章');
+});
+
+test('R5-1: 单引号、裸键、尾逗号与嵌套请求头', () => {
+  const req = buildRequest({ ...jsonSource, header: "{'User-Agent':'x',}" }, "/s,{'method':'POST',body:'q={{key}}',headers:{X:'y',},}", { key: '夜 读' });
+  assert.equal(req.method, 'POST'); assert.equal(req.body, 'q=' + encodeURIComponent('夜 读'));
+  assert.deepEqual(req.headers, { 'User-Agent': 'x', X: 'y' });
+  const ua = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36';
+  assert.equal(buildRequest({ ...jsonSource, header: ua }, '/').headers['User-Agent'], ua);
+});
+test('R5-1: 转义保持原值；坏 JSON、表达式与非字符串头拒绝', () => {
+  assert.equal(buildRequest(jsonSource, String.raw`/s,{method:'POST',body:'it\'s \\ ok \u4e66',}`).body, "it's \\ ok 书");
+  for (const bad of ["{body:'x'", "{body:alert(1)}", "{body:'x',,}", "{body:'x'}junk", "{body:'x' method:'GET'}", "{body:'\\q'}"]) assert.throws(() => buildRequest(jsonSource, '/s,' + bad));
+  for (const header of ['[]', "{a:1}", '{bad', 'not a UA']) assert.throws(() => buildRequest({ ...jsonSource, header }, '/'));
+  assert.equal({}.polluted, undefined);
+});
+
+test('R5-2: 白名单只替换常量，分号和换行版本一致', () => {
+  for (const expr of ['cookie.removeCookie(source.getKey())', 'cookie.removeCookie(source.key)']) {
+    assert.equal(buildRequest(jsonSource, '{{' + expr + '}}/s').url, new URL('/s', jsonSource.bookSourceUrl).href);
+    assert.deepEqual(evaluateRule(null, '{{' + expr + '}}'), ['']);
+  }
+  for (const expr of ['url=source.getKey();cookie.removeCookie(url);url', 'url=source.getKey()\ncookie.removeCookie(url)\nurl', ' url = source.getKey();\n cookie.removeCookie(url);\n url; ']) {
+    assert.equal(renderTemplate('{{' + expr + '}}/s', { sourceUrl: 'https://fixture.test' }), 'https://fixture.test/s');
+    assert.deepEqual(evaluateRule(null, '{{' + expr + '}}', 0, false, { sourceUrl: 'https://fixture.test' }), ['https://fixture.test']);
+  }
+});
+test('R5-2: 白名单不能夹带语句、换参数或调用实际对象', () => {
+  globalThis.cookie = { removeCookie() { throw Error('不应调用'); } };
+  try {
+    assert.equal(renderTemplate('{{cookie.removeCookie(source.key)}}'), '');
+    for (const expr of ['cookie.removeCookie(x);alert(1)', 'cookie.removeCookie(source.key);alert(1)', 'url=source.getKey();cookie.removeCookie(url);url+1', 'url=source.getKey() cookie.removeCookie(url) url']) {
+      assert.throws(() => renderTemplate('{{' + expr + '}}'));
+      assert.throws(() => evaluateRule(html, '{{' + expr + '}}'), /脚本表达式/);
+    }
+  } finally { delete globalThis.cookie; }
+});
+
+test('R5-3: put 后缀、组合、引号和 get 模板，未定义值为空', () => {
+  const context = { variables: Object.create(null) };
+  assert.deepEqual(strings({ title: '甲', id: '7' }, 'title@put:{bid:id}', 0, context), ['甲']);
+  assert.deepEqual(strings({ id: '8', name: '乙' }, '@put:{"bid":"$.id"}&&$.name', 0, context), ['乙']);
+  assert.deepEqual(strings({}, '/b/@get:{bid}/{{@get:{bid}}}/@get:{missing}', 0, context), ['/b/8/8/']);
+  assert.deepEqual(strings({}, '@get:{bid}##8##9', 0, context), ['9']);
+  assert.equal(buildRequest(jsonSource, '/@get:{bid},{method:"POST",body:"id=@get:{bid}"}', { variables: context.variables }).body, 'id=8');
+  assert.throws(() => evaluateRule({}, '@put:{x:<js>oops</js>}'), /不执行脚本/);
+  assert.throws(() => evaluateRule({}, '@put:{x:{{alert(1)}}}'), /脚本表达式/);
+  assert.throws(() => evaluateRule({}, '@put:{x:$.id'), /未闭合/);
+});
+test('R5-3: 四步夹具并发两书、两源，章节变量不串值', async () => {
+  const original = JSON.parse(await fixture('variables-source.json'));
+  assert.deepEqual(checkSource(original), { ok: true, unsupported: [] });
+  async function run(label) {
+    const source = { ...original, bookSourceName: label };
+    const http = async request => {
+      const path = new URL(request.url).pathname;
+      let data;
+      if (path === '/search') data = { books: [{ id: 'a', name: '甲' }, { id: 'b', name: '乙' }] };
+      else if (path.startsWith('/book/')) data = { name: '书', detail: label + path.slice(-1) };
+      else if (path.startsWith('/toc/')) {
+        assert.equal(new URL(request.url).searchParams.get('detail'), label + path.slice(-1));
+        data = { chapters: [{ id: '1', title: '一' }, { id: '2', title: '二' }] };
+      } else data = { body: '正文' };
+      return { status: 200, url: request.url, text: JSON.stringify(data) };
+    };
+    const books = await search(source, '书', { http });
+    await Promise.all(books.map(async (book, i) => {
+      const id = i ? 'b' : 'a';
+      assert.ok(book.bookUrl.endsWith(`/book/${id}?saved=${id}`));
+      const info = await bookInfo(source, book.bookUrl, { http });
+      const chapters = await toc(source, info.tocUrl, { http });
+      const texts = await Promise.all(chapters.map(ch => content(source, ch.url, { http })));
+      assert.deepEqual(texts, [`正文 / ${id} / ${label}${id} / 1`, `正文 / ${id} / ${label}${id} / 2`]);
+    }));
+  }
+  await Promise.all([run('源甲'), run('源乙')]);
+});
+test('R5-3: 变量值只是文本，不能触发二次模板执行或原型污染', () => {
+  const context = { variables: Object.create(null) };
+  assert.deepEqual(strings({ id: '{{alert(1)}}' }, '$.id@put:{__proto__:$.id}', 0, context), ['{{alert(1)}}']);
+  assert.deepEqual(strings({}, '@get:{__proto__}', 0, context), ['{{alert(1)}}']);
+  assert.equal(Object.getPrototypeOf(context.variables), null);
+  assert.deepEqual(strings({}, '@get:{toString}', 0, context), []);
+});
+
+test('R5-4: 方括号闭区间、省略末项、负数、步长与越界', () => {
+  assert.deepEqual(strings(html, 'dd[8:]@text'), ['8', '9']);
+  assert.deepEqual(strings(html, '.book_other[1:2]@text'), ['1', '2']);
+  assert.deepEqual(strings(html, 'dd[1:7:2]@text'), ['1', '3', '5', '7']);
+  assert.deepEqual(strings(html, 'dd[-3:-1]@text'), ['7', '8', '9']);
+  assert.deepEqual(strings(html, 'dd[7:3:-2]@text'), ['7', '5', '3']);
+  assert.deepEqual(strings(html, 'dd[100:200]@text'), []);
+  assert.throws(() => strings(html, 'dd[1:3:0]@text'), /步长/);
+});
+test('R5-4: 点号冒号是下标列表，保留顺序及负下标；支持排除', () => {
+  assert.deepEqual(strings(html, '.range span.3:7:-1@text'), ['3', '7', '9']);
+  assert.deepEqual(strings(html, '.range td.5:4@text'), ['5', '4']);
+  assert.deepEqual(strings(html, '.range span.1:3:0@text'), ['1', '3', '0']);
+  assert.deepEqual(strings(html, '.book_other!0:2@text'), ['1']);
+});
+test('R5-4: @css :eq 正负下标与后代链', () => {
+  assert.deepEqual(strings(html, '@css:.range span:eq(3)@text'), ['3']);
+  assert.deepEqual(strings(html, '@css:.range span:eq(-1)@text'), ['9']);
+  assert.deepEqual(strings(html, '@css:.range:eq(0) span:eq(2)@text'), ['2']);
+  assert.deepEqual(strings(html, '@css:.range span:eq(99)@text'), []);
+});
+
+test('R5-5: 静态三类互斥，非必经字段不误挡，禁止网络和脚本', () => {
+  const saved = globalThis.fetch;
+  globalThis.fetch = () => { throw Error('静态检查不应联网'); };
+  globalThis.__staticScriptRan = false;
+  try {
+    assert.equal(classifySource(htmlSource).category, 'pass');
+    assert.equal(classifySource({ ...htmlSource, ruleSearch: { ...htmlSource.ruleSearch, intro: '{{alert(1)}}' } }).category, 'pass');
+    assert.equal(classifySource({ ...htmlSource, searchUrl: '/,{webView:true}' }).category, 'unknown');
+    assert.equal(classifySource({ ...htmlSource, searchUrl: '/{{globalThis.__staticScriptRan=true}}' }).category, 'script');
+    assert.equal(globalThis.__staticScriptRan, false);
+  } finally { globalThis.fetch = saved; delete globalThis.__staticScriptRan; }
+});
+test('R5-5: 递归目录，隔离坏 JSON / 坏条目并跳过订阅源', async () => {
+  const result = await checkDirectory(fileURLToPath(new URL('./fixtures/legado/check-dir', import.meta.url)));
+  assert.equal(result.files, 2); assert.equal(result.sources, 1);
+  assert.equal(result.pass, 1); assert.equal(result.script + result.unknown, 0);
+  assert.equal(result.skippedSubscriptions, 1); assert.equal(result.errors.length, 2);
+  assert.match(formatReport(result), /能过 1 \/ 要脚本 0 \/ 规则不认识 0/);
+});
+test('R5-5: CLI 用法、缺失目录报错与 --json 输出', () => {
+  const command = fileURLToPath(new URL('./legado-check-dir.mjs', import.meta.url));
+  const directory = fileURLToPath(new URL('./fixtures/legado/check-dir', import.meta.url));
+  const run = (...args) => spawnSync(process.execPath, [command, ...args], { encoding: 'utf8', timeout: 10000 });
+  assert.equal(run().status, 1);
+  assert.equal(run(directory + '/missing').status, 1);
+  const good = run(directory, '--json');
+  assert.equal(good.status, 0); assert.equal(JSON.parse(good.stdout).pass, 1);
+});
+
+test('R5 回归: eq 属性字面量不拆分；get 空格模板与坏格式', () => {
+  const doc = parseDocument('<a data-x=":eq(1)">保留</a>');
+  assert.deepEqual(strings(doc, '@css:a[data-x=":eq(1)"]@text'), ['保留']);
+  assert.deepEqual(strings({}, '{{ @get:{id} }}', 0, { variables: { id: 3 } }), ['3']);
+  for (const bad of ['@get:id', '@get:{id', '@get:{}', '@get:{a.b}']) {
+    assert.throws(() => strings({}, bad));
+    assert.throws(() => renderTemplate(bad));
+  }
 });
 
 // 各阶段的测试在 runner 前注册，单条失败不妨碍看到其余用例结果。

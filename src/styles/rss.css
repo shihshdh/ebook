@@ -1,0 +1,90 @@
+/* 「订阅」页 + 插件页「订阅源」 */
+.rss-head p.muted { max-width: 640px; font-size: 13.5px; line-height: 1.7; }
+.rss-tools { display: flex; align-items: center; gap: 12px; margin-top: 22px; }
+.rss-search { margin-left: 0; }
+.rss-search input { width: 220px; }
+.rss-groups { display: flex; gap: 8px; margin-top: 14px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
+.rss-groups .chip { flex: none; }
+.rss-none { margin-top: 18px; }
+
+.rss-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin-top: 18px; }
+.rss-card {
+  position: relative; display: flex; align-items: center; gap: 12px; min-width: 0; padding: 12px 14px; border-radius: 18px;
+  text-align: left; color: var(--ink); cursor: pointer; border: 1px solid var(--line); animation: reveal .45s var(--ease) backwards;
+  animation-delay: calc(var(--i) * 18ms); transition: transform .25s var(--ease), border-color .25s;
+}
+.rss-card:hover { transform: translate3d(0, -2px, 0); border-color: color-mix(in srgb, var(--gold) 45%, transparent); }
+.rss-card-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.rss-card-text strong { font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rss-card-text small { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rss-card-go { flex: none; color: var(--ink3); }
+.rss-icon { flex: none; display: grid; place-items: center; overflow: hidden; border-radius: 12px; background: var(--soft-2); color: var(--gold); font-size: 20px; }
+.rss-icon img { width: 100%; height: 100%; object-fit: cover; }
+.rss-more { display: flex; justify-content: center; margin-top: 22px; }
+.rss-empty { margin-top: 26px; padding: 26px 24px; border-radius: 22px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; max-width: 620px; }
+.rss-empty p { margin: 0; line-height: 1.7; }
+.rss-empty p.serif { font-size: 20px; }
+
+/* 一个订阅源 */
+.rss-src-head { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.rss-src-title { flex: 1; min-width: 200px; }
+.rss-src-title h1 { margin: 0; font-size: clamp(26px, 3.4vw, 38px); line-height: 1.15; }
+.rss-src-title small { font-size: 12.5px; }
+.rss-sorts { margin-top: 18px; }
+.rss-list { margin-top: 18px; display: flex; flex-direction: column; gap: 10px; }
+.rss-item {
+  display: flex; align-items: flex-start; gap: 14px; width: 100%; padding: 14px 16px; border-radius: 16px; text-align: left; cursor: pointer;
+  color: var(--ink); border: 1px solid var(--line); background: var(--soft); transition: border-color .2s, background .2s;
+}
+.rss-item:hover { border-color: color-mix(in srgb, var(--gold) 45%, transparent); background: var(--soft-2); }
+.rss-item-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.rss-item-text strong { font-size: 15.5px; font-weight: 600; line-height: 1.5; }
+.rss-item-text small { font-size: 12.5px; line-height: 1.6; }
+.rss-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rss-thumb { flex: none; order: 2; width: 112px; height: 76px; object-fit: cover; border-radius: 10px; background: var(--soft-2); }
+/* articleStyle 1：大图卡片；2：图片网格 */
+.rss-list.style-1 { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.rss-list.style-1 .rss-item { flex-direction: column; }
+.rss-list.style-1 .rss-thumb { order: 0; width: 100%; height: auto; aspect-ratio: 16 / 9; }
+.rss-list.style-2 { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.rss-list.style-2 .rss-item { flex-direction: column; padding: 8px; gap: 8px; }
+.rss-list.style-2 .rss-thumb { order: 0; width: 100%; height: auto; aspect-ratio: 3 / 4; }
+.rss-list.style-2 .rss-item-text strong { font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.rss-sentinel { display: flex; justify-content: center; padding: 26px 0 10px; font-size: 13px; min-height: 40px; }
+
+/* 文章 */
+.rss-reader { position: fixed; inset: 0; z-index: 90; overflow-y: auto; background: var(--bg); animation: rss-in .22s var(--ease) backwards; }
+@keyframes rss-in { from { opacity: 0; } }   /* 整屏只淡入：整页模糊动画在手机上太贵 */
+.rss-reader-bar {
+  position: sticky; top: calc(10px + var(--safe-t)); z-index: 2; display: flex; align-items: center; gap: 8px; width: min(820px, calc(100% - 24px));
+  margin: calc(10px + var(--safe-t)) auto 0; padding: 6px 8px; border-radius: 99px;
+}
+.rss-reader-from { flex: 1; min-width: 0; text-align: center; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rss-article { width: min(760px, calc(100% - 32px)); margin: 28px auto 80px; color: var(--ink); }
+.rss-article h1 { margin: 0 0 8px; font-size: clamp(24px, 3vw, 34px); line-height: 1.3; }
+.rss-date { margin: 0 0 22px; font-size: 13px; }
+.rss-body { font-size: 17px; line-height: 1.9; overflow-wrap: anywhere; }
+.rss-body p { margin: 0 0 1em; }
+.rss-body img { display: block; max-width: 100%; height: auto; margin: 14px auto; border-radius: 10px; }
+.rss-body a { color: var(--gold); }
+.rss-body blockquote { margin: 1em 0; padding: 4px 16px; border-left: 3px solid var(--line2); color: var(--ink2); }
+.rss-body pre { overflow-x: auto; padding: 12px; border-radius: 10px; background: var(--soft); font-size: 14px; }
+.rss-body table { border-collapse: collapse; max-width: 100%; display: block; overflow-x: auto; }
+.rss-body td, .rss-body th { border: 1px solid var(--line); padding: 6px 8px; }
+
+/* 插件页 */
+.rss-group-list { display: flex; flex-direction: column; gap: 8px; max-height: min(640px, 70vh); overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; }
+.rss-group-list .bs-fold-head .switch { flex: none; }
+.rss-group-list .bs-fold.is-bad { opacity: .8; }
+.rss-cap { padding: 6px 12px; font-size: 12.5px; }
+
+@media (max-width: 760px) {
+  .rss-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .rss-card { padding: 10px; gap: 10px; }
+  .rss-card .rss-icon { width: 36px !important; height: 36px !important; }
+  .rss-search, .rss-search input { width: 100%; }
+  .rss-thumb { width: 92px; height: 64px; }
+  .rss-list.style-2 { grid-template-columns: 1fr 1fr; }
+  .rss-reader-bar { top: calc(6px + var(--safe-t)); }
+  .rss-article { margin-bottom: calc(var(--tab-h, 64px) + 48px + var(--safe-b)); }   /* 别让文末藏在底栏后面 */
+}

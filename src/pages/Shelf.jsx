@@ -11,6 +11,7 @@ import * as local from '../plugins/local/index.js';
 import { ContinueCard, StatsCard, NotesPanel, ForYou, isFinished, isReading } from '../components/ShelfPanels.jsx';
 import { acctKey } from '../lib/accounts.js';
 import { haptic, onBackButton } from '../lib/native.js';
+import { usePageActive } from '../lib/pageActive.js';
 
 // 书架的排序 / 筛选：记在本机（跟账户走），下次打开还是这样
 const VIEW_KEY = acctKey('librarium.shelfView');
@@ -75,6 +76,9 @@ export default function Shelf() {
 
   const stopEditing = () => { setEditing(false); setPicked(new Set()); setArmed(false); };
   const pick = (id) => { setArmed(false); setPicked(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; }); };
+  // 切到别的页（书架留在后台）就退出管理，不然后台的它还占着返回键
+  const active = usePageActive();
+  useEffect(() => { if (!active && editing) stopEditing(); }, [active]);
   // 书删光了、或者选中的书被别处删掉了：跟着收
   useEffect(() => {
     if (!editing) return;

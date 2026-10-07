@@ -55,9 +55,11 @@ body::after {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  /* 省电：background-position 不能交给合成器，每变一次都要重画字。按缓动取样、每秒 24 次，流光看着一样顺 */
-  animation: foil 7s infinite alternate;
-  animation-timing-function: steps(17);
+}
+/* 流光只在鼠标停在字上时走。background-position 交不给合成器：哪怕按 steps 每秒只变 24 次，浏览器照样每帧重算样式——
+   实测首页什么都不动时每 2 秒 480 次样式重算、98 次重画，几乎全是它（手机上占主线程一成多）。静止的金箔字看着和流光的某一帧一样 */
+@media (hover: hover) and (pointer: fine) {
+  .foil:hover { animation: foil 7s infinite alternate; animation-timing-function: steps(17); }
 }
 @keyframes foil { 0% { background-position: 0.00% 0; } 10% { background-position: 1.97% 0; } 20% { background-position: 8.17% 0; } 30% { background-position: 18.74% 0; } 40% { background-position: 33.19% 0; } 50% { background-position: 50.00% 0; } 60% { background-position: 66.81% 0; } 70% { background-position: 81.26% 0; } 80% { background-position: 91.83% 0; } 90% { background-position: 98.03% 0; } 100% { background-position: 100.00% 0; } }
 .num { font-variant-numeric: tabular-nums; }
@@ -138,8 +140,9 @@ body::after {
 }
 
 /* ---------- 入场 ---------- */
-.reveal { animation: reveal var(--d-hero) var(--ease) both; animation-delay: var(--d, 0s); }
-@keyframes reveal { from { opacity: 0; transform: translate3d(0, 14px, 0); filter: blur(6px); } }
+.reveal { animation: reveal var(--d-hero) var(--ease) backwards; animation-delay: var(--d, 0s); }
+/* 列表逐个进场：不带 blur——几十个元素同时做模糊动画，手机上一帧就画不完 */
+@keyframes reveal { from { opacity: 0; transform: translate3d(0, 14px, 0); } }
 
 @media (prefers-reduced-motion: reduce) {
   body::before, .foil { animation: none; }

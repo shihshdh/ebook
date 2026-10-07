@@ -9,16 +9,17 @@ import { useSources, importSources, importFromUrl, setSourceEnabled, removeSourc
 const hostOf = (u) => { try { return new URL(u).host; } catch { return u; } };
 const SUBSCRIPTION = /订阅源/;
 
-function summary({ added, updated, broken, errors }) {
-  const subs = errors.filter(e => SUBSCRIPTION.test(e)).length, bad = errors.length - subs;
+function summary({ added, updated, broken, errors, rss }) {
+  const bad = errors.filter(e => !SUBSCRIPTION.test(e)).length;
   const parts = [];
-  if (added) parts.push(`新增 ${added} 个`);
+  if (added) parts.push(`书源新增 ${added} 个`);
   if (updated) parts.push(`更新 ${updated} 个`);
   if (broken) parts.push(`${broken} 个用不了，已收起`);
-  if (subs) parts.push(`跳过 ${subs} 个订阅源（不是书源）`);
+  if (rss?.added || rss?.updated) parts.push(`订阅源${rss.added ? `新增 ${rss.added} 个` : ''}${rss.updated ? ` 更新 ${rss.updated} 个` : ''}（在「订阅」页）`);
   if (bad) parts.push(`${bad} 条格式不对`);
   return parts.join(' · ') || '没有找到书源';
 }
+const changed = (r) => r.added + r.updated + (r.rss?.added || 0) + (r.rss?.updated || 0);
 
 /** 用不了的原因归个类，折叠组标题上给个大概 */
 function reasonOf(e) {
@@ -72,8 +73,8 @@ export default function LegadoSources() {
     try {
       const r = await job();
       setErrors(r.errors.filter(e => !SUBSCRIPTION.test(e)));
-      toast(`书源导入：${summary(r)}`, { tone: r.added + r.updated ? 'ok' : 'error', ms: 4200 });
-      if (r.added + r.updated) { setMode(''); setText(''); }
+      toast(`导入：${summary(r)}`, { tone: changed(r) ? 'ok' : 'error', ms: 4800 });
+      if (changed(r)) { setMode(''); setText(''); }
     } catch (e) { toast('导入失败：' + (e?.message || '读不到内容'), { tone: 'error', ms: 3600 }); }
     setBusy(false);
   };
@@ -83,10 +84,11 @@ export default function LegadoSources() {
     e.target.value = '';
     if (!files.length) return;
     run(async () => {
-      const total = { added: 0, updated: 0, broken: 0, errors: [] };
+      const total = { added: 0, updated: 0, broken: 0, errors: [], rss: { added: 0, updated: 0 } };
       for (const f of files) {
         const r = await importSources(await f.text());
         total.added += r.added; total.updated += r.updated; total.broken += r.broken;
+        total.rss.added += r.rss?.added || 0; total.rss.updated += r.rss?.updated || 0;
         total.errors.push(...r.errors.map(m => files.length > 1 ? `${f.name}：${m}` : m));
       }
       return total;
@@ -125,7 +127,7 @@ export default function LegadoSources() {
       <div className="bs-head">
         <div>
           <h2 className="serif">自定义书源</h2>
-          <p className="muted">导入你自己的 Legado（阅读 App）书源，搜索页就能在这些书源里现搜、整本下载。{list?.length ? <>已导入 <span className="num">{list.length}</span> 个，能用 <span className="num">{usable.length}</span> 个，启用 <span className="num">{enabled}</span> 个。</> : ''}</p>
+          <p className="muted">导入你自己的 Legado（阅读 App）书源，搜索页就能在这些书源里现搜、整本下载；文件里的订阅源会放进「订阅」页。{list?.length ? <>已导入 <span className="num">{list.length}</span> 个，能用 <span className="num">{usable.length}</span> 个，启用 <span className="num">{enabled}</span> 个。</> : ''}</p>
         </div>
         <div className="bs-actions">
           <button className={`btn sm ${mode === 'paste' ? 'btn-gold' : ''}`} onClick={() => setMode(m => m === 'paste' ? '' : 'paste')} aria-expanded={mode === 'paste'}><Icon name="copy" size={16} />粘贴</button>

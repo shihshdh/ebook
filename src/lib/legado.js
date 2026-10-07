@@ -47,6 +47,15 @@ export function useSources() {
 /** 导入一段书源 JSON（单个或数组）。同一个书源（地址 + 名字相同）再导一次就覆盖，保留原来的开关 */
 export async function importSources(text) {
   const { parseSources, checkSource } = await engine();
+  // 同一个文件里可能混着订阅源（RSS 源）：分出来交给「订阅」那边（lib/rss.js），书源照旧
+  let rss = null;
+  try {
+    const input = JSON.parse(String(text).replace(/^﻿/, ''));
+    const all = Array.isArray(input) ? input : [input];
+    const { isRssSource, importRss } = await import('./rss.js');
+    const feeds = all.filter(isRssSource);
+    if (feeds.length) { rss = await importRss(feeds); text = JSON.stringify(all.filter(e => !isRssSource(e))); }
+  } catch { /* 不是合法 JSON：交给 parseSources 报格式错误 */ }
   const { sources, errors } = parseSources(text);
   const list = [...await listSources()];
   let added = 0, updated = 0, broken = 0;
@@ -60,7 +69,7 @@ export async function importSources(text) {
     else { list.push(entry); added++; }
   }
   if (sources.length) await save(list);
-  return { added, updated, broken, errors };
+  return { added, updated, broken, errors, rss };
 }
 
 /** 从网址导入（书源合集常以 JSON 链接分享） */

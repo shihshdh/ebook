@@ -78,11 +78,19 @@ export function checkSource(source) {
 }
 
 // 目录建立章节边界，正文续页遇到目录里的另一章时必须停下。
-const chapterSets = new WeakMap();
+const workflows = new WeakMap();
+const freshContext = (source, parent) => ({ sourceUrl: source.bookSourceUrl, variables: Object.assign(Object.create(null), parent?.variables), chapters: parent?.chapters || new Set() });
+function remember(source, url, context) {
+  if (!url) return;
+  let urls = workflows.get(source);
+  if (!urls) { urls = new Map(); workflows.set(source, urls); }
+  urls.set(url, context);
+}
+const contextFor = (source, url) => freshContext(source, workflows.get(source)?.get(url));
 const checkAbort = signal => { if (signal?.aborted) throw new DOMException('已取消', 'AbortError'); };
-const first = (input, rule) => {
+const first = (input, rule, context = {}) => {
   if (!rule) return '';
-  try { return strings(input, rule)[0]?.trim() || ''; }
+  try { return strings(input, rule, 0, context)[0]?.trim() || ''; }
   catch (error) { if (error instanceof UnsupportedRuleError) return ''; throw error; }
 };
 const urlOrEmpty = (value, base) => {
@@ -90,11 +98,11 @@ const urlOrEmpty = (value, base) => {
 };
 const pageKey = url => { const key = new URL(url); key.hash = ''; return key.href; };
 // 书单、章节列表要的是一组元素：最后一段也按选择器算（tbody@tr!0、.list.1@a）
-const collection = (input, rule) => evaluateRule(input, rule, 0, true).flatMap(value => Array.isArray(value) ? value : [value]);
+const collection = (input, rule, context) => evaluateRule(input, rule, 0, true, context).flatMap(value => Array.isArray(value) ? value : [value]);
 
-async function load(source, address, { page = 1, key = '', signal, http = nativeRequest, base } = {}) {
+async function load(source, address, { page = 1, key = '', signal, http = nativeRequest, base, context } = {}) {
   checkAbort(signal);
-  const request = buildRequest(source, address, { page, key, signal, base: base || source.bookSourceUrl });
+  const request = buildRequest(source, address, { page, key, signal, base: base || source.bookSourceUrl, variables: context?.variables });
   const response = await http(request);
   checkAbort(signal);
   const finalUrl = urlOrEmpty(response.url, request.url) || request.url;
@@ -106,23 +114,26 @@ async function load(source, address, { page = 1, key = '', signal, http = native
   return { document, url: finalUrl, base: urlOrEmpty(baseHref, finalUrl) || finalUrl, requestUrl: request.url };
 }
 
-function fields(input, rules, base) {
+function fields(input, rules, base, context) {
   const result = {};
-  for (const field of ['name', 'author', 'intro', 'kind', 'wordCount']) result[field] = first(input, rules[field]);
-  result.latestChapter = first(input, rules.lastChapter || rules.latestChapter);
-  result.coverUrl = urlOrEmpty(first(input, rules.coverUrl), base);
+  for (const field of ['name', 'author', 'intro', 'kind', 'wordCount']) result[field] = first(input, rules[field], context);
+  result.latestChapter = first(input, rules.lastChapter || rules.latestChapter, context);
+  result.coverUrl = urlOrEmpty(first(input, rules.coverUrl, context), base);
   return result;
 }
 
 export async function search(source, keyword, { page = 1, signal, http } = {}) {
   const rules = source.ruleSearch || {};
   if (!rules.bookList || !rules.name || !rules.bookUrl) throw new UnsupportedRuleError('搜索规则缺少列表、书名或书籍地址');
-  const loaded = await load(source, source.searchUrl, { page, key: keyword, signal, http });
-  const entries = collection(loaded.document, rules.bookList), result = [], seen = new Set();
+  const root = freshContext(source);
+  const loaded = await load(source, source.searchUrl, { page, key: keyword, signal, http, context: root });
+  const entries = collection(loaded.document, rules.bookList, root), result = [], seen = new Set();
   for (const entry of entries) {
-    const data = fields(entry, rules, loaded.base);
-    const bookUrl = urlOrEmpty(first(entry, rules.bookUrl), loaded.base);
+    const context = freshContext(source, root);
+    const data = fields(entry, rules, loaded.base, context);
+    const bookUrl = urlOrEmpty(first(entry, rules.bookUrl, context), loaded.base);
     if (!data.name || !bookUrl || seen.has(bookUrl)) continue;
+    remember(source, bookUrl, context);
     seen.add(bookUrl); result.push({ ...data, bookUrl });
   }
   return result;
@@ -130,35 +141,41 @@ export async function search(source, keyword, { page = 1, signal, http } = {}) {
 
 export async function bookInfo(source, bookUrl, { signal, http } = {}) {
   const rules = source.ruleBookInfo || {};
-  const loaded = await load(source, bookUrl, { signal, http });
-  const input = rules.init ? evaluateRule(loaded.document, rules.init, 0, true)[0] || loaded.document : loaded.document;
-  return { ...fields(input, rules, loaded.base), tocUrl: urlOrEmpty(first(input, rules.tocUrl), loaded.base) || bookUrl };
+  const context = contextFor(source, bookUrl);
+  const loaded = await load(source, bookUrl, { signal, http, context });
+  const input = rules.init ? evaluateRule(loaded.document, rules.init, 0, true, context)[0] || loaded.document : loaded.document;
+  const result = { ...fields(input, rules, loaded.base, context), tocUrl: urlOrEmpty(first(input, rules.tocUrl, context), loaded.base) || bookUrl };
+  for (const url of [bookUrl, loaded.url, result.tocUrl]) remember(source, url, context);
+  return result;
 }
 
 export async function toc(source, tocUrl, { signal, http, onPage } = {}) {
   const rules = source.ruleToc || {};
   if (!rules.chapterList || !rules.chapterName || !rules.chapterUrl) throw new UnsupportedRuleError('目录规则缺少列表、章节名或地址');
   const result = [], pages = new Set(), chapters = new Set();
+  const context = contextFor(source, tocUrl);
+  context.chapters = chapters;
   let address = tocUrl, base = source.bookSourceUrl;
   for (let page = 1; address && page <= 200; page++) {
-    const requested = buildRequest(source, address, { page, base }).url;
+    const requested = buildRequest(source, address, { page, base, variables: context.variables }).url;
     if (pages.has(pageKey(requested))) break;
-    const loaded = await load(source, address, { signal, http, page, base });
+    const loaded = await load(source, address, { signal, http, page, base, context });
     if (pages.has(pageKey(loaded.url))) break;
     pages.add(pageKey(requested)); pages.add(pageKey(loaded.url));
-    for (const entry of collection(loaded.document, rules.chapterList)) {
-      const title = first(entry, rules.chapterName), url = urlOrEmpty(first(entry, rules.chapterUrl), loaded.base);
-      if (title && url && !chapters.has(url)) { chapters.add(url); result.push({ title, url }); }
+    for (const entry of collection(loaded.document, rules.chapterList, context)) {
+      const chapterContext = freshContext(source, context);
+      const title = first(entry, rules.chapterName, chapterContext), url = urlOrEmpty(first(entry, rules.chapterUrl, chapterContext), loaded.base);
+      if (title && url && !chapters.has(url)) { chapters.add(url); remember(source, url, chapterContext); result.push({ title, url }); }
     }
     onPage?.(page); checkAbort(signal);
-    address = first(loaded.document, rules.nextTocUrl); base = loaded.base;
+    address = first(loaded.document, rules.nextTocUrl, context); base = loaded.base;
   }
-  chapterSets.set(source, new Set([...(chapterSets.get(source) || []), ...chapters]));
+  remember(source, tocUrl, context);
   return result;
 }
 
-function isNextChapter(source, loaded, next, firstUrl) {
-  if (chapterSets.get(source)?.has(next) && next !== firstUrl) return true;
+function isNextChapter(context, loaded, next, firstUrl) {
+  if (context.chapters.has(next) && next !== firstUrl) return true;
   const anchors = loaded.document.querySelectorAll?.('a[href]') || [];
   for (const anchor of anchors) {
     if (urlOrEmpty(anchor.getAttribute('href'), loaded.base) === next && /下[一个]?[章回节卷]|next\s*chapter/i.test(`${anchor.textContent} ${anchor.getAttribute('title') || ''}`)) return true;
@@ -180,21 +197,22 @@ export async function content(source, chapterUrl, { signal, http } = {}) {
   const rules = source.ruleContent || {};
   if (!rules.content) throw new UnsupportedRuleError('缺少正文规则');
   const pages = new Set(), pieces = [];
+  const context = contextFor(source, chapterUrl);
   let address = chapterUrl, base = source.bookSourceUrl;
   for (let page = 1; address && page <= 200; page++) {
-    const requested = buildRequest(source, address, { page, base }).url;
+    const requested = buildRequest(source, address, { page, base, variables: context.variables }).url;
     if (pages.has(pageKey(requested))) break;
-    const loaded = await load(source, address, { signal, http, page, base });
+    const loaded = await load(source, address, { signal, http, page, base, context });
     if (pages.has(pageKey(loaded.url))) break;
     pages.add(pageKey(requested)); pages.add(pageKey(loaded.url));
-    const values = evaluateRule(loaded.document, rules.content).flatMap(value => Array.isArray(value) ? value : [value]);
+    const values = evaluateRule(loaded.document, rules.content, 0, false, context).flatMap(value => Array.isArray(value) ? value : [value]);
     for (const value of values) {
       // HTML/JSON 都允许正文含段落标记，只解析文本，不挂进活动文档。
       const text = typeof value === 'string' ? (/<\/?[a-z][^>]*>/i.test(value) ? plainText(value) : value) : plainText(value);
       if (text.trim()) pieces.push(text.trim());
     }
-    const next = urlOrEmpty(first(loaded.document, rules.nextContentUrl), loaded.base);
-    if (!next || isNextChapter(source, loaded, next, chapterUrl)) break;
+    const next = urlOrEmpty(first(loaded.document, rules.nextContentUrl, context), loaded.base);
+    if (!next || isNextChapter(context, loaded, next, chapterUrl)) break;
     address = next; base = loaded.base;
   }
   return replaceContent(pieces.join('\n'), rules.replaceRegex).trim();

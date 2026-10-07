@@ -11,7 +11,7 @@
 /* 今日一本：浮在纸河上的一块厚玻璃 */
 .pick { padding: 20px; border-radius: 28px; --rx: 0deg; --ry: 0deg; -webkit-backdrop-filter: blur(22px) saturate(160%); backdrop-filter: blur(22px) saturate(160%); }
 .pick .eyebrow { margin: 0 0 14px; }
-.pick-body { display: grid; grid-template-columns: 128px 1fr; gap: 18px; align-items: start; animation: reveal .6s var(--ease) both; }
+.pick-body { display: grid; grid-template-columns: 128px 1fr; gap: 18px; align-items: start; animation: reveal .6s var(--ease) backwards; }
 .pick-cover { position: relative; padding: 0; border: 0; background: none; border-radius: 8px; perspective: 700px; }
 .pick-cover .cover {
   display: block; aspect-ratio: 5 / 7; border-radius: 8px; overflow: hidden; transform: rotateX(var(--rx)) rotateY(var(--ry));
@@ -45,7 +45,7 @@
 .rank, .illus { padding: clamp(18px, 2.2vw, 26px); border-radius: 28px; }
 .rank .section-head, .illus .section-head { margin-bottom: 14px; }
 .rank ol { list-style: none; margin: 0; padding: 0; }
-.rank li { animation: reveal .55s var(--ease) both; animation-delay: calc(var(--i) * 40ms); }
+.rank li { animation: reveal .55s var(--ease) backwards; animation-delay: calc(var(--i) * 40ms); }
 .rank li + li { border-top: 1px solid var(--line); }
 .rank li button {
   width: 100%; display: grid; grid-template-columns: 46px 38px minmax(0, 1fr) auto; align-items: center; gap: 14px;
@@ -63,7 +63,7 @@
 .rank-tags .tag { font-size: 11px; padding: 1px 7px; }
 .illus-lead { margin: -6px 0 16px; font-size: 13px; }
 .illus-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-.illus-card { position: relative; padding: 0; border: 0; background: none; text-align: left; animation: reveal .6s var(--ease) both; animation-delay: calc(var(--i) * 50ms); }
+.illus-card { position: relative; padding: 0; border: 0; background: none; text-align: left; animation: reveal .6s var(--ease) backwards; animation-delay: calc(var(--i) * 50ms); }
 .illus-card .cover { display: block; aspect-ratio: 5 / 7; border-radius: 10px; overflow: hidden; box-shadow: 0 18px 30px -18px rgba(0, 0, 0, .6), 0 0 0 1px var(--line); transition: transform .5s var(--ease); }
 .illus-card:hover .cover { transform: translate3d(0, -5px, 0) rotate(-1deg); }
 .illus-card img { width: 100%; height: 100%; object-fit: cover; }
@@ -72,7 +72,6 @@
   position: absolute; top: 8px; right: 8px; padding: 2px 9px; border-radius: 99px; font-size: 11px; color: #1a140a;
   background: linear-gradient(180deg, rgba(246, 227, 180, .92), rgba(216, 181, 111, .88));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), 0 4px 10px -4px rgba(0, 0, 0, .4);
-  -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
 }
 .illus-title { display: block; margin-top: 8px; font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

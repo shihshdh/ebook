@@ -1,0 +1,13 @@
+[
+  {
+    "bookSourceName": "静态可用",
+    "bookSourceUrl": "https://static.fixture.invalid/",
+    "searchUrl": "/search",
+    "ruleSearch": { "bookList": "$.books[*]", "name": "$.name", "bookUrl": "$.url" },
+    "ruleBookInfo": { "name": "$.name" },
+    "ruleToc": { "chapterList": "$.chapters[*]", "chapterName": "$.title", "chapterUrl": "$.url" },
+    "ruleContent": { "content": "$.body" }
+  },
+  { "sourceName": "订阅", "sourceUrl": "https://rss.fixture.invalid/" },
+  { "bookSourceName": "无效地址", "bookSourceUrl": "not-a-url" }
+]

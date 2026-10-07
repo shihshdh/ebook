@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Cover from '../components/Cover.jsx';
 import { useCover } from '../lib/covers.js';
-import { prefersReduced } from '../lib/motion.js';
+import { isTouch, prefersReduced } from '../lib/motion.js';
 import { usePixelGlitch } from './usePixelGlitch.js';
 import './MasonryWall.css';
 
@@ -70,7 +70,10 @@ function FlipbookTile({ books, onOpen }) {
   );
 }
 
-export default function MasonryWall({ books, onOpen, flip = [], pageSize = 48 }) {
+// 一次铺多少张：手机一屏只看得到七八张，先铺 18 张、滚到附近再补（以前一上来 48 张，第一次进探索页手机上要卡一秒）
+const PAGE = isTouch() ? 18 : 36;
+
+export default function MasonryWall({ books, onOpen, flip = [], pageSize = PAGE }) {
   const [count, setCount] = useState(pageSize);
   const sentinel = useRef(null);
   useEffect(() => { setCount(pageSize); }, [books, pageSize]);

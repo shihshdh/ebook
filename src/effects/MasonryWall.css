@@ -3,7 +3,7 @@
   position: relative; margin: 0 0 16px; break-inside: avoid; border-radius: 14px; overflow: hidden; cursor: pointer;
   background: #14110e; aspect-ratio: 5 / 7; isolation: isolate;
   box-shadow: 0 1px 0 rgba(255, 246, 225, .08) inset, 0 18px 40px -24px rgba(0, 0, 0, .9);
-  animation: mw-in .7s var(--ease) both; animation-delay: calc(var(--i, 0) * 35ms);
+  animation: mw-in .7s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 35ms);
 }
 @keyframes mw-in { from { opacity: 0; transform: translate3d(0, 18px, 0); } }
 .mw-tile .cover, .mw-tile .cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
@@ -50,4 +50,4 @@
 }
 @media (prefers-reduced-motion: reduce) { .mw-tile { animation: none; } }
 /* 台版：官方彩插，但要去蓝奏云手动下——用描边款和"插图"（应用内一键下）区分开 */
-.mw-badge.is-taiban { color: #f6e3b4; background: rgba(20, 16, 10, .62); box-shadow: inset 0 0 0 1px rgba(233, 203, 139, .55); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); }
+.mw-badge.is-taiban { color: #f6e3b4; background: rgba(20, 16, 10, .78); box-shadow: inset 0 0 0 1px rgba(233, 203, 139, .55); }   /* 不用 backdrop-filter：一屏二三十个小角标，每个都是一层、每帧一次模糊 */

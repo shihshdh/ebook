@@ -83,10 +83,10 @@ fn is_lanzou(url: &Url) -> bool {
     url.scheme() == "https" && url.host_str().is_some_and(|h| h.contains("lanzo") || h.ends_with("lanzn.com"))
 }
 
-/// 关掉所有蓝奏云小窗（换一本书重开、主窗口关闭时都要用）
-fn close_lanzou_windows(app: &tauri::AppHandle) {
+/// 关掉指定前缀的小窗（蓝奏云换一本书重开时关 "lanzou"；主窗口关闭时把蓝奏云和订阅网页窗都关掉）
+fn close_popups(app: &tauri::AppHandle, prefix: &str) {
     for (label, w) in app.webview_windows() {
-        if label.starts_with("lanzou") {
+        if label.starts_with(prefix) {
             let _ = w.destroy();
         }
     }
@@ -109,7 +109,7 @@ async fn open_lanzou(app: tauri::AppHandle, url: String, pwd: String, title: Str
         return Err("只支持蓝奏云链接".into());
     }
     // 注入脚本是建窗时定的，换一本书就关掉旧窗重开。每次用新标签：旧窗的销毁是异步的，同名标签会撞上还没走完的旧窗
-    close_lanzou_windows(&app);
+    close_popups(&app, "lanzou");
     let label = format!("lanzou-{}", LANZOU_SEQ.fetch_add(1, Ordering::Relaxed));
     let dir = lanzou_dir(&app)?;
     let pwd = serde_json::to_string(&pwd).map_err(|e| e.to_string())?;
@@ -147,6 +147,68 @@ async fn open_lanzou(app: tauri::AppHandle, url: String, pwd: String, title: Str
                 DownloadEvent::Finished { path, success, .. } => {
                     if let (true, Some(name)) = (success, path.as_ref().and_then(|p| p.file_name())) {
                         let _ = done.emit_to("main", "lanzou-file", name.to_string_lossy().into_owned());
+                    }
+                }
+                _ => {}
+            }
+            true
+        });
+    if let Some(main) = app.get_webview_window("main") {
+        builder = builder.parent(&main).map_err(|e| e.to_string())?;
+    }
+    builder.build().map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+/// 订阅源的网页窗口：只给了网址、或规则要执行脚本的订阅源，直接在这里看它的网页。
+/// 和蓝奏云小窗一样跑的是远程网页、不在任何 capability 里；订阅源里的 injectJs 不注入（不执行源里的脚本）。
+/// 页面里下载到的 EPUB / TXT / ZIP 走蓝奏云那条路直接进书架，别的文件照常存进「下载」。
+/// 每次开新窗（可以同时开几个），async 原因同 open_lanzou。
+#[tauri::command]
+async fn open_web(app: tauri::AppHandle, url: String, title: String) -> Result<(), String> {
+    let target = Url::parse(&url).map_err(|e| e.to_string())?;
+    if !matches!(target.scheme(), "http" | "https") {
+        return Err("只能打开网页地址".into());
+    }
+    let label = format!("web-{}", LANZOU_SEQ.fetch_add(1, Ordering::Relaxed));
+    let dir = lanzou_dir(&app)?;
+    let popup = app.clone();
+    let popup_label = label.clone();
+    let done = app.clone();
+    let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::External(target))
+        .title(if title.is_empty() { "EBOOK".to_string() } else { format!("{title} · EBOOK") })
+        .inner_size(1100.0, 800.0)
+        .center()
+        .initialization_script_for_all_frames(SAME_WINDOW)
+        .on_new_window(move |url, _features| {
+            let app = popup.clone();
+            let label = popup_label.clone();
+            std::thread::spawn(move || {
+                if let Some(w) = app.get_webview_window(&label) {
+                    let _ = w.navigate(url);
+                }
+            });
+            NewWindowResponse::Deny
+        })
+        .on_download(move |_webview, event| {
+            match event {
+                DownloadEvent::Requested { destination, .. } => {
+                    let is_book = destination
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .is_some_and(|e| matches!(e.to_ascii_lowercase().as_str(), "epub" | "txt" | "zip"));
+                    if is_book {
+                        let name = destination.file_name().map(|n| n.to_owned()).unwrap_or_else(|| "book.epub".into());
+                        *destination = dir.join(name);
+                    }
+                }
+                DownloadEvent::Finished { path, success, .. } => {
+                    if let (true, Some(p)) = (success, path.as_ref()) {
+                        if p.starts_with(&dir) {
+                            if let Some(name) = p.file_name() {
+                                let _ = done.emit_to("main", "lanzou-file", name.to_string_lossy().into_owned());
+                            }
+                        }
                     }
                 }
                 _ => {}
@@ -268,7 +330,7 @@ fn main() {
         )
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![recent_downloads, read_download, open_lanzou, take_lanzou_file, save_export])
+        .invoke_handler(tauri::generate_handler![recent_downloads, read_download, open_lanzou, open_web, take_lanzou_file, save_export])
         .setup(|app| {
             let nav_handle = app.handle().clone();
             let popup_handle = app.handle().clone();
@@ -307,7 +369,10 @@ fn main() {
             // 另外小窗还开着时主窗口关了，进程也不该留在后台。
             let app_handle = app.handle().clone();
             window.on_window_event(move |event| match event {
-                WindowEvent::CloseRequested { .. } => close_lanzou_windows(&app_handle),
+                WindowEvent::CloseRequested { .. } => {
+                    close_popups(&app_handle, "lanzou");
+                    close_popups(&app_handle, "web-");
+                }
                 WindowEvent::Destroyed => app_handle.exit(0),
                 _ => {}
             });

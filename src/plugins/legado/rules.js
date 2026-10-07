@@ -1,4 +1,6 @@
 import { assertNoScript, splitTop, UnsupportedRuleError } from './safety.js';
+import { inertTemplate } from './templates.js';
+import { takePuts, getVariable, validateGets } from './variables.js';
 
 export function parseDocument(text) {
   if (!globalThis.DOMParser) throw new Error('当前环境缺少 DOMParser');
@@ -54,12 +56,45 @@ function indexed(nodes, index, exclude) {
   const at = Number(index) < 0 ? nodes.length + Number(index) : Number(index);
   return exclude ? nodes.filter((_, i) => i !== at) : at >= 0 && at < nodes.length ? [nodes[at]] : [];
 }
+function indices(nodes, spec, exclude = false, range = false) {
+  const relative = value => Number(value) < 0 ? nodes.length + Number(value) : Number(value);
+  let positions;
+  if (range && spec.includes(':')) {
+    const [from, to, stride] = spec.split(':');
+    const step = stride === undefined || stride === '' ? 1 : Number(stride);
+    if (!Number.isSafeInteger(step) || step === 0) throw new UnsupportedRuleError('下标步长必须是非零整数');
+    const start = from === '' ? (step > 0 ? 0 : nodes.length - 1) : relative(from);
+    const end = to === '' ? (step > 0 ? nodes.length - 1 : 0) : relative(to);
+    positions = [];
+    // 阅读的方括号区间包含末项；越界跳过，遍历量受元素数限制。
+    for (let i = 0; i < nodes.length; i++) {
+      if ((step > 0 ? i >= start && i <= end : i <= start && i >= end) && (i - start) % step === 0) positions.push(i);
+    }
+    if (step < 0) positions.reverse();
+  } else positions = spec.split(range ? ',' : ':').map(relative).filter(i => i >= 0 && i < nodes.length);
+  if (exclude) { const drop = new Set(positions); return nodes.filter((_, i) => !drop.has(i)); }
+  return positions.map(i => nodes[i]);
+}
 function select(node, segment, css) {
   if (!isNode(node)) return [];
   if (/^!?-?\d+$/.test(segment)) return indexed([node], segment.replace('!', ''), segment.startsWith('!'));
-  let selector = segment, index, exclude = false;
-  if (!css) {
-    const suffix = /(?:\.|(!))(-?\d+)$/.exec(selector);
+  let selector = segment, index, exclude = false, range = false;
+  const eqParts = css ? splitTop(segment, ':eq') : [];
+  if (eqParts.length > 1) {
+    const eq = /^:eq\(\s*(-?\d+)\s*\)/.exec(segment.slice(eqParts[0].length));
+    if (!eq) throw new UnsupportedRuleError('无效的 :eq 下标');
+    const before = eqParts[0], after = segment.slice(before.length + eq[0].length);
+    const selected = indexed(select(node, before || '*', true), eq[1], false);
+    if (!after) return selected;
+    if (/^\s/.test(after)) return selected.flatMap(el => select(el, after.trim(), true));
+    throw new UnsupportedRuleError(':eq 后仅支持空格连接的后代选择器');
+  }
+  const bracket = /\[(!?)(-?\d*(?::-?\d*){1,2}|-?\d+(?:,-?\d+)*)\]$/.exec(selector);
+  if (bracket) {
+    index = bracket[2]; exclude = !!bracket[1]; range = true; selector = selector.slice(0, bracket.index);
+  } else if (!css) {
+    // 点号后的冒号列出指定下标（.3:7:-1），不是区间或步长。
+    const suffix = /(?:\.|(!))(-?\d+(?::-?\d+)*)$/.exec(selector);
     if (suffix) { index = suffix[2]; exclude = !!suffix[1]; selector = selector.slice(0, suffix.index); }
   }
   let nodes;
@@ -72,7 +107,7 @@ function select(node, segment, css) {
     try { nodes = [...node.querySelectorAll(selector)]; }
     catch { throw new UnsupportedRuleError(`不支持的选择器：${segment}`); }
   }
-  return index == null ? nodes : indexed(nodes, index, exclude);
+  return index == null ? nodes : indices(nodes, index, exclude, range);
 }
 
 function extract(value, kind) {
@@ -113,7 +148,7 @@ function simple(input, rule, list = false) {
   if (rule.startsWith('@json:')) return jsonSelect(input, rule.slice(6).trim());
   if (rule.startsWith('$')) return jsonSelect(input, rule);
   if (isXPath(rule)) return xpath(input, rule);
-  if (/^(?:@put:|@get:|:)/i.test(rule)) throw new UnsupportedRuleError('不支持变量存取或纯正则提取规则');
+  if (/^(?:@put:|@get:|:)/i.test(rule)) throw new UnsupportedRuleError('不支持的变量格式或纯正则提取规则');
   // 内容是 JSON 时，不带前缀的规则就是 JSONPath（data[*]、book.name），阅读 App 也这么认
   if (input && typeof input === 'object' && !isNode(input) && !rule.startsWith('@')) return jsonSelect(input, `$.${rule}`);
   const css = rule.startsWith('@css:');
@@ -149,7 +184,7 @@ function replaceValues(values, expression) {
 
 // 模板规则：{{…}} 里是一条规则，求值后拼进外面的文字（常见于拼书籍 / 章节地址：…?id={{$.bookId}}）。
 // 和阅读 App 一样认 {{@@选择器}}、{{$.JSON}}、{{//XPath}}，以及 JSON 书源的单括号 {$.id}；其余 {{…}} 是脚本表达式，不执行
-const TEMPLATE = /\{\{([\s\S]*?)\}\}|\{(\$[.[][^{}]*)\}/g;
+const TEMPLATE = /\{\{(\s*@get:\{[^{}]*\}\s*|[\s\S]*?)\}\}|\{(\$[.[][^{}]*)\}|@get:\{([^{}]*)\}/g;
 const hasTemplate = rule => /\{\{[\s\S]*?\}\}|\{\$[.[][^{}]*\}/.test(rule);
 function innerRule(inner) {
   const rule = inner.trim();
@@ -166,24 +201,36 @@ function regexOutsideTemplates(rule) {
   }
   return -1;
 }
-function template(input, rule, depth, check) {
+function template(input, rule, depth, check, context = {}) {
   const at = regexOutsideTemplates(rule);
   const body = at < 0 ? rule : rule.slice(0, at);
-  const text = body.replace(TEMPLATE, (_, double, single) => {
+  validateGets(body);
+  const text = body.replace(TEMPLATE, (_, double, single, get) => {
+    if (get !== undefined) return getVariable(context, get);
+    const variable = /^@get:\{([^{}]*)\}$/.exec((double ?? single).trim());
+    if (variable) return getVariable(context, variable[1]);
+    const inert = inertTemplate(double ?? single, context.sourceUrl);
+    if (inert !== undefined) return inert;
     const inner = innerRule(double ?? single);
-    if (check) { validateRule(inner); return ''; }
-    return strings(input, inner, depth + 1)[0] || '';
+    if (check) { validateRule(inner, false, depth + 1); return ''; }
+    return strings(input, inner, depth + 1, context)[0] || '';
   });
   return at < 0 ? [text] : replaceValues([text], rule.slice(at));
 }
 
-export function evaluateRule(input, rule, depth = 0, list = false) {
+export function evaluateRule(input, rule, depth = 0, list = false, context = {}) {
   if (!rule) return [];
   if (typeof rule !== 'string') throw new UnsupportedRuleError('规则必须是字符串');
   if (depth > 32 || rule.length > 65536) throw new UnsupportedRuleError('规则过长或嵌套过深');
   assertNoScript(rule);
-  const trimmed = rule.trim();
-  if (!list && hasTemplate(trimmed)) return template(input, trimmed, depth, false);
+  const taken = takePuts(rule);
+  if (taken.puts.length) {
+    context.variables ||= Object.create(null);
+    for (const [key, expression] of taken.puts) Object.defineProperty(context.variables, key, { value: strings(input, expression, depth + 1, context).join('\n'), enumerable: true, configurable: true, writable: true });
+  }
+  const trimmed = taken.rule;
+  if (!trimmed && taken.puts.length) return [input];
+  if (!list && (hasTemplate(trimmed) || /@get:/.test(trimmed))) return template(input, trimmed, depth, false, context);
   // 正则段里的 || 不属于合并运算；组合每个分支单独求值后才抽取文字。
   const regexAt = trimmed.indexOf('##');
   const expression = regexAt < 0 ? trimmed : trimmed.slice(0, regexAt);
@@ -193,7 +240,8 @@ export function evaluateRule(input, rule, depth = 0, list = false) {
     if (parts.length < 2) continue;
     const groups = [];
     for (const part of parts) {
-      const result = evaluateRule(input, part, depth + 1, list).filter(v => v != null && (typeof v !== 'string' || v.trim()));
+      if (!part.trim()) continue;
+      const result = evaluateRule(input, part, depth + 1, list, context).filter(v => v != null && (typeof v !== 'string' || v.trim()));
       groups.push(result);
       if (separator === '||' && result.length) break;
     }
@@ -206,20 +254,24 @@ export function evaluateRule(input, rule, depth = 0, list = false) {
   return regexAt < 0 ? values : replaceValues(values, trimmed);
 }
 
-export function strings(input, rule, depth = 0) {
-  return evaluateRule(input, rule, depth).map(value => isNode(value) ? plainText(value) : typeof value === 'object' ? JSON.stringify(value) : String(value)).filter(value => value.trim());
+export function strings(input, rule, depth = 0, context = {}) {
+  return evaluateRule(input, rule, depth, false, context).map(value => isNode(value) ? plainText(value) : typeof value === 'object' ? JSON.stringify(value) : String(value)).filter(value => value.trim());
 }
 
 /** 只检查规则写法，不联网。list 同 evaluateRule */
-export function validateRule(rule, list = false) {
+export function validateRule(rule, list = false, depth = 0) {
   if (typeof rule !== 'string') throw new UnsupportedRuleError('规则必须是字符串');
+  if (depth > 32 || rule.length > 65536) throw new UnsupportedRuleError('规则过长或嵌套过深');
   assertNoScript(rule);
-  if (!list && hasTemplate(rule.trim())) { template(null, rule.trim(), 0, true); return; }
+  const taken = takePuts(rule);
+  taken.puts.forEach(([, expression]) => validateRule(expression, false, depth + 1));
+  rule = taken.rule;
+  if (!list && (hasTemplate(rule.trim()) || /@get:/.test(rule))) { template(null, rule.trim(), depth, true); return; }
   const at = rule.indexOf('##'), expression = (at < 0 ? rule : rule.slice(0, at)).trim();
   if (at >= 0) replaceValues([''], rule);
   for (const separator of ['||', '&&', '%%']) {
     const parts = splitTop(expression, separator);
-    if (parts.length > 1) { parts.forEach(part => validateRule(part, list)); return; }
+    if (parts.length > 1) { parts.forEach(part => validateRule(part, list, depth + 1)); return; }
   }
   if (!expression) return;
   if (expression.startsWith('$') || expression.startsWith('@json:')) { jsonTokens(expression.replace(/^@json:/, '').trim()); return; }

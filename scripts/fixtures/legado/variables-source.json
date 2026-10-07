@@ -1,0 +1,23 @@
+{
+  "bookSourceName": "变量夹具",
+  "bookSourceUrl": "https://vars.fixture.invalid/",
+  "searchUrl": "/search",
+  "ruleSearch": {
+    "bookList": "$.books[*]",
+    "name": "$.name@put:{bid:$.id}",
+    "bookUrl": "/book/{{$.id}}?saved=@get:{bid}"
+  },
+  "ruleBookInfo": {
+    "init": "@put:{detail:$.detail}",
+    "name": "$.name",
+    "tocUrl": "/toc/@get:{bid}?detail={{@get:{detail}}}"
+  },
+  "ruleToc": {
+    "chapterList": "$.chapters[*]",
+    "chapterName": "$.title&&@put:{cid:$.id}",
+    "chapterUrl": "/chapter/@get:{bid}/@get:{cid}"
+  },
+  "ruleContent": {
+    "content": "{{$.body}} / @get:{bid} / @get:{detail} / @get:{cid}"
+  }
+}

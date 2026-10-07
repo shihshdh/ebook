@@ -93,7 +93,7 @@
 .rd-deskbar > .rd-btn { font-size: 20px; line-height: 1; padding-bottom: 3px; }
 .rd-sep { width: 1px; height: 24px; background: var(--line2); margin: 0 4px; }
 .rd-dock { width: min(520px, 100%); padding: 6px; border-radius: 24px; }
-.rd-return { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; font-size: 12.5px; color: var(--gold); animation: pop-in .4s var(--ease-back) both; }
+.rd-return { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 999px; font-size: 12.5px; color: var(--gold); animation: pop-in .4s var(--ease-back) backwards; }
 @keyframes pop-in { from { opacity: 0; transform: translate3d(0, 10px, 0) scale(.92); } }
 
 /* ---------- 液态分段 ---------- */
@@ -131,18 +131,18 @@
 .rd-pct { min-width: 46px; text-align: right; font-size: 12px; color: var(--ink2); }
 
 /* ---------- 面板 ---------- */
-.rd-scrim { position: absolute; inset: 0; z-index: 25; background: rgba(0, 0, 0, .35); animation: fade-in .3s ease both; }
+.rd-scrim { position: absolute; inset: 0; z-index: 25; background: rgba(0, 0, 0, .35); animation: fade-in .3s ease backwards; }
 .rd-scrim.light { background: rgba(0, 0, 0, .15); }
 .rd-panel { position: absolute; z-index: 30; display: flex; flex-direction: column; border-radius: 24px; overflow: hidden; }
 .rd-panel.as-pop {
   right: max(14px, calc(50% - 490px)); bottom: calc(84px + var(--safe-b)); width: min(400px, calc(100vw - 28px)); max-height: min(70vh, 620px); padding: 18px;
-  animation: panel-up .45s var(--ease) both; transform-origin: 80% 100%;
+  animation: panel-up .45s var(--ease) backwards; transform-origin: 80% 100%;
 }
 .rd-panel.as-pop.panel-marks { padding-bottom: 8px; }
 @keyframes panel-up { from { opacity: 0; transform: translate3d(0, 16px, 0) scale(.97); } }
 .rd-panel.as-sidebar {
   top: 12px; bottom: 12px; left: 12px; width: 316px; padding: 18px 10px 10px 18px; border-radius: 24px;
-  animation: panel-left .5s var(--ease) both;
+  animation: panel-left .5s var(--ease) backwards;
 }
 @keyframes panel-left { from { opacity: 0; transform: translate3d(-24px, 0, 0); } }
 .rd-panel-head { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; padding-right: 6px; }
@@ -177,7 +177,7 @@
 .rd-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .rd-row .rd-btn { background: rgba(255, 255, 255, .04); }
 
-.rd-toast { position: absolute; left: 50%; top: calc(80px + var(--safe-t)); z-index: 40; transform: translateX(-50%); padding: 9px 18px; border-radius: 999px; font-size: 13px; color: var(--gold); animation: pop-in .35s var(--ease-back) both; }
+.rd-toast { position: absolute; left: 50%; top: calc(80px + var(--safe-t)); z-index: 40; transform: translateX(-50%); padding: 9px 18px; border-radius: 999px; font-size: 13px; color: var(--gold); animation: pop-in .35s var(--ease-back) backwards; }
 
 /* ---------- 手机 ---------- */
 .is-touch .rd-stage { grid-template-rows: calc(34px + var(--safe-t)) 1fr calc(30px + var(--safe-b)); }
@@ -198,7 +198,7 @@
 /* ---------- 选中文字的玻璃浮层（参照 Readest 的 AnnotationPopup） ---------- */
 .rd-sel {
   position: fixed; z-index: 45; width: 300px; display: flex; align-items: center; gap: 2px; padding: 6px; border-radius: 16px;
-  animation: sel-in .28s var(--ease-back) both; user-select: none;
+  animation: sel-in .28s var(--ease-back) backwards; user-select: none;
 }
 .rd-sel.above { transform: translateY(-100%); transform-origin: var(--arrow) 100%; }
 .rd-sel.below { transform-origin: var(--arrow) 0; }
@@ -214,8 +214,8 @@
 .rd-sel .rd-btn.sm { padding: 0 9px; gap: 4px; }
 
 /* 笔记编辑器 */
-.rd-note-editor-wrap { position: absolute; inset: 0; z-index: 46; display: grid; place-items: center; background: rgba(0, 0, 0, .25); animation: fade-in .25s ease both; }
-.rd-note-editor { width: min(460px, calc(100vw - 24px)); padding: 18px; border-radius: 22px; display: flex; flex-direction: column; gap: 12px; animation: panel-up .4s var(--ease) both; }
+.rd-note-editor-wrap { position: absolute; inset: 0; z-index: 46; display: grid; place-items: center; background: rgba(0, 0, 0, .25); animation: fade-in .25s ease backwards; }
+.rd-note-editor { width: min(460px, calc(100vw - 24px)); padding: 18px; border-radius: 22px; display: flex; flex-direction: column; gap: 12px; animation: panel-up .4s var(--ease) backwards; }
 .rd-note-editor textarea {
   width: 100%; resize: vertical; min-height: 96px; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line2);
   background: var(--soft); color: var(--ink); font: 15px/1.7 var(--serif); outline: none; user-select: text; -webkit-user-select: text;
@@ -254,7 +254,7 @@
 
 /* 跳过去之后的小胶囊：工具栏收起时浮在页脚正中（页脚两端是页码和时间，中间本来就空着） */
 .rd-chips { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; }
-.rd-srnav { display: inline-flex; align-items: center; gap: 2px; height: 40px; padding: 0 4px; border-radius: 999px; animation: pop-in .4s var(--ease-back) both; }
+.rd-srnav { display: inline-flex; align-items: center; gap: 2px; height: 40px; padding: 0 4px; border-radius: 999px; animation: pop-in .4s var(--ease-back) backwards; }
 .rd-srnav .rd-btn.sm { min-width: 32px; padding: 0 8px; border-radius: 999px; font-size: 19px; line-height: 1; }
 .rd-srnav-q {
   display: inline-flex; align-items: center; gap: 6px; max-width: min(46vw, 320px); height: 32px; padding: 0 10px; border: 0; border-radius: 999px;
