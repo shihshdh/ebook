@@ -1,0 +1,12 @@
+{
+    "version":  "0.3.7",
+    "notes":  "修了自定义书源和蓝奏云书的乱码；书架可以删书；手机上能直接下蓝奏云",
+    "windows":  {
+                    "file":  "EBOOK_0.3.7_x64-setup.exe",
+                    "sha256":  "8bb25e6856fe64d94974bded4c23f90e828b8387bfc68d850639d5c2bedbfe0b"
+                },
+    "android":  {
+                    "file":  "EBOOK_0.3.7.apk",
+                    "sha256":  "9d078cf340c189b8530f40dae36949914174eccde50a33b435acb9ba1694ee1e"
+                }
+}

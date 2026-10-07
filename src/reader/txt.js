@@ -1,4 +1,5 @@
 import JSZip from 'jszip';
+import { decodeBytes } from '../lib/charset.js';
 
 import { CHAPTER } from './chapter.js';
 export { CHAPTER };
@@ -8,10 +9,7 @@ const escape = value => value.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&l
 // 先转成内存 EPUB，保证 TXT 和 EPUB 的位置、目录、书签使用同一套稳定语义。
 // opts.isHeading(line)：自定义哪些行算章节标题（公版书源会把「狂人日記」「學而第一」这类独占一段的短标题也算上）
 export async function txtToEpub(blob, title, { isHeading = (line) => CHAPTER.test(line) } = {}) {
-  const bytes = await blob.arrayBuffer();
-  let text;
-  try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
-  catch { text = new TextDecoder('gb18030').decode(bytes); }
+  const text = decodeBytes(new Uint8Array(await blob.arrayBuffer()));
   const chapters = [];
   let current = { title: '正文', lines: [] };
   for (const line of text.replace(/\r\n?/g, '\n').split('\n')) {

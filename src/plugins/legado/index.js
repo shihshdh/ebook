@@ -3,6 +3,8 @@ import { nativeRequest } from '../../lib/native.js';
 import { buildRequest } from './request.js';
 import { evaluateRule, strings, parseDocument, plainText, validateRule } from './rules.js';
 
+export const SUBSCRIPTION = '是订阅源（RSS），不是书源';
+
 export function parseSources(text) {
   const sources = [], errors = [];
   let input;
@@ -12,9 +14,11 @@ export function parseSources(text) {
   entries.forEach((entry, index) => {
     try {
       if (!entry || Array.isArray(entry) || typeof entry !== 'object') throw new Error('必须是书源对象');
+      // 阅读 App 的订阅源（RSS）长得像书源，但字段是 sourceName / sourceUrl
+      if (entry.sourceUrl && !entry.bookSourceUrl) throw new Error(SUBSCRIPTION);
       if (typeof entry.bookSourceName !== 'string' || !entry.bookSourceName.trim()) throw new Error('缺少 bookSourceName');
       if (typeof entry.bookSourceUrl !== 'string' || !entry.bookSourceUrl.trim()) throw new Error('缺少 bookSourceUrl');
-      absoluteUrl(entry.bookSourceUrl);
+      try { absoluteUrl(entry.bookSourceUrl); } catch { throw new Error(`「${entry.bookSourceName.trim()}」的书源地址不是网址`); }
       for (const key of ['ruleSearch', 'ruleBookInfo', 'ruleToc', 'ruleContent']) {
         if (entry[key] != null && (typeof entry[key] !== 'object' || Array.isArray(entry[key]))) throw new Error(`${key} 必须是对象`);
       }
@@ -41,29 +45,34 @@ export function checkSource(source) {
     catch (error) { if (!scriptMarkers(JSON.stringify([source.searchUrl, source.header])).length) add(`搜索请求：${error.message}`); }
   }
   const required = { ruleSearch: ['bookList', 'name', 'bookUrl'], ruleBookInfo: ['name'], ruleToc: ['chapterList', 'chapterName', 'chapterUrl'], ruleContent: ['content'] };
+  // 阅读 App 里叫 lastChapter（latestChapter 是早期写法，两个都认）
   const supportedFields = {
-    ruleSearch: ['bookList', 'name', 'author', 'bookUrl', 'kind', 'intro', 'coverUrl', 'latestChapter', 'wordCount'],
-    ruleBookInfo: ['init', 'name', 'author', 'intro', 'coverUrl', 'kind', 'latestChapter', 'wordCount', 'tocUrl'],
+    ruleSearch: ['bookList', 'name', 'author', 'bookUrl', 'kind', 'intro', 'coverUrl', 'lastChapter', 'latestChapter', 'wordCount'],
+    ruleBookInfo: ['init', 'name', 'author', 'intro', 'coverUrl', 'kind', 'lastChapter', 'latestChapter', 'wordCount', 'tocUrl'],
     ruleToc: ['chapterList', 'chapterName', 'chapterUrl', 'nextTocUrl'],
     ruleContent: ['content', 'nextContentUrl', 'replaceRegex'],
   };
+  // 只影响显示、不影响搜书读书的字段：不提示（校验关键词、能否改名、卷名 / VIP / 更新时间标记、插图排版、章节标题）
+  const ignored = new Set(['checkKeyWord', 'canReName', 'isVolume', 'isVip', 'isPay', 'updateTime', 'imageStyle', 'title']);
+  const lists = new Set(['bookList', 'chapterList', 'init']);
   for (const [group, fields] of Object.entries(required)) {
     const block = source[group];
     if (!block || typeof block !== 'object' || Array.isArray(block)) { add(`缺少或无效的${labels[group]}`); continue; }
     for (const field of fields) if (typeof block[field] !== 'string' || !block[field].trim()) add(`${labels[group]}缺少 ${field}`);
     for (const [field, rule] of Object.entries(block)) {
-      if (rule == null || rule === '') continue;
+      if (rule == null || rule === '' || ignored.has(field)) continue;
       if (!supportedFields[group].includes(field)) { add(`${labels[group]}暂不支持 ${field}`); continue; }
       if (scriptMarkers(rule).length) continue;
       try {
         if (field === 'replaceRegex') {
           if (typeof rule !== 'string') throw new UnsupportedRuleError('规则必须是字符串');
           for (const line of rule.split(/\r?\n/).filter(Boolean)) validateRule(line.startsWith('##') ? line : `##${line}`);
-        } else validateRule(rule);
+        } else validateRule(rule, lists.has(field));
       } catch (error) { add(`${labels[group]}.${field}：${error.message}`); }
     }
   }
-  for (const field of ['loginUrl', 'loginUi', 'loginCheckJs', 'bookSourceJavaScript', 'jsLib', 'ruleExplore']) if (source[field]) add(`暂不支持 ${field}（登录、脚本或发现规则）`);
+  // 发现页（ruleExplore）不提示：EBOOK 没有书源的发现页，有没有都一样
+  for (const field of ['loginUrl', 'loginUi', 'loginCheckJs', 'bookSourceJavaScript', 'jsLib']) if (source[field]) add(`暂不支持 ${field}（登录或脚本）`);
   // 保守标记，避免把依赖未实现字段的书源宣传成完整可用。
   return { ok: unsupported.length === 0, unsupported };
 }
@@ -80,7 +89,8 @@ const urlOrEmpty = (value, base) => {
   try { return absoluteUrl(value, base); } catch { return ''; }
 };
 const pageKey = url => { const key = new URL(url); key.hash = ''; return key.href; };
-const collection = (input, rule) => evaluateRule(input, rule).flatMap(value => Array.isArray(value) ? value : [value]);
+// 书单、章节列表要的是一组元素：最后一段也按选择器算（tbody@tr!0、.list.1@a）
+const collection = (input, rule) => evaluateRule(input, rule, 0, true).flatMap(value => Array.isArray(value) ? value : [value]);
 
 async function load(source, address, { page = 1, key = '', signal, http = nativeRequest, base } = {}) {
   checkAbort(signal);
@@ -98,7 +108,8 @@ async function load(source, address, { page = 1, key = '', signal, http = native
 
 function fields(input, rules, base) {
   const result = {};
-  for (const field of ['name', 'author', 'intro', 'kind', 'latestChapter', 'wordCount']) result[field] = first(input, rules[field]);
+  for (const field of ['name', 'author', 'intro', 'kind', 'wordCount']) result[field] = first(input, rules[field]);
+  result.latestChapter = first(input, rules.lastChapter || rules.latestChapter);
   result.coverUrl = urlOrEmpty(first(input, rules.coverUrl), base);
   return result;
 }
@@ -120,7 +131,7 @@ export async function search(source, keyword, { page = 1, signal, http } = {}) {
 export async function bookInfo(source, bookUrl, { signal, http } = {}) {
   const rules = source.ruleBookInfo || {};
   const loaded = await load(source, bookUrl, { signal, http });
-  const input = rules.init ? evaluateRule(loaded.document, rules.init)[0] || loaded.document : loaded.document;
+  const input = rules.init ? evaluateRule(loaded.document, rules.init, 0, true)[0] || loaded.document : loaded.document;
   return { ...fields(input, rules, loaded.base), tocUrl: urlOrEmpty(first(input, rules.tocUrl), loaded.base) || bookUrl };
 }
 
@@ -176,7 +187,7 @@ export async function content(source, chapterUrl, { signal, http } = {}) {
     const loaded = await load(source, address, { signal, http, page, base });
     if (pages.has(pageKey(loaded.url))) break;
     pages.add(pageKey(requested)); pages.add(pageKey(loaded.url));
-    const values = collection(loaded.document, rules.content);
+    const values = evaluateRule(loaded.document, rules.content).flatMap(value => Array.isArray(value) ? value : [value]);
     for (const value of values) {
       // HTML/JSON 都允许正文含段落标记，只解析文本，不挂进活动文档。
       const text = typeof value === 'string' ? (/<\/?[a-z][^>]*>/i.test(value) ? plainText(value) : value) : plainText(value);

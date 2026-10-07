@@ -15,8 +15,10 @@ const KEY = 'legado:sources';
 const hash = (str) => { let h = 2166136261; for (const c of str) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 export const sourceIdOf = (s) => hash(`${s.bookSourceUrl}|${s.bookSourceName}`);
 
-// 这几类问题会让「搜索 → 目录 → 正文」走不通，导入后默认不启用；其余（发现页、登录、个别可选字段）不影响读书
-const FATAL = /^(缺少|书源地址|搜索地址|搜索请求|搜索规则|目录规则|正文规则)/;
+// 这几类问题会让「搜索 → 目录 → 正文」走不通，导入后默认不启用：
+//   没有搜索地址 / 搜索请求拼不出来 / 请求头要执行脚本，或者 书单、书名、书籍地址、章节列表、章节名、章节地址、正文 这几条规则用不了。
+// 其余（发现页、登录、作者 / 简介 / 分类这些可选字段）不影响读书：写法不认识只是那一栏空着
+const FATAL = /^(缺少搜索地址|缺少或无效的(搜索|目录|正文)规则|(搜索|目录|正文)规则缺少|书源地址|搜索地址|搜索请求|请求头|搜索规则\.(bookList|name|bookUrl)\b|目录规则\.(chapterList|chapterName|chapterUrl)\b|正文规则\.content\b)/;
 export const fatalOf = (check) => (check?.unsupported || []).filter(m => FATAL.test(m));
 
 let cache = null;
@@ -53,7 +55,8 @@ export async function importSources(text) {
     if (fatal.length) broken++;
     const at = list.findIndex(e => e.id === id);
     const entry = { id, source, check, enabled: !fatal.length && source.enabled !== false, addedAt: Date.now() };
-    if (at >= 0) { list[at] = { ...entry, enabled: list[at].enabled && !fatal.length, addedAt: list[at].addedAt }; updated++; }
+    // 重新导入（书源更新了）：上次「测一遍」的结果不再作数
+    if (at >= 0) { list[at] = { ...entry, enabled: (list[at].enabled || list[at].autoOff) && !fatal.length, addedAt: list[at].addedAt }; updated++; }
     else { list.push(entry); added++; }
   }
   if (sources.length) await save(list);
@@ -67,10 +70,70 @@ export async function importFromUrl(url) {
 }
 
 export async function setSourceEnabled(id, on) {
-  await save((await listSources()).map(e => e.id === id ? { ...e, enabled: on } : e));
+  await save((await listSources()).map(e => e.id === id ? { ...e, enabled: on, autoOff: false } : e));
 }
 export async function removeSource(id) {
   await save((await listSources()).filter(e => e.id !== id));
+}
+export async function removeSources(ids) {
+  const drop = new Set(ids);
+  await save((await listSources()).filter(e => !drop.has(e.id)));
+}
+
+/** 规则用不了，或者「测一遍」没通过：书源列表里收起来的那些 */
+export const isBroken = (e) => fatalOf(e.check).length > 0 || e.test?.ok === false;
+
+const shortError = (err) => {
+  const m = String(err?.message || err || '出错了');
+  return /HTTP\s*[45]\d\d|status/i.test(m) ? '网站返回错误' : /fetch|network|connect|dns|resolve|refused|证书|certificate/i.test(m) ? '连不上网站' : m.slice(0, 40);
+};
+
+/**
+ * 「测一遍」（阅读 App 的校验书源）：每个书源真走一遍 搜索 → 目录 → 第一章正文，都拿到东西才算能用。
+ * 没通过的停用（搜索时不再等它）并在列表里收起来；之前因为没通过被停用的，这次通过了就重新启用。
+ * onProgress(已测, 总数)；signal 中止时测到哪算哪
+ */
+export async function testSources(ids, { onProgress, signal, timeout = 25000, concurrency = 6 } = {}) {
+  const queue = (await listSources()).filter(e => ids.includes(e.id));
+  const total = queue.length;
+  const { search, bookInfo, toc, content } = await engine();
+  const results = new Map();
+  const one = async (entry) => {
+    const s = entry.source, ctl = new AbortController(), stop = () => ctl.abort();
+    const timer = setTimeout(stop, timeout);
+    signal?.addEventListener('abort', stop);
+    let stage = '搜不到书', test;
+    try {
+      const keyword = String(s.ruleSearch?.checkKeyWord || '').trim() || '我的';
+      const books = await search(s, keyword, { signal: ctl.signal });
+      if (!books.length) throw new Error('搜不到书');
+      stage = '目录打不开';
+      let tocUrl = books[0].bookUrl;
+      try { tocUrl = (await bookInfo(s, books[0].bookUrl, { signal: ctl.signal })).tocUrl || tocUrl; } catch (e) { if (ctl.signal.aborted) throw e; }
+      const chapters = await toc(s, tocUrl, { signal: ctl.signal });
+      if (!chapters.length) throw new Error('目录是空的');
+      stage = '正文取不到';
+      const text = await content(s, chapters[0].url, { signal: ctl.signal });
+      if (!text.trim()) throw new Error('正文是空的');
+      test = { ok: true, books: books.length, chapters: chapters.length };
+    } catch (err) {
+      if (signal?.aborted) return;
+      test = { ok: false, why: ctl.signal.aborted ? `${stage}（超时）` : /^(搜不到书|目录是空的|正文是空的)$/.test(err?.message) ? err.message : `${stage}：${shortError(err)}` };
+    } finally { clearTimeout(timer); signal?.removeEventListener('abort', stop); }
+    results.set(entry.id, { ...test, at: Date.now() });
+    onProgress?.(results.size, total);
+  };
+  await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    for (let e; !signal?.aborted && (e = queue.shift());) await one(e);
+  }));
+  await save((await listSources()).map(e => {
+    const t = results.get(e.id);
+    if (!t) return e;
+    if (!t.ok) return { ...e, test: t, enabled: false, autoOff: e.enabled || e.autoOff };
+    return { ...e, test: t, enabled: e.autoOff ? true : e.enabled, autoOff: false };
+  }));
+  const all = [...results.values()];
+  return { ok: all.filter(t => t.ok).length, failed: all.filter(t => !t.ok).length, total };
 }
 
 /**

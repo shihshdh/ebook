@@ -35,6 +35,8 @@
                 <data android:mimeType="application/epub+zip" />
                 <data android:mimeType="text/plain" />
                 <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:mimeType="application/epub" />
                 <data android:mimeType="application/octet-stream" />
             </intent-filter>
             <intent-filter>
@@ -46,6 +48,13 @@
             </intent-filter>
 
         </activity>
+
+        <!-- 蓝奏云下载页：提取码自动填，下完自动进书架（见 LanzouActivity） -->
+        <activity
+            android:name=".LanzouActivity"
+            android:theme="@style/AppTheme.NoActionBar"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|uiMode"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -61,4 +70,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 检查更新：下好的新版交给系统安装器（系统会再问一次是否允许 EBOOK 安装应用） -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>

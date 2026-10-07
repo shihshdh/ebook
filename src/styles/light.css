@@ -120,7 +120,6 @@ html.theme-fade, html.theme-fade * { transition: background-color .45s ease, col
 [data-theme="light"] .sheet-cover-glow { background: radial-gradient(closest-side, rgba(216, 180, 108, .4), transparent); }
 [data-theme="light"] .shelf-cover { box-shadow: inset 6px 0 8px -6px rgba(60, 44, 20, .45), 0 20px 28px -18px rgba(90, 66, 30, .6), 0 0 0 1px rgba(60, 44, 20, .08); }
 [data-theme="light"] .shelf-ext { background: rgba(255, 252, 246, .85); }
-[data-theme="light"] .shelf-del { background: #fff; }
 [data-theme="light"] .drop-hint { background: rgba(244, 239, 230, .92); }
 [data-theme="light"] .plugin-facts div { background: rgba(255, 255, 255, .55); }
 [data-theme="light"] .switch { background: rgba(60, 44, 20, .08); }

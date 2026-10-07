@@ -1,19 +1,57 @@
-// 插件页「自定义书源」：导入（粘贴 / 网址 / 文件）、列表、开关、删除。
-// 每个书源旁边说清楚能不能用：可用 / 部分不支持（发现页、登录这类不影响读书的）/ 用不了（搜索、目录、正文走不通，默认不启用）。
+// 插件页「自定义书源」：导入（粘贴 / 网址 / 文件，可一次选多个）、列表、开关、删除、「测一遍」。
+// 能用的展开列着；用不了的（规则走不通，或者测一遍没通过）收进底部一个折叠组，默认不启用，可以一键清掉。
+// 每个书源旁边说清楚状态：能用（测过）/ 可用 / 部分不支持（发现页、登录、作者简介这类不影响读书的）/ 用不了 / 没通过。
 import { useRef, useState } from 'react';
 import Icon from './Icon.jsx';
 import { useUI } from '../lib/ui.jsx';
-import { useSources, importSources, importFromUrl, setSourceEnabled, removeSource, fatalOf } from '../lib/legado.js';
+import { useSources, importSources, importFromUrl, setSourceEnabled, removeSource, removeSources, fatalOf, isBroken, testSources } from '../lib/legado.js';
 
 const hostOf = (u) => { try { return new URL(u).host; } catch { return u; } };
+const SUBSCRIPTION = /订阅源/;
 
 function summary({ added, updated, broken, errors }) {
+  const subs = errors.filter(e => SUBSCRIPTION.test(e)).length, bad = errors.length - subs;
   const parts = [];
   if (added) parts.push(`新增 ${added} 个`);
   if (updated) parts.push(`更新 ${updated} 个`);
-  if (broken) parts.push(`${broken} 个用不了`);
-  if (errors.length) parts.push(`${errors.length} 条格式不对`);
+  if (broken) parts.push(`${broken} 个用不了，已收起`);
+  if (subs) parts.push(`跳过 ${subs} 个订阅源（不是书源）`);
+  if (bad) parts.push(`${bad} 条格式不对`);
   return parts.join(' · ') || '没有找到书源';
+}
+
+/** 用不了的原因归个类，折叠组标题上给个大概 */
+function reasonOf(e) {
+  if (e.test?.ok === false && !fatalOf(e.check).length) return '测试没通过';
+  const f = fatalOf(e.check);
+  if (f.some(m => /用了 (<js>|@js:|java)/.test(m) || /脚本/.test(m))) return '要执行脚本';
+  return '规则不认识';
+}
+
+function SourceItem({ e, open, onToggle }) {
+  const fatal = fatalOf(e.check), issues = e.check?.unsupported || [];
+  const failed = e.test?.ok === false, passed = e.test?.ok === true;
+  const state = fatal.length || failed ? 'bad' : passed ? 'ok' : issues.length ? 'part' : 'ok';
+  const label = fatal.length ? '用不了' : failed ? '没通过' : passed ? '能用' : issues.length ? '部分不支持' : '可用';
+  const lines = [...(failed ? [e.test.why] : []), ...issues];
+  const tip = passed ? `测过：搜到 ${e.test.books} 本，目录 ${e.test.chapters} 章` : undefined;
+  return (
+    <li className={`bs-item ${e.enabled ? '' : 'is-off'}`}>
+      <div className="bs-row">
+        <div className="bs-name">
+          <strong>{e.source.bookSourceName}</strong>
+          <small className="muted">{e.source.bookSourceGroup ? `${e.source.bookSourceGroup} · ` : ''}{hostOf(e.source.bookSourceUrl)}</small>
+        </div>
+        <button className={`bs-badge ${state}`} title={tip} onClick={onToggle} disabled={!lines.length} aria-expanded={open}>{label}</button>
+        <button className={`switch ${e.enabled ? 'on' : ''}`} role="switch" aria-checked={e.enabled} disabled={fatal.length > 0 && !e.enabled}
+          onClick={() => setSourceEnabled(e.id, !e.enabled)} aria-label={`启用 ${e.source.bookSourceName}`}><i /></button>
+        <button className="btn btn-ghost btn-icon sm" onClick={() => removeSource(e.id)} aria-label={`删除 ${e.source.bookSourceName}`}><Icon name="trash" size={16} /></button>
+      </div>
+      {open && lines.length > 0 && (
+        <ul className="bs-issues">{lines.map((m, i) => <li key={i} className={(failed && i === 0) || fatal.includes(m) ? 'fatal' : ''}>{m}</li>)}</ul>
+      )}
+    </li>
+  );
 }
 
 export default function LegadoSources() {
@@ -24,38 +62,81 @@ export default function LegadoSources() {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState('');          // 展开问题清单的书源 id
   const [errors, setErrors] = useState([]);
+  const [fold, setFold] = useState(false);       // 「用不了的」那组展开没有
+  const [armed, setArmed] = useState(false);     // 「全部删除」点了第一下
+  const [testing, setTesting] = useState(null);  // { done, total, ctl }
   const file = useRef(null);
 
   const run = async (job) => {
     setBusy(true); setErrors([]);
     try {
       const r = await job();
-      setErrors(r.errors);
-      toast(`书源导入：${summary(r)}`, { tone: r.added + r.updated ? 'ok' : 'error', ms: 3600 });
+      setErrors(r.errors.filter(e => !SUBSCRIPTION.test(e)));
+      toast(`书源导入：${summary(r)}`, { tone: r.added + r.updated ? 'ok' : 'error', ms: 4200 });
       if (r.added + r.updated) { setMode(''); setText(''); }
     } catch (e) { toast('导入失败：' + (e?.message || '读不到内容'), { tone: 'error', ms: 3600 }); }
     setBusy(false);
   };
-  const onFile = async (e) => {
-    const f = e.target.files?.[0];
+  // 书源合集常分好几个文件：一次选多个，结果合在一起报
+  const onFile = (e) => {
+    const files = [...(e.target.files || [])];
     e.target.value = '';
-    if (f) run(async () => importSources(await f.text()));
+    if (!files.length) return;
+    run(async () => {
+      const total = { added: 0, updated: 0, broken: 0, errors: [] };
+      for (const f of files) {
+        const r = await importSources(await f.text());
+        total.added += r.added; total.updated += r.updated; total.broken += r.broken;
+        total.errors.push(...r.errors.map(m => files.length > 1 ? `${f.name}：${m}` : m));
+      }
+      return total;
+    });
   };
 
+  const usable = list?.filter(e => !isBroken(e)) || [];
+  const broken = list?.filter(isBroken) || [];
   const enabled = list?.filter(e => e.enabled).length || 0;
+  const reasons = Object.entries(broken.reduce((m, e) => { const r = reasonOf(e); m[r] = (m[r] || 0) + 1; return m; }, {}))
+    .sort((a, b) => b[1] - a[1]).map(([r, n]) => `${r} ${n}`).join(' · ');
+
+  const startTest = async () => {
+    if (testing) { testing.ctl.abort(); return; }
+    // 规则走得通的都测（包括上次没通过的，网站可能又好了）
+    const ids = list.filter(e => !fatalOf(e.check).length).map(e => e.id);
+    if (!ids.length) return;
+    const ctl = new AbortController();
+    setTesting({ done: 0, total: ids.length, ctl });
+    try {
+      const r = await testSources(ids, { signal: ctl.signal, onProgress: (done, total) => setTesting(t => t && { ...t, done, total }) });
+      toast(ctl.signal.aborted ? `测了 ${r.ok + r.failed} 个就停了：${r.ok} 个能用` : `测完了：${r.ok} 个能用${r.failed ? `，${r.failed} 个没通过（已停用、收起来了）` : ''}`, { tone: r.ok ? 'ok' : 'error', ms: 5200 });
+    } catch (e) { toast('没测成：' + (e?.message || '出错了'), { tone: 'error' }); }
+    setTesting(null);
+  };
+  const dropBroken = () => {
+    if (!armed) { setArmed(true); setTimeout(() => setArmed(false), 3500); return; }
+    setArmed(false);
+    removeSources(broken.map(e => e.id)).then(() => toast(`删掉了 ${broken.length} 个用不了的书源`, { tone: 'ok' }));
+  };
+
+  const testable = list?.some(e => !fatalOf(e.check).length);
 
   return (
     <section id="booksources" className="settings glass booksources">
       <div className="bs-head">
         <div>
           <h2 className="serif">自定义书源</h2>
-          <p className="muted">导入你自己的 Legado（阅读 App）书源，搜索页就能在这些书源里现搜、整本下载。{list?.length ? <>已导入 <span className="num">{list.length}</span> 个，启用 <span className="num">{enabled}</span> 个。</> : ''}</p>
+          <p className="muted">导入你自己的 Legado（阅读 App）书源，搜索页就能在这些书源里现搜、整本下载。{list?.length ? <>已导入 <span className="num">{list.length}</span> 个，能用 <span className="num">{usable.length}</span> 个，启用 <span className="num">{enabled}</span> 个。</> : ''}</p>
         </div>
         <div className="bs-actions">
           <button className={`btn sm ${mode === 'paste' ? 'btn-gold' : ''}`} onClick={() => setMode(m => m === 'paste' ? '' : 'paste')} aria-expanded={mode === 'paste'}><Icon name="copy" size={16} />粘贴</button>
           <button className={`btn sm ${mode === 'url' ? 'btn-gold' : ''}`} onClick={() => setMode(m => m === 'url' ? '' : 'url')} aria-expanded={mode === 'url'}><Icon name="external" size={16} />网址</button>
           <button className="btn sm" onClick={() => file.current?.click()} disabled={busy}><Icon name="upload" size={16} />文件</button>
-          <input ref={file} type="file" accept=".json,.txt,application/json,text/plain" hidden onChange={onFile} />
+          {testable && (
+            <button className={`btn sm ${testing ? 'btn-gold' : ''}`} onClick={startTest} title="每个书源真搜一次、打开目录、取第一章，走得通才算能用">
+              <Icon name={testing ? 'close' : 'refresh'} size={16} />{testing ? <>停止 <span className="num">{testing.done}/{testing.total}</span></> : '测一遍'}
+            </button>
+          )}
+          <input ref={file} type="file" multiple accept=".json,.txt,application/json,text/plain" hidden onChange={onFile} />
         </div>
       </div>
 
@@ -76,32 +157,31 @@ export default function LegadoSources() {
         <p className="bs-empty muted">还没有书源。书源是一段描述「怎么在某个网站搜书、读目录、取正文」的规则，可以从你用的阅读 App 里导出。EBOOK 不内置任何网站的书源。</p>
       )}
 
-      {list?.length > 0 && (
+      {usable.length > 0 && (
         <ol className="bs-list">
-          {list.map(e => {
-            const fatal = fatalOf(e.check), issues = e.check?.unsupported || [];
-            const state = fatal.length ? 'bad' : issues.length ? 'part' : 'ok';
-            return (
-              <li key={e.id} className={`bs-item ${e.enabled ? '' : 'is-off'}`}>
-                <div className="bs-row">
-                  <div className="bs-name">
-                    <strong>{e.source.bookSourceName}</strong>
-                    <small className="muted">{e.source.bookSourceGroup ? `${e.source.bookSourceGroup} · ` : ''}{hostOf(e.source.bookSourceUrl)}</small>
-                  </div>
-                  <button className={`bs-badge ${state}`} onClick={() => setOpen(o => o === e.id ? '' : e.id)} disabled={!issues.length} aria-expanded={open === e.id}>
-                    {{ ok: '可用', part: '部分不支持', bad: '用不了' }[state]}
-                  </button>
-                  <button className={`switch ${e.enabled ? 'on' : ''}`} role="switch" aria-checked={e.enabled} disabled={state === 'bad' && !e.enabled}
-                    onClick={() => setSourceEnabled(e.id, !e.enabled)} aria-label={`启用 ${e.source.bookSourceName}`}><i /></button>
-                  <button className="btn btn-ghost btn-icon sm" onClick={() => removeSource(e.id)} aria-label={`删除 ${e.source.bookSourceName}`}><Icon name="trash" size={16} /></button>
-                </div>
-                {open === e.id && issues.length > 0 && (
-                  <ul className="bs-issues">{issues.map((m, i) => <li key={i} className={fatal.includes(m) ? 'fatal' : ''}>{m}</li>)}</ul>
-                )}
-              </li>
-            );
-          })}
+          {usable.map(e => <SourceItem key={e.id} e={e} open={open === e.id} onToggle={() => setOpen(o => o === e.id ? '' : e.id)} />)}
         </ol>
+      )}
+      {list?.length > 0 && !usable.length && (
+        <p className="bs-empty muted">导入的书源都用不了。EBOOK 不执行书源里的脚本，带脚本的书源（多数「精选合集」里占大半）只能在阅读 App 里用。</p>
+      )}
+
+      {broken.length > 0 && (
+        <div className={`bs-fold ${fold ? 'is-open' : ''}`}>
+          <div className="bs-fold-head">
+            <button className="bs-fold-toggle" onClick={() => setFold(f => !f)} aria-expanded={fold}>
+              <Icon name="arrow" size={15} className="bs-fold-chev" />
+              <span>用不了的 <span className="num">{broken.length}</span> 个</span>
+              <small className="muted">{reasons}</small>
+            </button>
+            <button className={`btn btn-ghost sm ${armed ? 'is-armed' : ''}`} onClick={dropBroken}><Icon name="trash" size={15} />{armed ? `再点一次，删掉 ${broken.length} 个` : '全部删除'}</button>
+          </div>
+          {fold && (
+            <ol className="bs-list">
+              {broken.map(e => <SourceItem key={e.id} e={e} open={open === e.id} onToggle={() => setOpen(o => o === e.id ? '' : e.id)} />)}
+            </ol>
+          )}
+        </div>
       )}
     </section>
   );

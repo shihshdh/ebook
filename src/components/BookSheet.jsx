@@ -1,7 +1,7 @@
 // 书籍详情：桌面从右侧滑出的玻璃侧板，手机是能往下拖关闭的底部抽屉。
-// 下载在这里完成：插图版按卷、纯文本版整本、蓝奏云复制提取码后外链打开。下完直接"阅读"。
+// 下载在这里完成：插图版按卷、纯文本版整本、蓝奏云（客户端里开下载页自动填码，下完自动入架）。下完直接"阅读"。
 import { armDownloadWatch } from '../lib/downloads.js';
-import { lanzou, onBackButton } from '../lib/native.js';
+import { lanzou, onBackButton, platform } from '../lib/native.js';
 import { useEffect, useRef, useState } from 'react';
 import Cover from './Cover.jsx';
 import Icon from './Icon.jsx';
@@ -10,6 +10,7 @@ import { useShelf } from '../lib/useShelf.js';
 import { addToShelf, getShelfItem } from '../lib/shelf.js';
 import { pluginById } from '../plugins/registry.js';
 import { isTouch, prefersReduced } from '../lib/motion.js';
+import { pauseEffects } from '../lib/frame.js';
 
 const fmtSize = (n) => !n ? '' : n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
 
@@ -60,8 +61,9 @@ export default function BookSheet() {
     const onKey = (e) => { if (e.key === 'Escape') close(); };
     window.addEventListener('keydown', onKey);
     document.documentElement.classList.add('sheet-open');
+    pauseEffects(true);   // 底下的书页之河、光盘停帧：面板滑入不卡
     const offBack = onBackButton(() => { close(); return true; });   // 安卓返回键先关面板
-    return () => { window.removeEventListener('keydown', onKey); document.documentElement.classList.remove('sheet-open'); offBack(); };
+    return () => { window.removeEventListener('keydown', onKey); document.documentElement.classList.remove('sheet-open'); pauseEffects(false); offBack(); };
   }, [book?.id]);
 
   const close = () => {
@@ -223,11 +225,11 @@ export default function BookSheet() {
                 <span className="vol-title">{d.label}<small className="muted">{d.note}{d.pwd ? ` · 提取码 ${d.pwd}` : ''}</small></span>
                 <span className="vol-meta" />
                 <button className="btn sm" onClick={async () => {
-                  // Windows 客户端：在 EBOOK 里开蓝奏云小窗，提取码自动填好，点下载后直接进书架
+                  // 客户端：在 EBOOK 里开蓝奏云（Windows 小窗 / 安卓下载页），提取码自动填好，点下载后直接进书架
                   if (lanzou.available) {
                     try {
                       await lanzou.open({ url: d.url, pwd: d.pwd || '', title: book.title });
-                      toast('提取码已自动填好。在小窗里点下载，下完会自动放进书架', { ms: 5200 });
+                      if (platform === 'tauri') toast('提取码已自动填好。在小窗里点下载，下完会自动放进书架', { ms: 5200 });
                       return;
                     } catch (e) { console.warn('[lanzou]', e); }   // 小窗开不了就退回外部浏览器
                   }
@@ -235,7 +237,7 @@ export default function BookSheet() {
                   if (d.pwd) { try { await navigator.clipboard.writeText(d.pwd); copied = true; } catch {} }
                   // 客户端会盯着「下载」文件夹：在浏览器里下好、回到 EBOOK，书就自动进书架
                   const watching = armDownloadWatch(book.title);
-                  toast([copied && `提取码 ${d.pwd} 已复制`, watching ? '下好后回到 EBOOK，会自动放进书架' : '下好后拖进书架页即可导入'].filter(Boolean).join('。'), { ms: 5200 });
+                  toast([copied && `提取码 ${d.pwd} 已复制`, watching ? '下好后回到 EBOOK，会自动放进书架' : '下好后在书架页点「导入本地书」'].filter(Boolean).join('。'), { ms: 5200 });
                   window.open(d.url, '_blank', 'noopener');
                 }}><Icon name={lanzou.available ? 'download' : 'copy'} size={16} />{lanzou.available ? '打开下载' : '复制并打开'}</button>
               </div>

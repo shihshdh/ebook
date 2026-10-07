@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import android.view.Window;
+import androidx.core.content.FileProvider;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.view.WindowInsetsControllerCompat;
@@ -37,13 +38,17 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  *   setImmersive({on})    阅读时藏起系统栏，从边缘划一下临时呼出；离开阅读器恢复
  *   consumeFile()         取走「用 EBOOK 打开 / 分享到 EBOOK」带进来的文件：{ name, data(base64) }，没有就 {}
  *   事件 fileOpened         有新文件带进来了（应用已在运行时），前端收到后调 consumeFile
+ *   openLanzou({url,pwd,title})  打开蓝奏云下载页（LanzouActivity）：提取码自动填，下完的文件同样经 consumeFile 交给前端
  *   beginSave / appendSave / endSave   账户导出：分块写临时文件，最后放进「下载/EBOOK」（大文件不经一整串 base64）
+ *   installApk({token})   检查更新：beginSave/appendSave 写好的新版 APK 交给系统安装器（签名不同的包系统会拒装）
  * 安全区不在这里：MainActivity 监听 WindowInsets，直接把像素值写进 CSS 变量。
  */
 @CapacitorPlugin(name = "EbookNative")
 public class EbookNative extends Plugin {
     private static final long MAX_FILE = 120L * 1024 * 1024;
     private static Intent pending;
+    /** 蓝奏云下载页下好的文件（应用缓存里），取走后删掉 */
+    private static File pendingFile;
     private static EbookNative instance;
 
     @Override
@@ -58,8 +63,47 @@ public class EbookNative extends Plugin {
         if (instance != null) instance.notifyListeners("fileOpened", new JSObject(), true);
     }
 
+    /** LanzouActivity 下完一个文件时调用 */
+    static void offerFile(File f) {
+        pendingFile = f;
+        if (instance != null) instance.notifyListeners("fileOpened", new JSObject(), true);
+    }
+
+    @PluginMethod
+    public void openLanzou(PluginCall call) {
+        String url = call.getString("url", "");
+        if (!LanzouActivity.isLanzou(Uri.parse(url))) { call.reject("只支持蓝奏云链接"); return; }
+        Intent i = new Intent(getContext(), LanzouActivity.class);
+        i.putExtra(LanzouActivity.EXTRA_URL, url);
+        i.putExtra(LanzouActivity.EXTRA_PWD, call.getString("pwd", ""));
+        i.putExtra(LanzouActivity.EXTRA_TITLE, call.getString("title", ""));
+        getActivity().startActivity(i);
+        call.resolve();
+    }
+
     @PluginMethod
     public void consumeFile(PluginCall call) {
+        File file = pendingFile;
+        pendingFile = null;
+        if (file != null) {
+            new Thread(() -> {
+                try {
+                    if (file.length() > MAX_FILE) throw new IllegalStateException("文件太大");
+                    ByteArrayOutputStream buf = new ByteArrayOutputStream((int) file.length());
+                    try (InputStream in = new FileInputStream(file)) { copy(in, buf); }
+                    JSObject out = new JSObject();
+                    out.put("name", file.getName());
+                    out.put("data", Base64.encodeToString(buf.toByteArray(), Base64.NO_WRAP));
+                    call.resolve(out);
+                } catch (Exception e) {
+                    call.reject("读不到下好的文件：" + e.getMessage());
+                } finally {
+                    //noinspection ResultOfMethodCallIgnored
+                    file.delete();
+                }
+            }).start();
+            return;
+        }
         Intent intent = pending;
         pending = null;
         JSObject out = new JSObject();
@@ -157,6 +201,33 @@ public class EbookNative extends Plugin {
                 tmp.delete();
             }
         }).start();
+    }
+
+    @PluginMethod
+    public void installApk(PluginCall call) {
+        File tmp = saves.remove(call.getString("token", ""));
+        if (tmp == null) { call.reject("安装包已失效"); return; }
+        try {
+            File dir = new File(getContext().getCacheDir(), "update");
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            File apk = new File(dir, "EBOOK-update.apk");
+            //noinspection ResultOfMethodCallIgnored
+            apk.delete();
+            if (!tmp.renameTo(apk)) {
+                try (InputStream in = new FileInputStream(tmp); OutputStream out = new FileOutputStream(apk)) { copy(in, out); }
+                //noinspection ResultOfMethodCallIgnored
+                tmp.delete();
+            }
+            Uri uri = FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", apk);
+            Intent i = new Intent(Intent.ACTION_VIEW);
+            i.setDataAndType(uri, "application/vnd.android.package-archive");
+            i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+            getActivity().startActivity(i);
+            call.resolve();
+        } catch (Exception e) {
+            call.reject("打不开安装器：" + e.getMessage());
+        }
     }
 
     private static void copy(InputStream in, OutputStream out) throws java.io.IOException {

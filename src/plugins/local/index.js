@@ -7,17 +7,15 @@ export const id = 'local';
 export const kind = 'import';
 export const name = '本地导入';
 export const short = '本地';
-export const description = '把电脑或手机里的 EPUB、TXT 拖进来。TXT 会按"第X章"自动分章，常见的 GBK 编码也能识别。';
+export const description = '把电脑或手机里的 EPUB、TXT 拖进来。TXT 会按"第X章"自动分章，GBK、Big5 编码也能识别。';
 export const version = '1.0.0';
-export const accept = '.epub,.txt,application/epub+zip,text/plain';
+// 手机的文件选择器按 MIME 过滤，EPUB 常被标成 octet-stream / zip：一起放进来，ZIP 导入时解开
+export const accept = '.epub,.txt,.zip,application/epub+zip,text/plain,application/zip,application/octet-stream';
 
-/** TXT：先按 UTF-8 解，出现大量替换字符就换 GBK */
+/** TXT：UTF-8 / GBK / Big5 / UTF-16 按内容识别（见 lib/charset.js） */
 export async function decodeText(blob) {
-  const buf = await blob.arrayBuffer();
-  const utf8 = new TextDecoder('utf-8').decode(buf);
-  const bad = (utf8.slice(0, 20000).match(/�/g) || []).length;
-  if (bad < 8) return utf8;
-  try { return new TextDecoder('gbk').decode(buf); } catch { return utf8; }
+  const { decodeBytes } = await import('../../lib/charset.js');
+  return decodeBytes(new Uint8Array(await blob.arrayBuffer()));
 }
 
 async function epubMeta(blob) {
@@ -49,7 +47,9 @@ export async function importFiles(files) {
     try {
       let title = base, author = '', cover = '', blob = f;
       if (ext === 'epub') {
-        ({ title = base, author = '', cover = '' } = await epubMeta(f));
+        // GBK / Big5 编码的 EPUB 先转成 UTF-8，不然阅读器里是乱码
+        blob = await (await import('../../reader/epubfix.js')).utf8Epub(f);
+        ({ title = base, author = '', cover = '' } = await epubMeta(blob));
       } else {
         // 统一转成 UTF-8 存，阅读器不用再猜编码
         blob = new Blob([await decodeText(f)], { type: 'text/plain;charset=utf-8' });

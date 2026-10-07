@@ -3,6 +3,7 @@ import { HashRouter, Route, Routes, useLocation, useNavigate } from 'react-route
 import NavBar from './components/NavBar.jsx';
 import Splash, { shouldShowSplash } from './components/Splash.jsx';
 import BookSheet from './components/BookSheet.jsx';
+import UpdateBanner from './components/UpdateBanner.jsx';
 import Toasts from './components/Toasts.jsx';
 import WindowControls, { isDesktopClient } from './components/WindowControls.jsx';
 import LockScreen from './components/LockScreen.jsx';
@@ -66,6 +67,7 @@ function Shell() {
   return (
     <>
       <NavBar hidden={reading || splash} />
+      {!reading && <div className="status-veil" aria-hidden="true" />}
       <main key={reading ? 'reader' : pathname} className={`route ${reading ? 'route-reader' : ''}`}>
         <Suspense fallback={<div className="page" />}>
           <Routes>
@@ -82,6 +84,7 @@ function Shell() {
       </main>
       <BookSheet />
       <OpenTransition />
+      <UpdateBanner hidden={reading || splash} />
       <Toasts />
       {splash && <Splash onDone={() => setSplash(false)} />}
       {isDesktopClient && <WindowControls autoHide={reading} />}

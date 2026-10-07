@@ -84,15 +84,43 @@ function extract(value, kind) {
   return [value.getAttribute?.(kind) || ''];
 }
 
-function simple(input, rule) {
+// XPath 用 WebView 自带的 document.evaluate（XPath 1.0）。和阅读 App（JsoupXpath）对齐的两处：
+//   在元素上求值时 // 和 / 开头是「在这个元素里找」（原生 XPath 会从整个文档找）；
+//   末尾的 /html() /allText() /ownText() /textNodes() 是 JsoupXpath 的扩展函数，换成我们自己的提取方式
+function xpath(input, rule) {
+  const root = typeof input === 'string' ? parseDocument(input) : input;
+  if (!isNode(root)) return [];
+  const doc = root.nodeType === 9 ? root : root.ownerDocument;
+  if (typeof doc?.evaluate !== 'function') throw new UnsupportedRuleError('当前环境不支持 XPath');
+  let expression = rule.replace(/^@XPath:/i, '').trim(), kind = '';
+  const fn = /\/(html|allText|ownText|textNodes)\(\)\s*$/.exec(expression);
+  if (fn) { kind = fn[1] === 'allText' ? 'text' : fn[1]; expression = expression.slice(0, fn.index); }
+  if (root.nodeType !== 9 && expression.startsWith('/')) expression = '.' + expression;
+  let result;
+  try { result = doc.evaluate(expression, root, null, 0, null); }
+  catch { throw new UnsupportedRuleError(`不支持的 XPath：${expression}`); }
+  if (result.resultType === 1) return [String(result.numberValue)];
+  if (result.resultType === 2) return [result.stringValue];
+  if (result.resultType === 3) return [String(result.booleanValue)];
+  const out = [];
+  for (let node; (node = result.iterateNext());) out.push(node.nodeType === 2 ? node.value : node.nodeType === 3 || node.nodeType === 4 ? node.textContent : node);
+  return kind ? out.flatMap(value => extract(value, kind)) : out;
+}
+const isXPath = rule => /^(?:@XPath:|\/)/i.test(rule);
+
+/** list=true：规则要的是一组元素（书单、章节列表），最后一段也当选择器，不当提取方式（和阅读 App 的 getElements 一样） */
+function simple(input, rule, list = false) {
   if (rule.startsWith('@json:')) return jsonSelect(input, rule.slice(6).trim());
   if (rule.startsWith('$')) return jsonSelect(input, rule);
-  if (/^(?:@XPath:|\/\/|@put:|@get:|:)/i.test(rule)) throw new UnsupportedRuleError('不支持 XPath、变量存取或纯正则提取规则');
+  if (isXPath(rule)) return xpath(input, rule);
+  if (/^(?:@put:|@get:|:)/i.test(rule)) throw new UnsupportedRuleError('不支持变量存取或纯正则提取规则');
+  // 内容是 JSON 时，不带前缀的规则就是 JSONPath（data[*]、book.name），阅读 App 也这么认
+  if (input && typeof input === 'object' && !isNode(input) && !rule.startsWith('@')) return jsonSelect(input, `$.${rule}`);
   const css = rule.startsWith('@css:');
   const segments = splitTop(css ? rule.slice(5) : rule, '@');
   let extraction;
   const last = segments.at(-1).trim();
-  if (segments.length > 1 && !/^(?:children|!?-?\d+|(?:class|id|tag|text)\..*)$/.test(last)) extraction = segments.pop().trim();
+  if (!list && segments.length > 1 && !/^(?:children|!?-?\d+|(?:class|id|tag|text)\..*)$/.test(last)) extraction = segments.pop().trim();
   let values = [typeof input === 'string' ? parseDocument(input) : input];
   for (const segment of segments.map(s => s.trim()).filter(Boolean)) {
     if (/^!?-?\d+$/.test(segment)) values = indexed(values, segment.replace('!', ''), segment.startsWith('!'));
@@ -119,12 +147,43 @@ function replaceValues(values, expression) {
   });
 }
 
-export function evaluateRule(input, rule, depth = 0) {
+// 模板规则：{{…}} 里是一条规则，求值后拼进外面的文字（常见于拼书籍 / 章节地址：…?id={{$.bookId}}）。
+// 和阅读 App 一样认 {{@@选择器}}、{{$.JSON}}、{{//XPath}}，以及 JSON 书源的单括号 {$.id}；其余 {{…}} 是脚本表达式，不执行
+const TEMPLATE = /\{\{([\s\S]*?)\}\}|\{(\$[.[][^{}]*)\}/g;
+const hasTemplate = rule => /\{\{[\s\S]*?\}\}|\{\$[.[][^{}]*\}/.test(rule);
+function innerRule(inner) {
+  const rule = inner.trim();
+  if (rule.startsWith('@@')) return rule.slice(2);
+  if (/^(?:\$[.[]|@json:|@css:|@XPath:|\/)/i.test(rule)) return rule;
+  throw new UnsupportedRuleError(`模板里是脚本表达式：{{${rule.slice(0, 30)}}}`);
+}
+/** {{…}} 外面的第一个 ## */
+function regexOutsideTemplates(rule) {
+  for (let i = 0, depth = 0; i < rule.length - 1; i++) {
+    if (rule.startsWith('{{', i)) { depth++; i++; }
+    else if (depth && rule.startsWith('}}', i)) { depth--; i++; }
+    else if (!depth && rule.startsWith('##', i)) return i;
+  }
+  return -1;
+}
+function template(input, rule, depth, check) {
+  const at = regexOutsideTemplates(rule);
+  const body = at < 0 ? rule : rule.slice(0, at);
+  const text = body.replace(TEMPLATE, (_, double, single) => {
+    const inner = innerRule(double ?? single);
+    if (check) { validateRule(inner); return ''; }
+    return strings(input, inner, depth + 1)[0] || '';
+  });
+  return at < 0 ? [text] : replaceValues([text], rule.slice(at));
+}
+
+export function evaluateRule(input, rule, depth = 0, list = false) {
   if (!rule) return [];
   if (typeof rule !== 'string') throw new UnsupportedRuleError('规则必须是字符串');
   if (depth > 32 || rule.length > 65536) throw new UnsupportedRuleError('规则过长或嵌套过深');
   assertNoScript(rule);
   const trimmed = rule.trim();
+  if (!list && hasTemplate(trimmed)) return template(input, trimmed, depth, false);
   // 正则段里的 || 不属于合并运算；组合每个分支单独求值后才抽取文字。
   const regexAt = trimmed.indexOf('##');
   const expression = regexAt < 0 ? trimmed : trimmed.slice(0, regexAt);
@@ -134,7 +193,7 @@ export function evaluateRule(input, rule, depth = 0) {
     if (parts.length < 2) continue;
     const groups = [];
     for (const part of parts) {
-      const result = evaluateRule(input, part, depth + 1).filter(v => v != null && (typeof v !== 'string' || v.trim()));
+      const result = evaluateRule(input, part, depth + 1, list).filter(v => v != null && (typeof v !== 'string' || v.trim()));
       groups.push(result);
       if (separator === '||' && result.length) break;
     }
@@ -143,24 +202,38 @@ export function evaluateRule(input, rule, depth = 0) {
     else { values = []; for (let i = 0; i < Math.max(0, ...groups.map(g => g.length)); i++) for (const group of groups) if (i < group.length) values.push(group[i]); }
     break;
   }
-  if (!values) values = expression ? simple(input, expression) : [input];
+  if (!values) values = expression ? simple(input, expression, list) : [input];
   return regexAt < 0 ? values : replaceValues(values, trimmed);
 }
 
-export function strings(input, rule) {
-  return evaluateRule(input, rule).map(value => isNode(value) ? plainText(value) : typeof value === 'object' ? JSON.stringify(value) : String(value)).filter(value => value.trim());
+export function strings(input, rule, depth = 0) {
+  return evaluateRule(input, rule, depth).map(value => isNode(value) ? plainText(value) : typeof value === 'object' ? JSON.stringify(value) : String(value)).filter(value => value.trim());
 }
 
-export function validateRule(rule) {
+/** 只检查规则写法，不联网。list 同 evaluateRule */
+export function validateRule(rule, list = false) {
   if (typeof rule !== 'string') throw new UnsupportedRuleError('规则必须是字符串');
   assertNoScript(rule);
+  if (!list && hasTemplate(rule.trim())) { template(null, rule.trim(), 0, true); return; }
   const at = rule.indexOf('##'), expression = (at < 0 ? rule : rule.slice(0, at)).trim();
   if (at >= 0) replaceValues([''], rule);
   for (const separator of ['||', '&&', '%%']) {
     const parts = splitTop(expression, separator);
-    if (parts.length > 1) { parts.forEach(validateRule); return; }
+    if (parts.length > 1) { parts.forEach(part => validateRule(part, list)); return; }
   }
   if (!expression) return;
-  if (expression.startsWith('$') || expression.startsWith('@json:')) jsonTokens(expression.replace(/^@json:/, '').trim());
-  else simple(parseDocument('<html><body><div></div></body></html>'), expression);
+  if (expression.startsWith('$') || expression.startsWith('@json:')) { jsonTokens(expression.replace(/^@json:/, '').trim()); return; }
+  if (isXPath(expression)) {
+    const doc = parseDocument('<html><body></body></html>');
+    if (typeof doc.createExpression !== 'function') throw new UnsupportedRuleError('当前环境不支持 XPath');
+    try { doc.createExpression(expression.replace(/^@XPath:/i, '').replace(/\/(html|allText|ownText|textNodes)\(\)\s*$/, '')); }
+    catch { throw new UnsupportedRuleError(`不支持的 XPath：${expression}`); }
+    return;
+  }
+  try { simple(parseDocument('<html><body><div></div></body></html>'), expression, list); }
+  catch (error) {
+    // 不带 $ 的 JSONPath（data[*]）：内容是 JSON 时能用，这里不知道内容类型，写法对就放行
+    if (expression.startsWith('@')) throw error;
+    try { jsonTokens(`$.${expression}`); } catch { throw error; }
+  }
 }

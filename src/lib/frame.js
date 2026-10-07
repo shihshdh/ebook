@@ -7,6 +7,15 @@
 // 做法：两帧之间先用 setTimeout 睡到"下一帧该来"的前几毫秒，再用 rAF 对齐垂直同步。
 // 这样高刷屏上不会每 3ms 被叫醒一次，也不会画出撕裂的帧。
 
+// 盖住页面的面板（详情页）打开时，底下的效果全部停帧：看不见还在画，手机上会拖慢面板滑入、整页掉帧
+let paused = false;
+const parked = new Set();
+/** on=true 停下所有限帧动画（已挂的回调留着），false 时接着跑 */
+export function pauseEffects(on) {
+  paused = !!on;
+  if (!paused) { const list = [...parked]; parked.clear(); list.forEach(resume => resume()); }
+}
+
 /** 有人在操作（拖、划、指针在效果上）时的帧率 */
 export const FPS_ACTIVE = 60;
 /** 只剩环境动效（缓慢漂移、自转）时的帧率 */
@@ -25,6 +34,7 @@ export function cappedRaf(fps = FPS_ACTIVE) {
   const fire = (now) => {
     raf = 0;
     if (!cb) return;
+    if (paused) { parked.add(resume); return; }
     const iv = 1000 / rate;
     // 高刷屏上 rAF 来早了：再睡一会儿
     if (last && now - last < iv - 2) return wait(iv - (now - last));
@@ -36,6 +46,8 @@ export function cappedRaf(fps = FPS_ACTIVE) {
     if (ms > 6) timer = setTimeout(() => { timer = 0; raf = requestAnimationFrame(fire); }, ms - 4);
     else raf = requestAnimationFrame(fire);
   };
+  // 恢复后从头计时：各效果的 dt 都有上限，不会因为停过一阵就猛跳
+  const resume = () => { if (cb && !raf && !timer) { last = 0; wait(0); } };
   const api = {
     get fps() { return rate; },
     // 提速时（比如指针刚进来）不等旧的长间隔睡完，马上按新帧率重排

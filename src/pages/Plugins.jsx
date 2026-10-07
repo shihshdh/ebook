@@ -12,6 +12,23 @@ import { platform } from '../lib/native.js';
 import { useUI } from '../lib/ui.jsx';
 import { useTheme } from '../lib/theme.js';
 
+/** 手动检查更新：有新版就让底部的更新横幅出来 */
+function CheckUpdate() {
+  const { toast } = useUI();
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    setBusy(true);
+    try {
+      const { checkUpdate } = await import('../lib/update.js');
+      const u = await checkUpdate({ force: true });
+      if (u) window.dispatchEvent(new CustomEvent('librarium:update', { detail: u }));
+      else toast('已经是最新版', { tone: 'ok' });
+    } catch { toast('没查到，换个网络再试', { tone: 'error' }); }
+    setBusy(false);
+  };
+  return <button className="btn btn-ghost sm check-update" disabled={busy} onClick={run}>{busy ? '检查中…' : '检查更新'}</button>;
+}
+
 const fmtTime = (t) => t ? new Date(t).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
 
 export default function Plugins() {
@@ -96,7 +113,7 @@ export default function Plugins() {
         <dl className="plugin-facts about">
           <div><dt>运行环境</dt><dd>{{ web: '网页', tauri: 'Windows 客户端', capacitor: 'Android 客户端' }[platform]}</dd></div>
           <div><dt>书架</dt><dd className="num">{items.length} 本（存在本机）</dd></div>
-          <div><dt>版本</dt><dd className="num">EBOOK {__APP_VERSION__}</dd></div>
+          <div><dt>版本</dt><dd className="num">EBOOK {__APP_VERSION__}{platform !== 'web' && <CheckUpdate />}</dd></div>
         </dl>
       </section>
     </div>

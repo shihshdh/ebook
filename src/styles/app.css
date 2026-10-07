@@ -283,7 +283,28 @@ html.sheet-open { overflow: hidden; }
 .shelf-meta { display: flex; flex-direction: column; gap: 2px; }
 .shelf-meta strong { font-size: 14px; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .shelf-meta small { font-size: 11.5px; }
-.shelf-del { position: absolute; top: -8px; right: -8px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line2); background: #1d1813; color: var(--rose); display: grid; place-items: center; animation: pop .35s var(--ease-back) both; }
+.shelf-check {
+  position: absolute; right: 8px; bottom: 10px; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; pointer-events: none;
+  border: 1.5px solid rgba(255, 255, 255, .85); background: rgba(0, 0, 0, .28); color: transparent; animation: pop .35s var(--ease-back) both;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .25); transition: background .2s, border-color .2s, color .2s;
+}
+.shelf-item.is-picked .shelf-check { background: var(--gold); border-color: var(--gold); color: #fff; }
+.shelf-grid.is-editing .shelf-cover { -webkit-touch-callout: none; user-select: none; }
+.shelf-grid.is-editing .shelf-cover:hover { transform: none; }
+.shelf-grid.is-editing .shelf-item:not(.is-picked) .shelf-cover { opacity: .78; }
+.shelf-item.is-picked .shelf-cover { outline: 2px solid var(--gold); outline-offset: 3px; }
+.shelf-cover { -webkit-touch-callout: none; }
+.shelf-managebar {
+  position: fixed; left: 0; right: 0; margin-inline: auto; width: max-content; max-width: calc(100vw - 24px); bottom: calc(24px + var(--safe-b)); z-index: 70;
+  display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 18px; border-radius: 99px; font-size: 14px; white-space: nowrap;
+  animation: toast-in .4s var(--ease) both;
+}
+.shelf-remove { color: #c0543d; }
+[data-theme="dark"] .shelf-remove:not(.is-danger) { color: #ff8f80; }
+@media (max-width: 760px) { .shelf-managebar { bottom: calc(var(--tab-h, 64px) + 18px + var(--safe-b)); } }
+/* 管理条出来时提示往上让，别叠在一起 */
+html:has(.shelf-managebar) .toasts { bottom: calc(92px + var(--safe-b)); }
+@media (max-width: 760px) { html:has(.shelf-managebar) .toasts { bottom: calc(var(--tab-h, 64px) + 86px + var(--safe-b)); } }
 @keyframes pop { from { transform: scale(.4); opacity: 0; } }
 .drop-hint { position: fixed; inset: 0; z-index: 80; display: grid; place-content: center; justify-items: center; gap: 10px; color: var(--gold); background: rgba(8, 7, 6, .82); border: 2px dashed rgba(233, 203, 139, .5); border-radius: 26px; margin: 12px; opacity: 0; pointer-events: none; transition: opacity .25s; }
 .shelf-page.is-drag .drop-hint { opacity: 1; }
@@ -406,6 +427,21 @@ html.sheet-open { overflow: hidden; }
 .bs-issues li.fatal { color: #c0543d; }
 [data-theme="dark"] .bs-issues li.fatal { color: #ff8f80; }
 @media (max-width: 560px) { .bs-row { flex-wrap: wrap; } .bs-name { flex-basis: 100%; } }
+/* 用不了的书源：收在底部一组，默认折叠 */
+.bs-fold { border-radius: 16px; border: 1px dashed var(--line2); }
+.bs-fold-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 4px; }
+.bs-fold-toggle {
+  flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; border: 0; background: none;
+  color: var(--ink2); font-size: 14px; text-align: left; cursor: pointer; border-radius: 12px;
+}
+.bs-fold-toggle:hover { color: var(--ink); }
+.bs-fold-toggle small { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.bs-fold-chev { flex: none; align-self: center; transition: transform .3s var(--ease); }
+.bs-fold.is-open .bs-fold-chev { transform: rotate(90deg); }
+.bs-fold > .bs-list { padding: 0 8px 8px; animation: reveal .35s var(--ease) both; }
+.bs-fold .bs-item { background: none; }
+.btn.is-armed { color: #c0543d; }
+[data-theme="dark"] .btn.is-armed { color: #ff8f80; }
 
 /* 搜索页：自定义书源结果 */
 .remote-results { margin-top: 28px; }
@@ -498,3 +534,32 @@ html.sheet-open { overflow: hidden; }
 /* 划线四色（和阅读器的 INKS 一致），书架「最近划线」左边那条色条用 */
 :root { --hl-gold: #e2b45c; --hl-rose: #ff8f80; --hl-jade: #7fd4a8; --hl-lilac: #b9a8f0; }
 .chip[aria-pressed="true"] .chip-count { color: inherit; opacity: .7; }
+
+/* ---------- 手机：状态栏底衬、轻一点的模糊 ---------- */
+/* 安卓铺满全屏、状态栏透明：页面往上滚时字会钻到时间、电量图标底下。顶上垫一条和底色一样的渐隐带 */
+.status-veil { display: none; }
+@media (max-width: 760px) {
+  .status-veil {
+    display: block; position: fixed; inset: 0 0 auto; z-index: 60; height: calc(var(--safe-t) + 10px); pointer-events: none;
+    background: linear-gradient(var(--bg) calc(100% - 10px), color-mix(in srgb, var(--bg) 0%, transparent));
+  }
+  .hero-scroll { display: none; }
+}
+/* 触屏：整屏背景模糊每帧都要重算，手机 GPU 吃不消——遮罩改成更不透明的纯色，卡片模糊减半 */
+@media (pointer: coarse) {
+  .sheet-scrim { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(4, 3, 2, .62); }
+  .pick { -webkit-backdrop-filter: blur(10px) saturate(140%); backdrop-filter: blur(10px) saturate(140%); }
+  .acct-scrim { -webkit-backdrop-filter: none; backdrop-filter: none; }
+}
+
+/* ---------- 有新版本 ---------- */
+.update-banner {
+  position: fixed; right: 20px; bottom: calc(24px + var(--safe-b)); z-index: 110; display: flex; align-items: center; gap: 10px;
+  padding: 10px 10px 10px 16px; border-radius: 18px; max-width: min(92vw, 460px); font-size: 13.5px; animation: toast-in .45s var(--ease) both;
+}
+.update-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px color-mix(in srgb, var(--gold) 22%, transparent); flex: none; }
+.update-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.update-text small { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.update-p { color: var(--gold); padding: 0 10px; }
+.check-update { margin-left: 10px; vertical-align: middle; }
+@media (max-width: 760px) { .update-banner { left: 12px; right: 12px; max-width: none; bottom: calc(var(--tab-h) + 20px + var(--safe-b)); } }

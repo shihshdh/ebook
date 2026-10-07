@@ -19,6 +19,9 @@ export const isNative = platform !== 'web';
 /** 书源需要保留错误页正文，且必须按原始字节而不是桥接默认 UTF-8 解码。 */
 export async function nativeRequest({ url, method = 'GET', headers = {}, body, charset, signal, timeout = 20000 }) {
   if (signal?.aborted) throw new DOMException('已取消', 'AbortError');
+  // 有的书源照抄浏览器请求头，带着 Accept-Encoding: gzip, br：手动指定后原生 HTTP 不再替我们解压，拿回来的是压缩字节，
+  // 正文一片乱码。去掉它，压缩交给 HTTP 栈自己协商、自己解
+  headers = Object.fromEntries(Object.entries(headers).filter(([k]) => k.toLowerCase() !== 'accept-encoding'));
   const controller = new AbortController();
   let timer, rejectStop;
   const stopped = new Promise((_, reject) => { rejectStop = reject; });
@@ -57,14 +60,10 @@ export async function nativeRequest({ url, method = 'GET', headers = {}, body, c
       }
       controller.signal.throwIfAborted();
       const fromHeader = /charset\s*=\s*["']?([^\s;"']+)/i.exec(type || '')?.[1];
-      const prefix = new TextDecoder('latin1').decode(bytes.subarray(0, 2048));
-      const fromMeta = /<meta\b[^>]*charset\s*=\s*["']?([^\s;"'/>]+)/i.exec(prefix)?.[1];
-      // 错写的编码名不应让可读正文变成网络错误，逐级退回直到 UTF-8。
-      let decoder;
-      for (const label of [charset, fromHeader, fromMeta, 'utf-8'].filter(Boolean)) {
-        try { decoder = new TextDecoder(label); break; } catch { /* 尝试下一层编码声明。 */ }
-      }
-      const text = bridgedJson ?? decoder.decode(bytes);
+      // 书源往往只在搜索地址里写了 charset，目录页、正文页不写；GBK 网站又常常不声明编码或声明错。
+      // 按内容判断（合法 UTF-8 就是 UTF-8，否则在声明的编码 / GB18030 / Big5 里挑），和阅读 App 一样
+      const { decodeBytes, declaredCharset } = await import('./charset.js');
+      const text = bridgedJson ?? decodeBytes(bytes, [charset, fromHeader, declaredCharset(bytes)]);
       return { status: response.status, url: response.url || url, text };
     })()]);
   } finally {
@@ -300,14 +299,15 @@ export function onOpenedFile(cb) {
   return () => { dead = true; handle?.remove(); };
 }
 
-// ---------- 蓝奏云小窗（只在 Windows 客户端）：提取码自动填好，用户点下载，下完自动进书架 ----------
+// ---------- 蓝奏云：Windows 是小窗，安卓是一个全屏下载页。提取码自动填好，用户点下载，下完自动进书架 ----------
 export const lanzou = {
-  available: platform === 'tauri',
+  available: platform !== 'web',
   async open({ url, pwd = '', title = '' }) {
+    if (platform === 'capacitor') return (await nativePlugin()).openLanzou({ url, pwd, title });
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke('open_lanzou', { url, pwd, title });
   },
-  /** 小窗每下完一个文件回调一次：cb({ name, bytes:Uint8Array })。返回取消订阅 */
+  /** Windows 小窗每下完一个文件回调一次：cb({ name, bytes:Uint8Array })。返回取消订阅。安卓下好的文件走 onOpenedFile */
   onFile(cb) {
     if (platform !== 'tauri') return () => {};
     let off = null, dead = false;
@@ -331,6 +331,15 @@ const b64 = (bytes) => {
   for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
   return btoa(s);
 };
+/** 安卓：把下好的新版 APK 交给系统安装器（分块传给原生，存在应用缓存里） */
+export async function installApk(name, bytes) {
+  const p = await nativePlugin();
+  const { token } = await p.beginSave({ name });
+  const CHUNK = 3 * 1024 * 1024;
+  for (let i = 0; i < bytes.length; i += CHUNK) await p.appendSave({ token, data: b64(bytes.subarray(i, i + CHUNK)) });
+  await p.installApk({ token });
+}
+
 /**
  * 把导出的文件存到「下载」：
  *   Windows 客户端 → 下载文件夹，存完在资源管理器里选中它

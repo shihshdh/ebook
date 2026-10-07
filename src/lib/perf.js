@@ -47,6 +47,8 @@ function hardwareTier() {
   // 要画的像素：超过 2560×1600 的屏，同样的效果开销明显上去
   const px = screen.width * screen.height * Math.min(devicePixelRatio || 1, 2) ** 2;
   let score = g * 2 + (cores >= 12 ? 2 : cores >= 8 ? 1 : 0) + (mem >= 8 ? 1 : mem >= 4 ? 0 : -1) - (px > 9e6 ? 1 : 0) - (isTouch() ? 1 : 0);
+  // 手机：屏小、散热差，再好的芯片也最多「均衡」——效果照样有，粒子数和分辨率减半，滑起来不掉帧
+  if (isTouch()) return score >= 3 ? 'balanced' : 'low';
   return score >= 7 ? 'ultra' : score >= 5 ? 'high' : score >= 3 ? 'balanced' : 'low';
 }
 
@@ -57,7 +59,7 @@ function learned() {
 export function tier() {
   if (current) return current;
   const hw = hardwareTier(), lr = learned();
-  current = lr && ORDER.indexOf(lr) < ORDER.indexOf(hw) ? lr : hw;
+  current = lr && ORDER.indexOf(lr) < ORDER.indexOf(hw) ? lr : hw;   // 学到的档只会往下压，不会越过手机的上限
   return current;
 }
 function setCurrent(t, why) {

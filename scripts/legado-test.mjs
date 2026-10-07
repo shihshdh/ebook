@@ -325,6 +325,50 @@ test('编码: http-equiv meta 与首 2KB 边界', async () => {
   assert.ok((await natives.web({ url: 'https://fixture.test/' })).text.endsWith('夜读'));
 });
 
+// ---- 2026-10-07：真实书源里常见、之前不认的写法 ----
+const table = parseDocument('<table><tbody><tr><th>书名</th></tr><tr><td><a href="/b/1">甲</a></td></tr><tr><td><a href="/b/2">乙</a></td></tr></tbody></table><div class="list"><a href="/c/0">页首</a></div><div class="list"><a href="/c/1">第一章</a><a href="/c/2">第二章</a></div><meta property="og:novel:author" content="某作者">');
+test('列表规则: 最后一段也是选择器（tbody@tr!0、.list.1@a）', () => {
+  assert.deepEqual(evaluateRule(table, 'tbody@tr!0', 0, true).map(n => strings(n, 'tag.a@text')[0]), ['甲', '乙']);
+  assert.deepEqual(evaluateRule(table, '.list.1@a', 0, true).map(n => n.getAttribute('href')), ['/c/1', '/c/2']);
+  // 字符串规则里同样的写法仍按阅读 App 的意思：最后一段是要取的属性
+  assert.deepEqual(strings(table, 'class.list.1@tag.a@href'), ['/c/1', '/c/2']);
+});
+test('JSON: 不带 $ 的路径（data[*]、book.name）', () => {
+  const doc = { data: [{ name: '甲', id: 7 }, { name: '乙', id: 8 }] };
+  assert.deepEqual(evaluateRule(doc, 'data[*]', 0, true).map(x => x.name), ['甲', '乙']);
+  assert.deepEqual(strings(doc.data[0], 'name'), ['甲']);
+});
+test('模板: {{$.id}}、{$.id}、{{@@选择器}}、模板外的 ##', () => {
+  const book = { bookId: 42, data: { novelId: 9 } };
+  assert.deepEqual(strings(book, 'https://x.test/b?id={{$.bookId}}&v=2'), ['https://x.test/b?id=42&v=2']);
+  assert.deepEqual(strings(book, 'https://x.test/n/{$.data.novelId}/dirs'), ['https://x.test/n/9/dirs']);
+  assert.deepEqual(strings(table, 'https://x.test{{@@class.list.1@tag.a.0@href}}'), ['https://x.test/c/1']);
+  assert.deepEqual(strings(table, '{{@@class.list.1@tag.a.0@href##/c/##}}.html##\.html##.htm'), ['1.htm']);
+  assert.throws(() => evaluateRule(book, '{{baseUrl}}'), /脚本表达式/);
+});
+test('checkSource: lastChapter 认得；校验词等只影响显示的字段不提示；可选字段写法不认识不算用不了', async () => {
+  const { fatalOf } = await import('../src/lib/legado.js');
+  const base = { bookSourceName: 'x', bookSourceUrl: 'https://x.test/', searchUrl: '/s?q={{key}}',
+    ruleSearch: { bookList: 'class.book', name: 'tag.a@text', bookUrl: 'tag.a@href', lastChapter: 'class.last@text', checkKeyWord: '我的' },
+    ruleBookInfo: { name: 'tag.h1@text', lastChapter: 'class.last@text' },
+    ruleToc: { chapterList: 'class.list.1@a', chapterName: '@text', chapterUrl: '@href', isVip: 'class.vip@text', updateTime: 'span@text' },
+    ruleContent: { content: 'id.content@html', imageStyle: 'FULL', title: 'h1@text' } };
+  assert.deepEqual(checkSource(base).unsupported, []);
+  const optionalBroken = { ...base, ruleSearch: { ...base.ruleSearch, kind: 'td.5:4@text', intro: '{{baseUrl}}' } };
+  const check = checkSource(optionalBroken);
+  assert.equal(check.unsupported.length, 2);
+  assert.deepEqual(fatalOf(check), []);
+  const requiredBroken = { ...base, ruleToc: { ...base.ruleToc, chapterUrl: '{{baseUrl}}' } };
+  assert.equal(fatalOf(checkSource(requiredBroken)).length, 1);
+  const scriptHeader = { ...base, header: '<js>({"User-Agent":"x"})</js>' };
+  assert.equal(fatalOf(checkSource(scriptHeader)).length, 1);
+});
+test('详情: lastChapter 取到最新章节', async () => {
+  const source = { bookSourceName: 'x', bookSourceUrl: 'https://x.test/', ruleBookInfo: { name: 'tag.h1@text', lastChapter: 'class.last@text' } };
+  const info = await bookInfo(source, 'https://x.test/b/1', { http: async () => ({ status: 200, url: 'https://x.test/b/1', text: '<h1>夜读</h1><p class="last">第九章</p>' }) });
+  assert.equal(info.latestChapter, '第九章');
+});
+
 // 各阶段的测试在 runner 前注册，单条失败不妨碍看到其余用例结果。
 let passed = 0;
 for (const { name, run } of tests) {

@@ -33,6 +33,14 @@ npm run dev        # http://localhost:5180
 
 两份 bat 使用 UTF-8 内容和 Windows CRLF 换行；编辑时保留 CRLF，避免 CMD 在切换 UTF-8 代码页后误读命令。首次构建需要联网下载 Rust / Gradle 依赖。
 
+## 发版（客户端「检查更新」靠它）
+
+1. 两端打好包，`release/` 里有 `EBOOK_<版本>_x64-setup.exe` 和 `EBOOK_<版本>.apk`。
+2. 改仓库根的 `latest.json`：版本号、一句更新说明、两个文件名和 SHA-256（`Get-FileHash 文件 -Algorithm SHA256`）。
+3. 提交推到 main，再建 GitHub Release，tag 是 `v<版本>`，两个文件作为附件传上去。
+
+客户端启动 8 秒后读 main 上的 `latest.json`，版本更新就提示；下载走 `releases/download/v<版本>/<文件名>`（经国内加速代理），下完核对 SHA-256。所以 tag 名、文件名必须和 `latest.json` 对得上。
+
 ## 其它
 
 - 公版书源书目：`src/plugins/public/make-catalog.mjs`（用法写在文件开头），重新生成 `catalog.json`。
