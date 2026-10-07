@@ -7,7 +7,7 @@ import { searchBooks, useLibrary } from '../lib/library.js';
 import { useUI } from '../lib/ui.jsx';
 import { lazyOptional } from '../lib/optional.jsx';
 import { useTheme } from '../lib/theme.js';
-import { useSources, searchSources, toBook } from '../lib/legado.js';
+import { useSources, searchSources, toBook, useUsableSourceCount } from '../lib/legado.js';
 import { enabledPlugins } from '../plugins/registry.js';
 
 // ④ Prism 玻璃折射（ASTRA 负责）；文件没到位时退回静态标题
@@ -27,6 +27,7 @@ const readHistory = () => { try { return JSON.parse(localStorage.getItem(HISTORY
 
 export default function Search() {
   const lib = useLibrary();
+  const usableSources = useUsableSourceCount();
   const { openBook } = useUI();
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState(params.get('q') || '');
@@ -106,7 +107,7 @@ export default function Search() {
   return (
     <div className="page search-page">
       <Suspense fallback={<PrismFallback title={['找一本', '今晚的书。']}>{box}</PrismFallback>}>
-        <PrismGlass key={theme} title={['找一本', '今晚的书。']} lead={lib.books.length ? `在 ${lib.books.length.toLocaleString()} 本书里检索书名、别名和作者` : ''} height={q ? 'min(46vh, 420px)' : undefined}>
+        <PrismGlass key={theme} title={['找一本', '今晚的书。']} lead={lib.books.length ? `在 ${lib.books.length.toLocaleString()} 本书${usableSources ? `和 ${usableSources} 个书源` : ''}里检索书名、别名和作者` : ''} height={q ? 'min(46vh, 420px)' : undefined}>
           {box}
         </PrismGlass>
       </Suspense>

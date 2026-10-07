@@ -10,6 +10,7 @@ import { useUI } from '../lib/ui.jsx';
 import { lazyOptional } from '../lib/optional.jsx';
 import { prefersReduced } from '../lib/motion.js';
 import { useTheme } from '../lib/theme.js';
+import { useUsableSourceCount } from '../lib/legado.js';
 
 // ⑥ 书页之河（ASTRA 负责）；文件没到位时用一团静态暖光顶上
 function RiverFallback() { return <div className="river-fallback" aria-hidden="true" />; }
@@ -93,6 +94,7 @@ export default function Home() {
   const last = recent[0];
   const lastCover = useRef(null);
   const [theme] = useTheme();
+  const sources = useUsableSourceCount();   // 能现搜的自定义书源（没有就不显示）
 
   // 光盘架：公认经典前 24 本；文件夹里再插 5 本"入坑必读"
   // 光盘「细腻之选」、今日一本：近年文笔细腻唯美的佳作（名单见 library.js 的 PICKS）
@@ -125,7 +127,7 @@ export default function Home() {
           </h1>
           <p className="hero-sub reveal" style={{ '--d': '.35s' }}>
             {lib.status === 'ready'
-              ? <><CountUp value={stats.total} /> 本轻小说 · <CountUp value={stats.ill} /> 本插图重制版 · 每日更新</>
+              ? <><CountUp value={stats.total} /> 本轻小说 · <CountUp value={stats.ill} /> 本插图重制版{sources > 0 ? <> · <CountUp value={sources} /> 个书源可现搜</> : ' · 每日更新'}</>
               : lib.status === 'error' ? lib.message : (lib.message || '正在打开书库…')}
           </p>
           <div className="hero-cta reveal" style={{ '--d': '.5s' }}>
@@ -147,7 +149,8 @@ export default function Home() {
       <div className="page home-body">
         {lib.status === 'ready' && (
           <section className="stats glass reveal" aria-label="书库概况">
-            {[[stats.total, '本轻小说', '收录'], [stats.ill, '本带插图', '重制版'], [stats.done, '本已完结', '完结'], [stats.anime, '本已动画化', '动画化']].map(([v, unit, k]) => (
+            {[[stats.total, '本轻小说', '收录'], [stats.ill, '本带插图', '重制版'], [stats.done, '本已完结', '完结'], [stats.anime, '本已动画化', '动画化'],
+              ...(sources > 0 ? [[sources, '个可现搜', '书源']] : [])].map(([v, unit, k]) => (
               <div key={k} className="stat"><small className="eyebrow">{k}</small><strong className="display"><CountUp value={v} /></strong><span>{unit}</span></div>
             ))}
           </section>

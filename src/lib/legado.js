@@ -92,6 +92,13 @@ export async function removeSources(ids) {
 /** 规则用不了，或者「测一遍」没通过：书源列表里收起来的那些 */
 export const isBroken = (e) => fatalOf(e.check).length > 0 || e.test?.ok === false;
 
+/** 现在能拿来搜书的书源有几个（启用、规则走得通、测过的话要测通过）——首页、搜索页的「N 个书源可现搜」用。
+ *  书源是现搜网站，没有固定的书目，所以只数书源，不往「收录多少本」里加 */
+export function useUsableSourceCount() {
+  const list = useSources();
+  return (list || []).filter(e => e.enabled && !isBroken(e)).length;
+}
+
 const shortError = (err) => {
   const m = String(err?.message || err || '出错了');
   return /HTTP\s*[45]\d\d|status/i.test(m) ? '网站返回错误' : /fetch|network|connect|dns|resolve|refused|证书|certificate/i.test(m) ? '连不上网站' : m.slice(0, 40);

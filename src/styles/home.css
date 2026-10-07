@@ -33,7 +33,7 @@
 .pick-skeleton { height: 300px; }
 
 /* 数据条：一条横贯的玻璃带，四格之间用细线分 */
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); margin: 0 0 clamp(48px, 7vw, 84px); padding: 6px 10px; border-radius: 24px; }
+.stats { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin: 0 0 clamp(48px, 7vw, 84px); padding: 6px 10px; border-radius: 24px; }
 .stat { display: flex; flex-direction: column; gap: 4px; padding: 16px clamp(12px, 2vw, 24px); }
 .stat + .stat { border-left: 1px solid var(--line); }
 .stat .eyebrow { font-size: 10px; }
@@ -102,7 +102,8 @@
   .pick-body { grid-template-columns: 96px 1fr; gap: 14px; }
   .pick-text h3 { font-size: 18px; }
   .pick-quote { display: none; }
-  .stats { grid-template-columns: 1fr 1fr; padding: 4px 6px; }
+  .stats { grid-auto-flow: row; grid-template-columns: 1fr 1fr; padding: 4px 6px; }
+  .stat:nth-child(5) { grid-column: 1 / -1; border-left: 0; }   /* 有书源时第 5 格占满一行 */
   .stat:nth-child(3) { border-left: 0; }
   .stat:nth-child(n + 3) { border-top: 1px solid var(--line); }
   .rank li button { grid-template-columns: 32px 36px minmax(0, 1fr); gap: 10px; padding: 8px 4px; }
