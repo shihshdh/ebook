@@ -117,11 +117,14 @@ export function build({ catalog, csv, index }) {
     const book = ensure(aid, { title: entry.title, author: entry.author });
     book.illustrated = true;
     book.builtAt = (v.built_at || '').slice(0, 10);
+    // 重制版 EPUB 放在哪个仓库的 Releases：上游 2026-10 把它们搬到了 mojimoon/wenku8-epub，索引里用 repo 字段标明；
+    // 以前固定拼 mojimoon/wenku8，搬家后插图版全部 404（报"网络不行"其实是地址错了）。没有 repo 字段的老索引照旧用主仓库
+    const [owner, repo] = /^[\w.-]+\/[\w.-]+$/.test(v.repo || entry.repo || '') ? (v.repo || entry.repo).split('/') : [OWNER, REPO];
     book.downloads.unshift({
       kind: 'illustrated', label: '插图重制版', note: `含封面插图 · ${v.volumes.length} 卷`,
       volumes: v.volumes.map(vol => ({
         key: vol.file.replace(/\.epub$/, ''), title: vol.title, size: vol.size, images: vol.images, chapters: vol.chapters,
-        urls: releaseAssetUrls(OWNER, REPO, v.tag, `${aid}-${vol.file}`),
+        urls: releaseAssetUrls(owner, repo, v.tag, `${aid}-${vol.file}`),
       })),
     });
   }

@@ -112,7 +112,9 @@ export default function BookSheet() {
     } catch (err) {
       console.error(err);
       setProgress(key, { state: 'error' });
-      toast('下载失败：' + (err?.message || '网络错误') + '，换个网络再试', { tone: 'error', ms: 4000 });
+      // 404 / 410 是地址失效（比如上游搬了存放位置），换网络没用，别让人白折腾
+      const gone = /HTTP 4(04|10)/.test(err?.message || '');
+      toast('下载失败：' + (gone ? '文件地址失效了，等书源或 EBOOK 更新后再试' : (err?.message || '网络错误') + '，换个网络再试'), { tone: 'error', ms: 4000 });
     }
   };
   const read = async (key, el) => {
