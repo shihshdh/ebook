@@ -77,7 +77,13 @@ export function buildRequest(source, template, { key = '', page = 1, base = sour
     if (existing) delete headers[existing];
     headers[key] = renderTemplate(value, vars);
   }
+  const body = options.body != null ? renderTemplate(options.body, vars) : undefined;
+  // 和阅读 App 一样：POST 的 body 是 JSON 就按 JSON 发，否则按表单发（bookId=1&page=2）；书源自己写了 Content-Type 就用它的。
+  // 不写的话 fetch 按 text/plain 发，很多接口读不到参数，返回空目录
+  if (body !== undefined && !Object.keys(headers).some(name => name.toLowerCase() === 'content-type')) {
+    headers['Content-Type'] = /^\s*[[{]/.test(body) ? 'application/json' : 'application/x-www-form-urlencoded';
+  }
   return { url: absoluteUrl(renderTemplate(address, vars), base), method, headers,
-    ...(options.body != null ? { body: renderTemplate(options.body, vars) } : {}),
+    ...(body !== undefined ? { body } : {}),
     ...(options.charset ? { charset: options.charset } : {}), signal };
 }

@@ -96,6 +96,14 @@ const first = (input, rule, context = {}) => {
 const urlOrEmpty = (value, base) => {
   try { return absoluteUrl(value, base); } catch { return ''; }
 };
+// 书籍 / 目录 / 章节地址可能带阅读 App 的请求选项（网址,{"method":"POST","body":…}）：
+// 只补全前面的网址，选项原样留给 buildRequest；整个当网址补全会把 {"…"} 编码掉，POST 变成 GET 打到错的地址
+const linkOrEmpty = (value, base) => {
+  const text = String(value ?? '').trim(), at = /,\s*\{/.exec(text);
+  if (!at) return urlOrEmpty(text, base);
+  const address = urlOrEmpty(text.slice(0, at.index), base);
+  return address && address + text.slice(at.index);
+};
 const pageKey = url => { const key = new URL(url); key.hash = ''; return key.href; };
 // 书单、章节列表要的是一组元素：最后一段也按选择器算（tbody@tr!0、.list.1@a）
 const collection = (input, rule, context) => evaluateRule(input, rule, 0, true, context).flatMap(value => Array.isArray(value) ? value : [value]);
@@ -131,7 +139,7 @@ export async function search(source, keyword, { page = 1, signal, http } = {}) {
   for (const entry of entries) {
     const context = freshContext(source, root);
     const data = fields(entry, rules, loaded.base, context);
-    const bookUrl = urlOrEmpty(first(entry, rules.bookUrl, context), loaded.base);
+    const bookUrl = linkOrEmpty(first(entry, rules.bookUrl, context), loaded.base);
     if (!data.name || !bookUrl || seen.has(bookUrl)) continue;
     remember(source, bookUrl, context);
     seen.add(bookUrl); result.push({ ...data, bookUrl });
@@ -144,7 +152,7 @@ export async function bookInfo(source, bookUrl, { signal, http } = {}) {
   const context = contextFor(source, bookUrl);
   const loaded = await load(source, bookUrl, { signal, http, context });
   const input = rules.init ? evaluateRule(loaded.document, rules.init, 0, true, context)[0] || loaded.document : loaded.document;
-  const result = { ...fields(input, rules, loaded.base, context), tocUrl: urlOrEmpty(first(input, rules.tocUrl, context), loaded.base) || bookUrl };
+  const result = { ...fields(input, rules, loaded.base, context), tocUrl: linkOrEmpty(first(input, rules.tocUrl, context), loaded.base) || bookUrl };
   for (const url of [bookUrl, loaded.url, result.tocUrl]) remember(source, url, context);
   return result;
 }
@@ -164,7 +172,7 @@ export async function toc(source, tocUrl, { signal, http, onPage } = {}) {
     pages.add(pageKey(requested)); pages.add(pageKey(loaded.url));
     for (const entry of collection(loaded.document, rules.chapterList, context)) {
       const chapterContext = freshContext(source, context);
-      const title = first(entry, rules.chapterName, chapterContext), url = urlOrEmpty(first(entry, rules.chapterUrl, chapterContext), loaded.base);
+      const title = first(entry, rules.chapterName, chapterContext), url = linkOrEmpty(first(entry, rules.chapterUrl, chapterContext), loaded.base);
       if (title && url && !chapters.has(url)) { chapters.add(url); remember(source, url, chapterContext); result.push({ title, url }); }
     }
     onPage?.(page); checkAbort(signal);
@@ -211,7 +219,7 @@ export async function content(source, chapterUrl, { signal, http } = {}) {
       const text = typeof value === 'string' ? (/<\/?[a-z][^>]*>/i.test(value) ? plainText(value) : value) : plainText(value);
       if (text.trim()) pieces.push(text.trim());
     }
-    const next = urlOrEmpty(first(loaded.document, rules.nextContentUrl, context), loaded.base);
+    const next = linkOrEmpty(first(loaded.document, rules.nextContentUrl, context), loaded.base);
     if (!next || isNextChapter(context, loaded, next, chapterUrl)) break;
     address = next; base = loaded.base;
   }

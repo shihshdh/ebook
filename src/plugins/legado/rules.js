@@ -110,12 +110,14 @@ function select(node, segment, css) {
   return index == null ? nodes : indices(nodes, index, exclude, range);
 }
 
+const EXTRACTIONS = /^(?:text|textNodes|ownText|html|all)$/;
 function extract(value, kind) {
   if (!isNode(value)) return [value];
   if (kind === 'text') return [plainText(value)];
   if (kind === 'ownText') return [ownText(value)];
   if (kind === 'textNodes') return [...value.childNodes].filter(n => n.nodeType === 3).map(n => n.textContent.trim()).filter(Boolean);
   if (kind === 'html') return [value.innerHTML || ''];
+  if (kind === 'all') return [value.outerHTML || ''];
   return [value.getAttribute?.(kind) || ''];
 }
 
@@ -156,6 +158,13 @@ function simple(input, rule, list = false) {
   let extraction;
   const last = segments.at(-1).trim();
   if (!list && segments.length > 1 && !/^(?:children|!?-?\d+|(?:class|id|tag|text)\..*)$/.test(last)) extraction = segments.pop().trim();
+  // 只有一段（章节名 "text"、章节地址 "href"）：阅读 App 把它当取值方式，用在元素自己身上。
+  // text / ownText / html 这些直接取；别的单词先当选择器找（"h1" 照旧取标题），找不到再当属性名（href、src、title）
+  else if (!list && !css && segments.length === 1 && isNode(input) && /^[\w:-]+$/.test(last)) {
+    let found = [];
+    if (!EXTRACTIONS.test(last)) { try { found = select(input, last, false); } catch { /* 不是合法选择器，就是属性名 */ } }
+    if (!found.length) extraction = segments.pop().trim();
+  }
   let values = [typeof input === 'string' ? parseDocument(input) : input];
   for (const segment of segments.map(s => s.trim()).filter(Boolean)) {
     if (/^!?-?\d+$/.test(segment)) values = indexed(values, segment.replace('!', ''), segment.startsWith('!'));

@@ -130,7 +130,41 @@ test('模板: key/page/算式，无 eval', () => {
 });
 test('请求: POST 选项段、相对地址、头覆盖', () => {
   const request = buildRequest({ bookSourceUrl: 'https://fixture.test/base/', header: '{"User-Agent":"Reader","Cookie":"a=1"}' }, '/search,{"method":"POST","body":"q={{key}}&p={{page}}","charset":"gbk","headers":{"cookie":"b=2"}}', { key: 'abc', page: 2 });
-  assert.deepEqual(request, { url: 'https://fixture.test/search', method: 'POST', headers: { 'User-Agent': 'Reader', cookie: 'b=2' }, body: 'q=abc&p=2', charset: 'gbk', signal: undefined });
+  assert.deepEqual(request, { url: 'https://fixture.test/search', method: 'POST', headers: { 'User-Agent': 'Reader', cookie: 'b=2', 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'q=abc&p=2', charset: 'gbk', signal: undefined });
+});
+test('请求: POST 默认 Content-Type 和阅读 App 一样（JSON 按 JSON、其余按表单），书源写了就用书源的', () => {
+  const source = { bookSourceUrl: 'https://fixture.test/' };
+  assert.equal(buildRequest(source, '/a,{"method":"POST","body":"bookId=1"}').headers['Content-Type'], 'application/x-www-form-urlencoded');
+  assert.equal(buildRequest(source, '/a,{"method":"POST","body":"{\\"id\\":1}"}').headers['Content-Type'], 'application/json');
+  assert.deepEqual(buildRequest(source, '/a,{"method":"POST","body":"x","headers":{"content-type":"text/xml"}}').headers, { 'content-type': 'text/xml' });
+  assert.equal(buildRequest(source, '/a').headers['Content-Type'], undefined);
+});
+test('规则: 只有一段的 text / href 在元素自己身上取值，h1 这种照旧当选择器', () => {
+  const doc = parseDocument('<div><h1>书名</h1><a href="/c/1.html" title="第一章 标题">第一章</a></div>');
+  const a = doc.querySelector('a'), div = doc.querySelector('div');
+  assert.deepEqual(strings(a, 'text'), ['第一章']);
+  assert.deepEqual(strings(a, 'href'), ['/c/1.html']);
+  assert.deepEqual(strings(a, 'title'), ['第一章 标题']);
+  assert.deepEqual(strings(div, 'h1'), ['书名']);
+  assert.ok(strings(div, 'html')[0].includes('<h1>'));
+  // 章节列表要的是元素，不受影响
+  assert.equal(evaluateRule(doc, 'a', 0, true).length, 1);
+});
+test('目录: 章节名 text、地址 href 的书源能出目录；带 ,{POST 选项} 的书籍地址原样保留', async () => {
+  const source = { bookSourceName: '夹具', bookSourceUrl: 'https://plain.fixture.invalid',
+    searchUrl: '/s?q={{key}}', ruleSearch: { bookList: 'li', name: 'a@text', bookUrl: 'a@data-api' },
+    ruleToc: { chapterList: '.list a', chapterName: 'text', chapterUrl: 'href' }, ruleContent: { content: '#c@text' } };
+  const seen = [];
+  const http = async (request) => {
+    seen.push(`${request.method} ${request.url} ${request.body || ''} ${request.headers['Content-Type'] || ''}`.trim());
+    if (request.url.includes('/s?')) return { status: 200, url: request.url, text: '<li><a data-api="/api/toc,{&quot;method&quot;:&quot;POST&quot;,&quot;body&quot;:&quot;bookId=7&quot;}">夜读</a></li>' };
+    return { status: 200, url: request.url, text: '<div class="list"><a href="/c/1.html">第一章</a><a href="/c/2.html">第二章</a></div>' };
+  };
+  const [book] = await search(source, '夜读', { http });
+  assert.equal(book.bookUrl, 'https://plain.fixture.invalid/api/toc,{"method":"POST","body":"bookId=7"}');
+  const chapters = await toc(source, book.bookUrl, { http });
+  assert.deepEqual(chapters.map(c => [c.title, c.url]), [['第一章', 'https://plain.fixture.invalid/c/1.html'], ['第二章', 'https://plain.fixture.invalid/c/2.html']]);
+  assert.equal(seen[1], 'POST https://plain.fixture.invalid/api/toc bookId=7 application/x-www-form-urlencoded');
 });
 test('请求: 拒绝危险协议、脚本、未知选项', () => {
   const source = { bookSourceUrl: 'https://fixture.test/' };
@@ -375,7 +409,7 @@ test('详情: lastChapter 取到最新章节', async () => {
 test('R5-1: 单引号、裸键、尾逗号与嵌套请求头', () => {
   const req = buildRequest({ ...jsonSource, header: "{'User-Agent':'x',}" }, "/s,{'method':'POST',body:'q={{key}}',headers:{X:'y',},}", { key: '夜 读' });
   assert.equal(req.method, 'POST'); assert.equal(req.body, 'q=' + encodeURIComponent('夜 读'));
-  assert.deepEqual(req.headers, { 'User-Agent': 'x', X: 'y' });
+  assert.deepEqual(req.headers, { 'User-Agent': 'x', X: 'y', 'Content-Type': 'application/x-www-form-urlencoded' });
   const ua = 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36';
   assert.equal(buildRequest({ ...jsonSource, header: ua }, '/').headers['User-Agent'], ua);
 });
