@@ -17,6 +17,12 @@ try {
     await p.send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
   }
   if (process.env.BLOCK) { await p.send('Network.enable'); await p.send('Network.setBlockedURLs', { urls: ['*wsrv.nl*', '*i0.wp.com*', '*bgm.tv*', '*img.wenku8*'] }); }
+  // FONTS=google：fonts.loli.net（Google Fonts 的国内镜像）换成 fonts.googleapis.com，返回的 CSS 里字体文件直接走 fonts.gstatic.com。
+  // 云端连不上 loli.net，不换的话衬线字体一直是本机后备字体，测不到「等网络字体、到了再重排」那一段
+  if (process.env.FONTS === 'google') {
+    p.on('Fetch.requestPaused', e => p.send('Fetch.continueRequest', { requestId: e.requestId, url: e.request.url.replace('//fonts.loli.net/', '//fonts.googleapis.com/') }).catch(() => {}));
+    await p.send('Fetch.enable', { patterns: [{ urlPattern: '*fonts.loli.net*', requestStage: 'Request' }] });
+  }
   if (process.env.HIDEGEN) await p.send('Page.addScriptToEvaluateOnNewDocument', { source: `document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = '.cover.is-gen img { display: none !important; }'; document.head.appendChild(s); });` });
   await p.send('Page.navigate', { url: base + '#/' });
   // 等书库和首页就绪、开屏播完

@@ -8,9 +8,10 @@
   animation: mw-in .7s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 35ms);
 }
 @keyframes mw-in { from { opacity: 0; transform: translate3d(0, 18px, 0); } }
-/* 离屏的封面卡先不排版不绘制，滚到附近才做（进探索页那一帧不用一次排三四十段衬线书名）。
-   封面卡固定 5:7、高度不看内容，跳过时尺寸也一样，不会跳位；文字卡高度看字数，不加 */
-.mw-tile:not(.mw-quote) { content-visibility: auto; contain-intrinsic-size: auto 280px; }
+/* 离屏的卡片先不排版不绘制，滚到附近才做（进探索页那一帧不用一次排三四十段衬线书名）。
+   封面卡固定 5:7、高度不看内容，跳过时尺寸也一样，不会跳位；文字卡高度看字数，没排过时先按脚本估的高度占位
+   （MasonryWall.jsx 的 estimate()，写在卡片的 style 上），估差了也只在屏幕外差，排过一次就记住实际高度 */
+.mw-tile { content-visibility: auto; contain-intrinsic-size: auto 280px; }
 .mw-tile .cover, .mw-tile .cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .mw-tile .cover img { transition: transform .7s var(--ease), filter .5s; }
 .mw-tile:hover .cover img { transform: scale(1.04); }

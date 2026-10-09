@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 // 浏览器：默认本机 Edge；云端 / Linux 用 BROWSER=/usr/bin/google-chrome（或 chromium）指定
+// BROWSER_ARGS：额外的启动参数（空格分隔），比如云端要走代理：BROWSER_ARGS=--proxy-server=$HTTPS_PROXY
 const EDGE = process.env.BROWSER || 'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe';
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
@@ -12,7 +13,7 @@ export async function launch({ port = 9333, profile, width = 1440, height = 900,
   const args = [`--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--no-first-run', '--no-default-browser-check',
     '--disable-extensions', '--disable-sync', '--disable-features=Translate,msEdgeSidebarV2,msHubApps,CalculateNativeWinOcclusion',
     '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', `--window-size=${width},${height}`, '--window-position=40,40',
-    ...(headless ? ['--headless=new'] : []), 'about:blank'];
+    ...(headless ? ['--headless=new'] : []), ...(process.env.BROWSER_ARGS || '').split(' ').filter(Boolean), 'about:blank'];
   const proc = spawn(EDGE, args, { stdio: 'ignore' });
   for (let i = 0; i < 60; i++) {
     try { const r = await fetch(`http://127.0.0.1:${port}/json/version`); if (r.ok) break; } catch {}

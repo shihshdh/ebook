@@ -13,7 +13,7 @@
 // 以内的逐个排好：读一下它里面的尺寸，浏览器就会把它排出来，content-visibility: auto 会留着结果
 
 const BUDGET = 6;   // 每段最多排多久（毫秒）
-const LAZY = '.mw-tile:not(.mw-quote), .result-list > li';
+const LAZY = '.mw-tile, .result-list > li';
 const LAZY_SCREENS = 2.5;
 const DEPTH = 4;    // 拆到第几层：页面(1) → 区块(2) → 区块里的项(3) → 项里的各块(4)，第 4 层整块排。
                     // 拆到第 3 层时，瀑布流网格、插件卡片、世界切换的场景层单块要排 35~40ms（手机上），再拆一层都在 20ms 内
@@ -50,41 +50,3 @@ export function warmer(page) {
   };
 }
 
-/**
- * 空闲时提前排「快滚到的」懒排版项（content-visibility: auto 的瀑布流卡片等）。
- * 这些项滚到附近才排，手指一划好几张同时进来，那一帧就是五六十毫秒（手机上）；
- * 现在趁两帧之间的空闲（requestIdleCallback，只用剩下的空闲时间），把屏幕上方一屏到下方三屏里还没排的按从上到下排好，
- * 滚到时只剩绘制。排过的记在 WeakSet 里，不改 DOM（改属性会引起样式重算）。滚动后重新开始找。
- * 所在页面在后台（content-visibility: hidden / 正在预排版）时不动：那时位置全是 0，一动就把整页逼着排一遍；
- * 页面回到前台（容器进视口）再开始
- * @returns 停止函数
- */
-export function idleLayout(container, selector) {
-  if (typeof requestIdleCallback !== 'function') return () => {};
-  const done = new WeakSet();
-  let id = 0, stopped = false;
-  const work = (deadline) => {
-    id = 0;
-    if (stopped || !container.isConnected || !container.checkVisibility?.({ visibilityProperty: true })) return;
-    const lo = -innerHeight, hi = innerHeight * 4;
-    const next = [];
-    for (const el of container.querySelectorAll(selector)) {
-      if (done.has(el)) continue;
-      const top = el.getBoundingClientRect().top;
-      if (top > lo && top < hi) next.push([top, el]);
-    }
-    if (!next.length) return;   // 附近都排好了，等下次滚动
-    next.sort((a, b) => a[0] - b[0]);
-    for (const [, el] of next) {
-      if (deadline.timeRemaining() < 3) break;
-      void el.firstElementChild?.offsetHeight;
-      done.add(el);
-    }
-    id = requestIdleCallback(work, { timeout: 1000 });
-  };
-  const arm = () => { if (!id && !stopped) id = requestIdleCallback(work, { timeout: 1000 }); };
-  addEventListener('scroll', arm, { passive: true });
-  const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) arm(); });
-  io.observe(container);
-  return () => { stopped = true; if (id) cancelIdleCallback(id); removeEventListener('scroll', arm); io.disconnect(); };
-}
