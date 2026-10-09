@@ -7,6 +7,7 @@ import Cover from '../components/Cover.jsx';
 import Icon from '../components/Icon.jsx';
 import { prefersReduced } from '../lib/motion.js';
 import { FPS_ACTIVE, FPS_IDLE, cappedRaf } from '../lib/frame.js';
+import { pressBook, stopWarm, warmBook } from '../lib/glyph-warm.js';
 import './DiscShelf.css';
 
 const WINDOW = 4;
@@ -143,7 +144,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
     const g = drag.current;
     if (g.id !== e.pointerId) return;
     const dx = e.clientX - g.x;
-    if (!g.moved && Math.abs(dx) > 6) { g.moved = true; stageRef.current?.setPointerCapture(e.pointerId); }
+    if (!g.moved && Math.abs(dx) > 6) { g.moved = true; stageRef.current?.setPointerCapture(e.pointerId); stopWarm(); }
     if (g.moved) { motion.current.target = Math.max(-.4, Math.min(n - .6, g.start - dx / (innerWidth < 640 ? 150 : 230))); wake(); }
   };
   const up = (e) => {
@@ -179,7 +180,8 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
     discs.push(
       <button key={b.id} type="button" className="disc" tabIndex={-1}
         ref={el => { if (el) discRefs.current.set(i, el); else discRefs.current.delete(i); }}
-        aria-label={i === at ? '打开 ' + b.title : '转到 ' + b.title} onClick={(e) => clickDisc(i, e.currentTarget)}>
+        aria-label={i === at ? '打开 ' + b.title : '转到 ' + b.title} onClick={(e) => clickDisc(i, e.currentTarget)}
+        onPointerDown={i === at ? () => warmBook(b) : undefined}>
         <span className="disc-face"><Cover book={b} eager={Math.abs(i - at) < 3} alt="" /></span>
         <span className="disc-sheen" aria-hidden="true" />
         <span className="disc-hub" aria-hidden="true" />
@@ -216,7 +218,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
         {book.tags.length > 0 && <blockquote>“{book.tags.slice(0, 4).join(' · ')}”<cite>— 标签</cite></blockquote>}
       </div>
       <div className="disc-footer">
-        <button type="button" className="btn btn-gold" onClick={(e) => onOpen(book, e.currentTarget)}>
+        <button type="button" className="btn btn-gold" onClick={(e) => onOpen(book, e.currentTarget)} {...pressBook(book)}>
           {book.illustrated ? '看看插图版' : '查看这本'} <Icon name="arrow" size={16} />
         </button>
         <p className="disc-hint">滚动、拖动或用方向键翻阅</p>

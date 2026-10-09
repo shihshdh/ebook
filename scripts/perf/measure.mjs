@@ -148,6 +148,18 @@ try {
       await p.eval(`document.querySelector('.sheet-close')?.click()`); await sleep(800);
     }
   });
+  // 和 sheet-open 点同样三本书，但用真的触摸：按下、停 80ms、抬起（真手指点一下大约这么久）。
+  // sheet-open 用 el.click()，没有 pointerdown，测不到按下时的字形预热（lib/glyph-warm.js）
+  await scenario('sheet-tap', async () => {
+    await nav('探索'); await sleep(400); await scrollTo(700); await sleep(500);
+    for (let k = 0; k < 3; k++) {
+      const c = await p.eval(`(() => { const el = [...document.querySelectorAll('.mw-tile')].filter(e => e.getBoundingClientRect().top > 0 && e.getBoundingClientRect().top < innerHeight - 200)[${k}]; if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: Math.min(r.top + r.height / 2, r.top + 80) }; })()`);
+      if (c) { await p.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [c] }); await sleep(80); await p.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] }); }
+      await sleep(1000);
+      if (!await p.eval(`!!document.querySelector('.sheet')`)) console.log('   sheet-tap：第', k + 1, '次没打开面板');
+      await p.eval(`document.querySelector('.sheet-close')?.click()`); await sleep(800);
+    }
+  });
   await scenario('search-type', async () => {
     await nav('搜索'); await sleep(600);
     await p.eval(`document.querySelector('.search-box input').focus()`);

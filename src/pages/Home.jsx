@@ -7,6 +7,7 @@ import Icon from '../components/Icon.jsx';
 import { classics, useLibrary, WORLDS, isLightNovel, TOP_RECENT, pickList } from '../lib/library.js';
 import { useShelf } from '../lib/useShelf.js';
 import { useUIActions } from '../lib/ui.jsx';
+import { pressBook, warmBook } from '../lib/glyph-warm.js';
 import { lazyOptional } from '../lib/optional.jsx';
 import { prefersReduced } from '../lib/motion.js';
 import { useTheme } from '../lib/theme.js';
@@ -68,7 +69,7 @@ function TodayPick({ pool, onOpen }) {
     <article ref={card} className="pick glass reveal" style={{ '--d': '.55s' }} onPointerMove={tilt} onPointerLeave={reset}>
       <p className="eyebrow">今日一本 · <span className="num">{pad2(d.getMonth() + 1)}.{pad2(d.getDate())}</span></p>
       <div className="pick-body" key={book.id}>
-        <button className="pick-cover" onClick={(e) => onOpen(book, e.currentTarget)} aria-label={'打开 ' + book.title}>
+        <button className="pick-cover" onClick={(e) => onOpen(book, e.currentTarget)} {...pressBook(book)} aria-label={'打开 ' + book.title}>
           <Cover book={book} eager alt="" />
           <span className="pick-sheen" aria-hidden="true" />
         </button>
@@ -80,7 +81,7 @@ function TodayPick({ pool, onOpen }) {
         </div>
       </div>
       <div className="pick-actions">
-        <button className="btn btn-gold sm" onClick={(e) => onOpen(book, e.currentTarget)}>看看这本 <Icon name="arrow" size={14} /></button>
+        <button className="btn btn-gold sm" onClick={(e) => onOpen(book, e.currentTarget)} {...pressBook(book)}>看看这本 <Icon name="arrow" size={14} /></button>
         <button className="btn btn-ghost sm" onClick={() => setK(v => v + 1)}><Icon name="refresh" size={14} />换一本</button>
       </div>
     </article>
@@ -191,7 +192,7 @@ export default function Home() {
               <ol>
                 {ranking.map((b, i) => (
                   <li key={b.id} style={{ '--i': i }}>
-                    <button onClick={(e) => openBook(b, e.currentTarget.querySelector('.cover'))}>
+                    <button onClick={(e) => openBook(b, e.currentTarget.querySelector('.cover'))} {...pressBook(b)}>
                       <span className={`rank-no display ${i < 3 ? 'top' : ''}`}>{pad2(i + 1)}</span>
                       <Cover book={b} />
                       <span className="rank-text">
@@ -209,7 +210,7 @@ export default function Home() {
               <p className="muted illus-lead">按卷下载，带封面、彩页和插图，像拿到一本实体书。</p>
               <div className="illus-grid">
                 {illustrated.map((b, i) => (
-                  <button key={b.id} className="illus-card" style={{ '--i': i }} onClick={(e) => openBook(b, e.currentTarget)}>
+                  <button key={b.id} className="illus-card" style={{ '--i': i }} onClick={(e) => openBook(b, e.currentTarget)} {...pressBook(b)}>
                     <Cover book={b} />
                     <span className="illus-badge num">{volumesOf(b)} 卷</span>
                     <span className="illus-title serif">{shortTitle(b.title)}</span>
@@ -240,7 +241,7 @@ export default function Home() {
             <div className="section-head"><h2>最近更新</h2><Link to="/explore" className="btn btn-ghost sm">探索 <Icon name="arrow" size={14} /></Link></div>
             <div className="fresh-row">
               {fresh.map(b => (
-                <button key={b.id} className="fresh-card" onClick={(e) => openBook(b, e.currentTarget.querySelector('.cover'))}>
+                <button key={b.id} className="fresh-card" onClick={(e) => openBook(b, e.currentTarget.querySelector('.cover'))} {...pressBook(b)}>
                   <Cover book={b} />
                   <strong className="serif">{shortTitle(b.title)}</strong>
                   <small className="num">{b.updated.slice(5).replace('-', '.')} 更新{b.status === '连载中' ? ' · 连载' : ''}</small>
@@ -257,11 +258,12 @@ export default function Home() {
               <FolderFan label="入坑书单" note="五本细腻之作" word="tender" sticker="TOP 5"
                 cards={starters.map((b, i) => ({ key: b.id, title: b.title, tag: i === 0 ? '从这本开始' : i === 4 ? shortTitle(b.title) : undefined, thumb: <Cover book={b} eager alt="" /> }))}
                 onOpenCard={(k, el) => { const b = lib.books.find(x => x.id === k); if (b) openBook(b, el); }}
+                onPressCard={(k) => warmBook(lib.books.find(x => x.id === k))}
                 onOpen={() => openBook(starters[0])} />
               <ol className="starter-list glass">
                 {starters.map((b, i) => (
                   <li key={b.id}>
-                    <button onClick={(e) => openBook(b, e.currentTarget)}>
+                    <button onClick={(e) => openBook(b, e.currentTarget)} {...pressBook(b)}>
                       <span className="starter-no">{i + 1}</span>
                       <span><strong>{shortTitle(b.title)}</strong><small>{STARTER_NOTES[b.aid] || b.author}</small></span>
                     </button>

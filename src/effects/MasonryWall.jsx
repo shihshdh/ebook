@@ -11,6 +11,7 @@ import { useCover } from '../lib/covers.js';
 import { isTouch, prefersReduced } from '../lib/motion.js';
 import { usePixelGlitch } from './usePixelGlitch.js';
 import { atMost, loadSerif } from '../lib/fonts.js';
+import { pressBook } from '../lib/glyph-warm.js';
 import './MasonryWall.css';
 
 // 卡片和整面墙都 memo：点世界、改筛选时上面整页重渲染，书单没变的话这里一张都不用重来（手机上一次七八十毫秒）
@@ -18,7 +19,7 @@ const BookTile = memo(function BookTile({ book, onOpen, index }) {
   const tile = useRef(null), canvas = useRef(null);
   usePixelGlitch(tile, canvas);
   return (
-    <figure ref={tile} className="mw-tile" style={{ '--i': index % 12 }} onClick={() => onOpen(book, tile.current)}
+    <figure ref={tile} className="mw-tile" style={{ '--i': index % 12 }} onClick={() => onOpen(book, tile.current)} {...pressBook(book)}
       role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(book, tile.current); }} aria-label={book.title}>
       <Cover book={book} alt="" />
       <canvas ref={canvas} className="mw-glitch" aria-hidden="true" />
@@ -36,7 +37,7 @@ const quoteLine = (book) => (book.description || '').replace(/…$/, '').split(/
 // 文字卡也是 content-visibility: auto（见 MasonryWall.css）：没排过时按估计的高度 h 占位，排过一次记住实际高度
 const QuoteTile = memo(function QuoteTile({ book, line, h, onOpen }) {
   return (
-    <div className="mw-tile mw-quote" style={{ containIntrinsicSize: `auto ${h}px` }} role="button" tabIndex={0} onClick={(e) => onOpen(book, e.currentTarget)}>
+    <div className="mw-tile mw-quote" style={{ containIntrinsicSize: `auto ${h}px` }} role="button" tabIndex={0} onClick={(e) => onOpen(book, e.currentTarget)} {...pressBook(book)}>
       <p className="serif">{line.slice(0, 46)}<span className="mw-dot" aria-hidden="true" />。</p>
       <small>—《{book.title}》</small>
     </div>
@@ -64,7 +65,7 @@ function FlipbookTile({ books, onOpen }) {
   }, [books.length]);
   const cur = books[frame];
   return (
-    <figure ref={ref} className="mw-tile mw-flip" role="button" tabIndex={0} onClick={() => onOpen(cur, ref.current)}
+    <figure ref={ref} className="mw-tile mw-flip" role="button" tabIndex={0} onClick={() => onOpen(cur, ref.current)} {...pressBook(cur)}
       aria-label="插图重制版轮播，点击打开当前这本">
       {/* 所有帧叠在一起只切 opacity：提前解码，快切不闪白 */}
       {books.map((b, i) => <FlipFrame key={b.id} book={b} active={i === frame} />)}

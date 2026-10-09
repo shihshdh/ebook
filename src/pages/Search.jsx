@@ -5,6 +5,7 @@ import Cover from '../components/Cover.jsx';
 import Icon from '../components/Icon.jsx';
 import { prepareSearch, searchBooks, useLibrary } from '../lib/library.js';
 import { useUIActions } from '../lib/ui.jsx';
+import { pressBook } from '../lib/glyph-warm.js';
 import { lazyOptional } from '../lib/optional.jsx';
 import { useTheme } from '../lib/theme.js';
 import { useSources, searchSources, useUsableSourceCount } from '../lib/legado.js';
@@ -34,7 +35,7 @@ const ResultList = memo(function ResultList({ books, limit, onOpen }) {
     <ol className="result-list">
       {books.slice(0, limit).map((b, i) => (
         <li key={b.id} style={{ '--i': Math.min(i, 14) }}>
-          <button className="result" onClick={(e) => onOpen(b, e.currentTarget.querySelector('.cover'))}>
+          <button className="result" onClick={(e) => onOpen(b, e.currentTarget.querySelector('.cover'))} {...pressBook(b)}>
             <Cover book={b} />
             <span className="result-body">
               <strong className="serif">{b.title}</strong>

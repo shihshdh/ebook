@@ -7,6 +7,7 @@ import { useShelf } from '../lib/useShelf.js';
 import { classics, useLibrary } from '../lib/library.js';
 import { removeFromShelf } from '../lib/shelf.js';
 import { useUIActions } from '../lib/ui.jsx';
+import { warmBook } from '../lib/glyph-warm.js';
 import * as local from '../plugins/local/index.js';
 import { ContinueCard, StatsCard, NotesPanel, ForYou, isFinished, isReading } from '../components/ShelfPanels.jsx';
 import { acctKey } from '../lib/accounts.js';
@@ -154,6 +155,7 @@ export default function Shelf() {
         <FolderFan label="从这几本开始" note="书架还是空的" word="start"
           cards={picks.map((b, i) => ({ key: b.id, title: b.title, tag: i === 0 ? '先读这本' : undefined, thumb: <Cover book={b} eager alt="" /> }))}
           onOpenCard={(k, el) => { const b = lib.books.find(x => x.id === k); if (b) openBook(b, el); }}
+          onPressCard={(k) => warmBook(lib.books.find(x => x.id === k))}
           onOpen={() => openBook(picks[0])} />
       ) : ready && (
         <div className="shelf-empty glass">
