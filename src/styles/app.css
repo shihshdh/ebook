@@ -434,6 +434,7 @@ html:has(.shelf-managebar) .toasts { bottom: calc(92px + var(--safe-b)); }
 @media (max-width: 560px) { .bs-row { flex-wrap: wrap; } .bs-name { flex-basis: 100%; } }
 /* 用不了的书源：收在底部一组，默认折叠 */
 .bs-fold { border-radius: 16px; border: 1px dashed var(--line2); }
+.bs-fold-ok { border-style: solid; border-color: var(--line); margin-bottom: 10px; }
 .bs-fold-head { display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 4px; }
 .bs-fold-toggle {
   flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; border: 0; background: none;

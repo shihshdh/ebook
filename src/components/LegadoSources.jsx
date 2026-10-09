@@ -1,5 +1,5 @@
 // 插件页「自定义书源」：导入（粘贴 / 网址 / 文件，可一次选多个）、列表、开关、删除、「测一遍」。
-// 能用的展开列着；用不了的（规则走不通，或者测一遍没通过）收进底部一个折叠组，默认不启用，可以一键清掉。
+// 能用的、用不了的各收在一个折叠组里（默认收起，书源一多平铺着要翻好久）；用不了的（规则走不通，或者测一遍没通过）默认不启用，可以一键清掉。
 // 每个书源旁边说清楚状态：能用（测过）/ 可用 / 部分不支持（发现页、登录、作者简介这类不影响读书的）/ 用不了 / 没通过。
 import { useRef, useState } from 'react';
 import Icon from './Icon.jsx';
@@ -66,6 +66,7 @@ export default function LegadoSources() {
   const [open, setOpen] = useState('');          // 展开问题清单的书源 id
   const [errors, setErrors] = useState([]);
   const [fold, setFold] = useState(false);       // 「用不了的」那组展开没有
+  const [showOk, setShowOk] = useState(false);   // 「能用的」那组展开没有：默认收起，内置两百来个，平铺着往下翻要好久
   const [armed, setArmed] = useState(false);     // 「全部删除」点了第一下
   const [testing, setTesting] = useState(null);  // { done, total, ctl }
   const file = useRef(null);
@@ -162,9 +163,20 @@ export default function LegadoSources() {
       )}
 
       {usable.length > 0 && (
-        <ol className="bs-list">
-          {usable.map(e => <SourceItem key={e.id} e={e} open={open === e.id} onToggle={() => setOpen(o => o === e.id ? '' : e.id)} />)}
-        </ol>
+        <div className={`bs-fold bs-fold-ok ${showOk ? 'is-open' : ''}`}>
+          <div className="bs-fold-head">
+            <button className="bs-fold-toggle" onClick={() => setShowOk(v => !v)} aria-expanded={showOk}>
+              <Icon name="arrow" size={15} className="bs-fold-chev" />
+              <span>能用的 <span className="num">{usable.length}</span> 个</span>
+              <small className="muted">启用 {usable.filter(e => e.enabled).length} 个{usable.some(e => e.test?.ok) ? ` · 测过能用 ${usable.filter(e => e.test?.ok).length} 个` : ''}</small>
+            </button>
+          </div>
+          {showOk && (
+            <ol className="bs-list">
+              {usable.map(e => <SourceItem key={e.id} e={e} open={open === e.id} onToggle={() => setOpen(o => o === e.id ? '' : e.id)} />)}
+            </ol>
+          )}
+        </div>
       )}
       {list?.length > 0 && !usable.length && (
         <p className="bs-empty muted">导入的书源都用不了。EBOOK 不执行书源里的脚本，带脚本的书源（多数「精选合集」里占大半）只能在阅读 App 里用。</p>
