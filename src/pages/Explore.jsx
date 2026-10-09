@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import WorldSwitch from '../effects/WorldSwitch.jsx';
 import MasonryWall from '../effects/MasonryWall.jsx';
 import { artRank, classicScore, worldScore, searchBooks, useLibrary, WORLDS, isLightNovel } from '../lib/library.js';
-import { useUI } from '../lib/ui.jsx';
+import { useUIActions } from '../lib/ui.jsx';
 
 const SORTS = [
   { id: 'classic', label: '精选优先' },
@@ -17,7 +17,7 @@ export default function Explore() {
   const { world } = useParams();
   const navigate = useNavigate();
   const lib = useLibrary();
-  const { openBook } = useUI();
+  const { openBook } = useUIActions();
   const active = WORLDS.find(w => w.id === world)?.id || null;
   const [status, setStatus] = useState('');
   const [params] = useSearchParams();

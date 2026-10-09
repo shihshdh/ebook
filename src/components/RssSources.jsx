@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Icon from './Icon.jsx';
-import { useUI } from '../lib/ui.jsx';
+import { useUIActions } from '../lib/ui.jsx';
 import { useRss, groupsOf, setRssEnabled, removeRss } from '../lib/rss.js';
 import '../styles/rss.css';
 
@@ -29,7 +29,7 @@ function Row({ e }) {
 
 export default function RssSources() {
   const list = useRss();
-  const { toast } = useUI();
+  const { toast } = useUIActions();
   const [open, setOpen] = useState('');        // 展开的分组
   const [armed, setArmed] = useState('');      // 点了第一下「删除」的分组（'*' = 全部）
   const groups = useMemo(() => {

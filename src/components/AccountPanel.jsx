@@ -9,7 +9,7 @@ import {
 } from '../lib/accounts.js';
 import { accountBooksSize, exportAccount, importAccount } from '../lib/accountIO.js';
 import { onBackButton, saveExport } from '../lib/native.js';
-import { useUI } from '../lib/ui.jsx';
+import { useUIActions } from '../lib/ui.jsx';
 
 const mb = (n) => n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${Math.max(.1, n / 1e6).toFixed(1)} MB`;
 
@@ -107,7 +107,7 @@ function Editor({ account, onClose, onCreated }) {
 
 export default function AccountPanel() {
   const { list, current } = useAccounts();
-  const { toast } = useUI();
+  const { toast } = useUIActions();
   const [editing, setEditing] = useState(null);          // null | 'new' | account
   const [confirmDel, setConfirmDel] = useState('');
   const [ask, setAsk] = useState(null);                  // 删设了 PIN 的账户：{ id, value, bad }

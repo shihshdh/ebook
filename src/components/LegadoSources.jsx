@@ -3,7 +3,7 @@
 // 每个书源旁边说清楚状态：能用（测过）/ 可用 / 部分不支持（发现页、登录、作者简介这类不影响读书的）/ 用不了 / 没通过。
 import { useRef, useState } from 'react';
 import Icon from './Icon.jsx';
-import { useUI } from '../lib/ui.jsx';
+import { useUIActions } from '../lib/ui.jsx';
 import { useSources, importSources, importFromUrl, setSourceEnabled, removeSource, removeSources, fatalOf, isBroken, testSources } from '../lib/legado.js';
 
 const hostOf = (u) => { try { return new URL(u).host; } catch { return u; } };
@@ -59,7 +59,7 @@ function SourceItem({ e, open, onToggle }) {
 
 export default function LegadoSources() {
   const list = useSources();
-  const { toast } = useUI();
+  const { toast } = useUIActions();
   const [mode, setMode] = useState('');          // '' | 'paste' | 'url'
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);

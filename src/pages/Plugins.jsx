@@ -10,12 +10,12 @@ import { PLUGINS, enabledPlugins, setPluginEnabled } from '../plugins/registry.j
 import { loadLibrary, useLibrary } from '../lib/library.js';
 import { useShelf } from '../lib/useShelf.js';
 import { platform } from '../lib/native.js';
-import { useUI } from '../lib/ui.jsx';
+import { useUIActions } from '../lib/ui.jsx';
 import { useTheme } from '../lib/theme.js';
 
 /** 手动检查更新：有新版就在当前页弹出更新卡片 */
 function CheckUpdate() {
-  const { toast } = useUI();
+  const { toast } = useUIActions();
   const [busy, setBusy] = useState(false);
   const run = async () => {
     setBusy(true);
@@ -35,7 +35,7 @@ const fmtTime = (t) => t ? new Date(t).toLocaleString('zh-CN', { month: 'numeric
 export default function Plugins() {
   const lib = useLibrary();
   const { items } = useShelf();
-  const { toast } = useUI();
+  const { toast } = useUIActions();
   const [on, setOn] = useState(() => new Set(enabledPlugins().map(p => p.id)));
   const [refreshing, setRefreshing] = useState(false);
   const [theme, setTheme] = useTheme();

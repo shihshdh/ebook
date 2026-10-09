@@ -4,7 +4,7 @@ import { acctKey } from '../lib/accounts.js';
 import Cover from '../components/Cover.jsx';
 import Icon from '../components/Icon.jsx';
 import { prepareSearch, searchBooks, useLibrary } from '../lib/library.js';
-import { useUI } from '../lib/ui.jsx';
+import { useUIActions } from '../lib/ui.jsx';
 import { lazyOptional } from '../lib/optional.jsx';
 import { useTheme } from '../lib/theme.js';
 import { useSources, searchSources, useUsableSourceCount } from '../lib/legado.js';
@@ -59,7 +59,7 @@ const readHistory = () => { try { return JSON.parse(localStorage.getItem(HISTORY
 export default function Search() {
   const lib = useLibrary();
   const usableSources = useUsableSourceCount();
-  const { openBook } = useUI();
+  const { openBook } = useUIActions();
   const [params, setParams] = useSearchParams();
   const [q, setQ] = useState(params.get('q') || '');
   const [history, setHistory] = useState(readHistory);

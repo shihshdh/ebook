@@ -6,10 +6,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { checkUpdate, current, installUpdate, skipUpdate } from '../lib/update.js';
-import { useUI } from '../lib/ui.jsx';
+import { useUIActions } from '../lib/ui.jsx';
 
 export default function UpdateCard({ hidden }) {
-  const { toast } = useUI();
+  const { toast } = useUIActions();
   const { pathname } = useLocation();
   const [upd, setUpd] = useState(null);      // { version, notes, file, sha256, manual }
   const [state, setState] = useState('idle');   // idle | loading | done

@@ -10,7 +10,7 @@ import WindowControls, { isDesktopClient } from './components/WindowControls.jsx
 import LockScreen from './components/LockScreen.jsx';
 import { needsUnlock } from './lib/accounts.js';
 import OpenTransition from './effects/OpenTransition.jsx';
-import { UIProvider, useUI } from './lib/ui.jsx';
+import { UIProvider, useUIActions } from './lib/ui.jsx';
 import { startDownloadWatch } from './lib/downloads.js';
 import { onBackButton } from './lib/native.js';
 import { loadLibrary, libraryBooks, classics, WORLDS, worldScore } from './lib/library.js';
@@ -167,7 +167,7 @@ function Shell() {
     return true;
   }), [navigate]);
   // 客户端：蓝奏云这类在浏览器里下好的书，回到窗口时自动放进书架
-  const { toast } = useUI();
+  const { toast } = useUIActions();
   useEffect(() => startDownloadWatch(({ ok, failed }, names) => {
     if (ok.length) toast(ok.length === 1 ? `已放进书架：${names[0].replace(/\.(epub|txt)$/i, '')}` : `已放进书架：${ok.length} 本`, { tone: 'ok', ms: 4200 });
     if (failed.length) toast(`${failed.length} 个文件没能导入`, { tone: 'error' });

@@ -8,7 +8,7 @@ import { useRss, groupsOf, fetchArticles, fetchContent, sanitize } from '../lib/
 import { browser, onBackButton } from '../lib/native.js';
 import { acctKey } from '../lib/accounts.js';
 import { usePageActive } from '../lib/pageActive.js';
-import { useUI } from '../lib/ui.jsx';
+import { useUIActions } from '../lib/ui.jsx';
 import '../styles/rss.css';
 
 const GROUP_KEY = acctKey('librarium.rssGroup');
@@ -33,7 +33,7 @@ const openWeb = (url, title, toast) => browser.open({ url, title }).catch(e => t
 function RssHome() {
   const all = useRss();
   const nav = useNavigate();
-  const { toast } = useUI();
+  const { toast } = useUIActions();
   const [q, setQ] = useState('');
   const [group, setGroup] = useState(() => { try { return localStorage.getItem(GROUP_KEY) || ''; } catch { return ''; } });
   const [limit, setLimit] = useState(PAGE);
@@ -100,7 +100,7 @@ function RssHome() {
 }
 
 function ArticleView({ entry, item, onClose }) {
-  const { toast } = useUI();
+  const { toast } = useUIActions();
   const [html, setHtml] = useState(item.html ? sanitize(item.html, item.link) : '');
   const [state, setState] = useState(item.html ? 'done' : 'loading');
   useEffect(() => {
@@ -144,7 +144,7 @@ function ArticleView({ entry, item, onClose }) {
 function RssSource({ id }) {
   const all = useRss();
   const nav = useNavigate();
-  const { toast } = useUI();
+  const { toast } = useUIActions();
   const entry = all?.find(e => e.id === id);
   const sorts = useMemo(() => entry ? (entry.sorts?.length ? entry.sorts : [{ name: '首页', url: entry.source.sourceUrl }]) : [], [entry?.id]);
   const [tab, setTab] = useState(0);

@@ -6,7 +6,7 @@ import Icon from '../components/Icon.jsx';
 import { useShelf } from '../lib/useShelf.js';
 import { classics, useLibrary } from '../lib/library.js';
 import { removeFromShelf } from '../lib/shelf.js';
-import { useUI } from '../lib/ui.jsx';
+import { useUIActions } from '../lib/ui.jsx';
 import * as local from '../plugins/local/index.js';
 import { ContinueCard, StatsCard, NotesPanel, ForYou, isFinished, isReading } from '../components/ShelfPanels.jsx';
 import { acctKey } from '../lib/accounts.js';
@@ -29,7 +29,7 @@ const ago = (t) => {
 
 export default function Shelf() {
   const { items, ready } = useShelf();
-  const { openReader, openBook, toast } = useUI();
+  const { openReader, openBook, toast } = useUIActions();
   const lib = useLibrary();
   const picks = classics(lib.books, 5);
   const [drag, setDrag] = useState(false);

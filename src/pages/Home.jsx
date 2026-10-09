@@ -6,7 +6,7 @@ import Cover from '../components/Cover.jsx';
 import Icon from '../components/Icon.jsx';
 import { classics, useLibrary, WORLDS, isLightNovel, TOP_RECENT, pickList } from '../lib/library.js';
 import { useShelf } from '../lib/useShelf.js';
-import { useUI } from '../lib/ui.jsx';
+import { useUIActions } from '../lib/ui.jsx';
 import { lazyOptional } from '../lib/optional.jsx';
 import { prefersReduced } from '../lib/motion.js';
 import { useTheme } from '../lib/theme.js';
@@ -90,7 +90,7 @@ function TodayPick({ pool, onOpen }) {
 export default function Home() {
   const lib = useLibrary();
   const { items } = useShelf();
-  const { openBook, openReader } = useUI();
+  const { openBook, openReader } = useUIActions();
   const recent = items.slice(0, 8);
   const last = recent[0];
   const lastCover = useRef(null);
