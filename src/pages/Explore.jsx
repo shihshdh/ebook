@@ -1,4 +1,4 @@
-import { useDeferredValue, useMemo, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import WorldSwitch from '../effects/WorldSwitch.jsx';
 import MasonryWall from '../effects/MasonryWall.jsx';
@@ -35,7 +35,17 @@ export default function Explore() {
   const worldTag = WORLDS.find(w => w.id === active)?.tag;
   // 顶上的镜头动画马上跟着点击走；下面的书单用延后的筛选条件在后台分片重排、重渲染，不和动画抢同一帧
   const filters = useMemo(() => ({ worldTag, extra, status, onlyIll, sort, active }), [worldTag, extra, status, onlyIll, sort, active]);
-  const f = useDeferredValue(filters);
+  // 换世界时，书单等镜头推进 / 拉远停稳了再换（WorldSwitch 的 onSettle；兜底 1.8 秒）：书单在面板下面，这时基本不在屏幕上，
+  // 新书单的排版、绘制不和镜头动画抢帧（手机上以前推进到一半卡一下）。标签、状态、排序这些马上换
+  const [listFilters, setListFilters] = useState(filters);
+  const latest = useRef(filters); latest.current = filters;
+  useEffect(() => {
+    if (listFilters.active === filters.active) { setListFilters(filters); return; }
+    const t = setTimeout(() => setListFilters(latest.current), 1800);
+    return () => clearTimeout(t);
+  }, [filters]);
+  const onSettle = useCallback(() => setListFilters(prev => (prev === latest.current ? prev : latest.current)), []);
+  const f = useDeferredValue(listFilters);
   const books = useMemo(() => {
     const list = searchBooks(lib.books, '', { tags: [f.worldTag, ...f.extra].filter(Boolean), status: f.status, illustrated: f.onlyIll });
     // 精选优先：进了某个世界就按该世界的精选排，没选世界按全站的细腻之选排
@@ -51,7 +61,7 @@ export default function Explore() {
 
   return (
     <div className="page explore">
-      <WorldSwitch worlds={WORLDS} active={active} total={lib.books.filter(isLightNovel).length} collage={collage}
+      <WorldSwitch worlds={WORLDS} active={active} total={lib.books.filter(isLightNovel).length} collage={collage} onSettle={onSettle}
         onChange={(id) => navigate(id ? `/explore/${id}` : '/explore', { replace: true })} />
 
       <div className="filters">

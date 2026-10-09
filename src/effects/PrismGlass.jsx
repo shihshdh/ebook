@@ -58,6 +58,38 @@ function canUseGlass() {
     return false;
   }
 }
+// 让出主线程：初始化拆成几段，每段之间浏览器可以先画一帧（首页的唱片照常转）
+const nextTask = () => new Promise(r => setTimeout(r, 0));
+/**
+ * 环境光（PMREM）要用的几个着色器先交给驱动在后台并行编译（KHR_parallel_shader_compile），编好再 fromScene。
+ * 不预热的话 fromScene 里每个着色器第一次用都要原地等链接完，电脑上一下卡八十毫秒（这时首页还在转唱片）。
+ * 场景里那几个材质按 fromScene 渲染时的状态编（画进渲染目标、不做色调映射），编出来的程序 fromScene 直接复用；
+ * 模糊着色器 three 没公开，借它两个内部方法先建出来（three 换了实现找不到这俩方法就跳过，大不了照旧等一下）
+ */
+async function prewarmPmrem(THREE, renderer, pmrem, room) {
+  const waits = [];
+  const target = new THREE.WebGLRenderTarget(16, 16, { type: THREE.HalfFloatType, depthBuffer: false });
+  const prevTarget = renderer.getRenderTarget(), prevTone = renderer.toneMapping;
+  const bg = new THREE.Mesh(new THREE.BoxGeometry(), new THREE.MeshBasicMaterial({ side: THREE.BackSide, depthWrite: false, depthTest: false }));
+  try {
+    renderer.setRenderTarget(target);
+    renderer.toneMapping = THREE.NoToneMapping;
+    room.add(bg);
+    waits.push(renderer.compileAsync(room, new THREE.PerspectiveCamera(90, 1, 0.1, 100)));
+  } finally {
+    room.remove(bg);
+    renderer.setRenderTarget(prevTarget);
+    renderer.toneMapping = prevTone;
+  }
+  if (typeof pmrem._setSize === 'function' && typeof pmrem._allocateTargets === 'function') {
+    try {
+      pmrem._setSize(256);   // 和 fromScene 里的尺寸一致，它才会复用这里建好的模糊材质
+      pmrem._allocateTargets().dispose();
+      if (pmrem._blurMaterial && pmrem._lodPlanes?.[0]) waits.push(renderer.compileAsync(new THREE.Mesh(pmrem._lodPlanes[0], pmrem._blurMaterial), new THREE.OrthographicCamera()));
+    } catch { /* 跳过 */ }
+  }
+  try { await Promise.all(waits); } finally { target.dispose(); bg.geometry.dispose(); bg.material.dispose(); }
+}
 export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISSION \xB7 IOR 1.46 \xB7 DISPERSION", children, height = "min(72vh, 640px)" }) {
   const TITLE = title, LEAD = lead;
   const rootRef = useRef(null);
@@ -75,8 +107,11 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
     if (mode !== "glass") return;
     const root = rootRef.current, canvas = canvasRef.current;
     if (!root || !canvas) return;
-    let disposed = false, cleanup = () => {
-    };
+    // 初始化分几段做，段与段之间让出主线程（以前一口气做完，电脑上一百多毫秒，正赶上首页空闲时后台预渲染搜索页）。
+    // 中途卸载：已经建好的东西按 disposers 倒着释放
+    let disposed = false, running = true;
+    const disposers = [];
+    const cleanup = () => { while (disposers.length) { try { disposers.pop()(); } catch { /* 继续释放其余的 */ } } };
     (async () => {
       const THREE = await import("three");
       const { RoomEnvironment } = await import("three/examples/jsm/environments/RoomEnvironment.js");
@@ -88,17 +123,28 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         setMode("static");
         return;
       }
+      disposers.push(() => renderer.dispose());
       const quality = tier(), dpr = devicePixelRatio || 1;
       renderer.setPixelRatio(quality === "ultra" ? Math.min(dpr * 1.25, 2.5) : quality === "high" ? Math.min(dpr, 2) : Math.min(dpr, 1.5));
       // Neutral 不会把近黑底压成浑浊的灰（ACES 会），玻璃才清透
       renderer.toneMapping = THREE.NeutralToneMapping;
       const scene = new THREE.Scene();
       const pmrem = new THREE.PMREMGenerator(renderer);
+      disposers.push(() => pmrem.dispose());
       const room = new RoomEnvironment();
+      disposers.push(() => room.dispose());
+      await nextTask();
+      if (disposed) return;
+      try { await prewarmPmrem(THREE, renderer, pmrem, room); } catch { /* 预热不成就照旧同步编 */ }
+      if (disposed) return;
+      await nextTask();
+      if (disposed) return;
       const envTarget = pmrem.fromScene(room, 0.04);
+      disposers.push(() => envTarget.dispose());
       const env = envTarget.texture;
-      room.dispose();
       scene.environment = env;
+      await nextTask();
+      if (disposed) return;
       const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 20);
       const dist = 0.5 / Math.tan(THREE.MathUtils.degToRad(14));
       camera.position.set(0, 0, dist);
@@ -167,7 +213,7 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         key.intensity = p.key;
         renderer.toneMappingExposure = p.exposure;
       };
-      let W = 1, H = 1;
+      let W = 1, H = 1, sized = false;
       const paint = () => {
         const ratio = renderer.getPixelRatio();
         const cw = Math.round(W * PAD * ratio), ch = Math.round(H * PAD * ratio);
@@ -188,7 +234,8 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         glow(0.18, 0.9, glows[1][1], glows[1][0]);
         glow(0.56, 0.5, glows[2][1], glows[2][0]);
         const s = ratio, ox = (PAD - 1) / 2 * W * s, oy = (PAD - 1) / 2 * H * s;
-        const family = getComputedStyle(root).getPropertyValue("--serif").trim() || "serif";
+        // 字体从根元素读：从 root 读会逼浏览器给还藏在后台的搜索页算样式
+        const family = getComputedStyle(document.documentElement).getPropertyValue("--serif").trim() || "serif";
         // 标题要大到横跨中间三四块碎片，跨过倒角时被错开，折射才看得出来
         const size = Math.min(110, Math.max(34, W * 0.092), H * 0.15);
         root.style.setProperty("--title-size", size + "px");
@@ -256,17 +303,23 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
           if (Math.abs(goal - lift[i]) > 4e-4) moving = true;
         });
         renderer.render(scene, camera);
+        // 第一帧画出来了才藏 HTML 标题：折射的字和 HTML 字在同一帧交接
+        if (!shown) { shown = true; root.setAttribute("data-ready", ""); watchFps(); }
         if (moving && state.visible && !document.hidden) fr.request(loop);
         else last = 0;
       };
       // 着色器异步编译完之前不画：第一帧画的时候才同步编译，进搜索页那一下要卡几十毫秒
-      let ready = false;
+      // 也要等 ResizeObserver 给了真尺寸、纸面画好（页面还藏在后台时初始化就做完了，尺寸要等它排版）
+      let ready = false, shown = false;
       const kick = () => {
-        if (ready && !fr.pending && state.visible && !document.hidden) fr.request(loop);
+        if (ready && sized && !fr.pending && state.visible && !document.hidden) fr.request(loop);
       };
-      const resize = () => {
-        W = Math.max(1, root.clientWidth);
-        H = Math.max(1, root.clientHeight);
+      // 尺寸从 ResizeObserver 拿（排完版顺手给的），不读 clientWidth：读它会逼浏览器当场排版，页面还藏在后台时也一样
+      const resize = ([entry]) => {
+        const box = entry.borderBoxSize?.[0];
+        const w = Math.round(box ? box.inlineSize : entry.contentRect.width), h = Math.round(box ? box.blockSize : entry.contentRect.height);
+        if (!w || !h || (sized && w === W && h === H)) return;
+        W = w; H = h; sized = true;
         renderer.setSize(W, H, false);
         camera.aspect = W / H;
         camera.updateProjectionMatrix();
@@ -307,14 +360,13 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
       const lost = event => { event.preventDefault(); stop(); setMode('static'); };
       canvas.addEventListener('webglcontextlost', lost);
       void document.fonts?.ready.then(() => {
-        if (!disposed) {
+        if (!disposed && sized) {
           paint();
           kick();
         }
       });
       applyGlass();
-      resize();
-      cleanup = () => {
+      disposers.push(() => {
         fr.cancel();
         ro.disconnect();
         io.disconnect();
@@ -328,24 +380,24 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         plane.geometry.dispose();
         plane.material.dispose();
         texture.dispose();
-        envTarget.dispose();
-        pmrem.dispose();
-        renderer.dispose();
-      };
+      });
+      // 碎片先按 1:1 建一份（ResizeObserver 给了真尺寸再重建）：着色器只认材质不认形状，先建出来才能一起预编译
+      if (!sized) build();
       // 玻璃、纸面的着色器交给驱动在后台并行编译（KHR_parallel_shader_compile），编好再开始画；
       // 这期间 HTML 标题照常显示，编好后第一帧折射和隐藏 HTML 标题落在同一帧
       try { await renderer.compileAsync(scene, camera); } catch { /* 不支持就第一次画时同步编译 */ }
       if (disposed) return;
       ready = true;
       kick();
-      root.setAttribute("data-ready", ""); watchFps();
     })().catch(() => {
       cleanup();
       if (!disposed) setMode("static");
-    });
+    }).finally(() => { running = false; if (disposed) cleanup(); });
+    // 还在初始化（等着色器编译）时卸载：等它停在下一个检查点再释放。马上释放渲染器的话，
+    // three 还在轮询已删掉的着色器程序，永远等不到「编好」，每 10ms 空转一次
     return () => {
       disposed = true;
-      cleanup();
+      if (!running) cleanup();
     };
   // lead、caption 是 HTML 字（不画进纹理）：它们变了不用重建 WebGL——以前书库一加载完、书源数一变，就整套拆掉重建一遍
   }, [mode, title.join("\n")]);

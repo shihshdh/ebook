@@ -10,6 +10,7 @@ import Cover from '../components/Cover.jsx';
 import { useCover } from '../lib/covers.js';
 import { isTouch, prefersReduced } from '../lib/motion.js';
 import { usePixelGlitch } from './usePixelGlitch.js';
+import { idleLayout } from '../lib/warm.js';
 import './MasonryWall.css';
 
 // 卡片和整面墙都 memo：点世界、改筛选时上面整页重渲染，书单没变的话这里一张都不用重来（手机上一次七八十毫秒）
@@ -118,6 +119,8 @@ export default memo(function MasonryWall({ books, onOpen, flip = [], pageSize = 
   // 挂载时一读 clientWidth 就逼浏览器当场把整页排一遍（第一次进探索页那一帧四十多毫秒，后台预渲染时也会被拖着排版）。
   // 之后 ResizeObserver 报实际宽度（浏览器排完版顺手给的，不额外花钱），差了再改
   const grid = useRef(null);
+  // 快滚到的卡片趁空闲先排好（卡片是 content-visibility: auto，滚到附近才排，一划好几张同时排会顿）
+  useEffect(() => grid.current ? idleLayout(grid.current, '.mw-tile:not(.mw-quote)') : undefined, []);
   const [layout, setLayout] = useState(() => layoutFor(innerWidth - 2 * Math.min(56, Math.max(16, innerWidth * .04))));
   useEffect(() => {
     const el = grid.current;

@@ -185,7 +185,7 @@ export default function Home() {
         </section>
 
         {ranking.length > 0 && (
-          <section className="home-section editorial">
+          <section className="home-section home-lazy editorial">
             <div className="rank glass">
               <div className="section-head"><h2>近年佳作</h2><span className="eyebrow">TOP 10</span></div>
               <ol>
@@ -221,7 +221,7 @@ export default function Home() {
         )}
 
         {sources > 0 && (
-          <section className="home-section">
+          <section className="home-section home-lazy">
             <div className="section-head"><h2>书源里的好书</h2><Link to="/search" className="btn btn-ghost sm">搜索 <Icon name="arrow" size={14} /></Link></div>
             <div className="fresh-row">
               {picks.map(p => (
@@ -236,7 +236,7 @@ export default function Home() {
         )}
 
         {fresh.length > 0 && (
-          <section className="home-section">
+          <section className="home-section home-lazy">
             <div className="section-head"><h2>最近更新</h2><Link to="/explore" className="btn btn-ghost sm">探索 <Icon name="arrow" size={14} /></Link></div>
             <div className="fresh-row">
               {fresh.map(b => (
@@ -251,7 +251,7 @@ export default function Home() {
         )}
 
         {starters.length === 5 && (
-          <section className="home-section home-folder">
+          <section className="home-section home-lazy home-folder">
             <div className="section-head"><h2>入坑书单</h2><Link to="/explore" className="btn btn-ghost sm">更多佳作 <Icon name="arrow" size={14} /></Link></div>
             <div className="starter">
               <FolderFan label="入坑书单" note="五本细腻之作" word="tender" sticker="TOP 5"
@@ -272,7 +272,7 @@ export default function Home() {
           </section>
         )}
 
-        <section className="home-section">
+        <section className="home-section home-lazy">
           <div className="section-head"><h2>五个世界</h2><Link to="/explore" className="btn btn-ghost sm">全部 <Icon name="arrow" size={14} /></Link></div>
           <div className="world-row">
             {WORLDS.map((w, i) => (

@@ -26,13 +26,14 @@ function Typed({ text, run }) {
   return <span>{text.slice(0, n)}<i className="ws-caret" aria-hidden="true" /></span>;
 }
 
-export default function WorldSwitch({ worlds, active, onChange, collage, total }) {
+export default function WorldSwitch({ worlds, active, onChange, collage, total, onSettle }) {
   const hero = useRef(null), scene = useRef(null), veil = useRef(null), back = useRef(null), headline = useRef(null);
   const capsRef = useRef({});
   const [shown, setShown] = useState(active || worlds[0].id); // 场景层当前显示的世界
   const [zoomed, setZoomed] = useState(!!active);
   const spring = useRef(new Spring(active ? 1 : 0, .62, .82));
   const desired = useRef(active);   // 想去的世界（null = 全部）
+  const settleRef = useRef(onSettle); settleRef.current = onSettle;   // 镜头停稳、不用再动时通知外面（探索页这时才换书单）
   const animating = useRef(false);
   const raf = useRef(0);
   // 动画循环跨过「换世界」那次重渲染：读 ref 拿到的总是当前世界的胶囊，不会按旧胶囊的位置算
@@ -79,13 +80,14 @@ export default function WorldSwitch({ worlds, active, onChange, collage, total }
     raf.current = requestAnimationFrame(tick);
   };
 
-  /** 已经在往 target 走（或已停在那）就不重启，免得每次判断都打断弹簧 */
+  /** 已经在往 target 走（或已停在那）就不重启，免得每次判断都打断弹簧。返回 true = 镜头已经停在 target、不用再动 */
   const zoomTo = (target) => {
     const s = spring.current;
-    if (s.target === target && (animating.current || s.value === target)) return;
-    if (prefersReduced()) { s.set(target); frame(); advance(); return; }
+    if (s.target === target && (animating.current || s.value === target)) return !animating.current;
+    if (prefersReduced()) { s.set(target); frame(); advance(); return false; }
     s.target = target;
     run();
+    return false;
   };
 
   // 镜头下一步怎么走，只看两件事：想去哪个世界、现在显示的是哪个。
@@ -94,8 +96,8 @@ export default function WorldSwitch({ worlds, active, onChange, collage, total }
   //   想去别的 → 先拉远到当前胶囊，拉远了就换世界（换完下面 [shown] 的 effect 再判断一次，从新胶囊推进）
   const advance = () => {
     const want = desired.current;
-    if (!want) { setZoomed(false); zoomTo(0); return; }
-    if (want === shownRef.current) { setZoomed(true); zoomTo(1); return; }
+    if (!want) { setZoomed(false); if (zoomTo(0)) settleRef.current?.(); return; }
+    if (want === shownRef.current) { setZoomed(true); if (zoomTo(1)) settleRef.current?.(); return; }
     setZoomed(false);
     if (spring.current.value < .05) setShown(want);
     else zoomTo(0);
@@ -137,7 +139,9 @@ export default function WorldSwitch({ worlds, active, onChange, collage, total }
 
       <div ref={scene} className="ws-scene" aria-hidden={!zoomed}>
         <div className="ws-collage">
-          {books.slice(0, 14).map((b, i) => <Cover key={b.id} book={b} eager={i < 8} alt="" className={`ws-c ws-c${i}`} />)}
+          {/* 全部 eager：拼贴平时被 clip-path 裁没了，推进时才露出来；不 eager 的封面要等「快到屏幕上」才去找真封面，
+              被裁着就一直等不到，推进到一半才换图 */}
+          {books.slice(0, 14).map((b, i) => <Cover key={b.id} book={b} eager alt="" className={`ws-c ws-c${i}`} />)}
         </div>
         <div className="ws-shade" />
         <div ref={veil} className="ws-veil" />

@@ -54,6 +54,12 @@
 /* 切页：去过的页面留在后台（App.jsx），content-visibility: hidden 保留它的排版和渲染状态、不画也不占位置，切回来几乎不花时间。
    进场只淡入 + 轻微上移：以前带 blur(6px)，整页连同底下几十块毛玻璃每帧重画，是切页掉帧的大头 */
 .route.is-kept { content-visibility: hidden; }
+/* 分块预排版（App.jsx 空闲预渲染，lib/warm.js）：正在排的（data-warming）临时解除 content-visibility，
+   里面还没排的块各自 content-visibility: hidden，一块块放开（打上 data-warm），每段只排几毫秒。排完收回，排版结果留着。
+   后台页面排的时候高 0、裁掉、不可见，不占位置也不画；首页下半截的区块本来就在屏幕外 */
+.route.is-kept[data-warming] { content-visibility: visible; height: 0; overflow: hidden; visibility: hidden; }
+.home-lazy[data-warming] { content-visibility: visible; }
+[data-warming] > :not([data-warm]), [data-warming] [data-warm="part"] > :not([data-warm]) { content-visibility: hidden; }
 .route.is-kept *, .route.is-kept *::before, .route.is-kept *::after { animation-play-state: paused !important; }   /* 后台页面的循环动画停着 */
 .route.is-active { animation: route-in .32s var(--ease) backwards; }
 @keyframes route-in { from { opacity: 0; transform: translate3d(0, 8px, 0); } }
@@ -157,6 +163,7 @@ html.sheet-open { overflow: hidden; }
 
 @media (max-width: 760px) {
   .sheet { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 92dvh; border-radius: 26px 26px 0 0; animation-name: sheet-from-bottom; }
+  .sheet.is-partial { height: 92dvh; }   /* 分两步挂的第一帧：先撑到最终高度（见 BookSheet.jsx 的 deferRest） */
   @keyframes sheet-from-bottom { from { transform: translate3d(0, 104%, 0); } }
   .sheet-layer.is-closing .sheet { animation-name: sheet-to-bottom; }
   @keyframes sheet-to-bottom { to { transform: translate3d(0, 104%, 0); } }
@@ -187,6 +194,12 @@ html.sheet-open { overflow: hidden; }
 @keyframes bob { 0% { transform: translate(-50%, 0.00px); } 10% { transform: translate(-50%, 0.49px); } 20% { transform: translate(-50%, 1.99px); } 30% { transform: translate(-50%, 4.01px); } 40% { transform: translate(-50%, 5.51px); } 50% { transform: translate(-50%, 6.00px); } 60% { transform: translate(-50%, 5.51px); } 70% { transform: translate(-50%, 4.01px); } 80% { transform: translate(-50%, 1.99px); } 90% { transform: translate(-50%, 0.49px); } 100% { transform: translate(-50%, 0.00px); } }
 .home-body { padding-top: 10px; }
 .home-section { margin-bottom: clamp(56px, 8vw, 96px); }
+/* 首页下面几块（近年佳作往下）：离屏幕远的先不排版、不绘制，滚到附近才做。首页有八九千像素长，以前每次从别的页回首页
+   整页重画一遍（后台页面不留绘制结果），手机上两百多毫秒；打开 App 第一次排版也要一百五十多毫秒。
+   这么做会把区块里伸出边缘的东西裁掉（content-visibility 自带绘制裁剪）：逐块量过伸出多少——阴影、悬停抬起、
+   文件夹展开的卡片最多伸出 99px——overflow-clip-margin 放宽到 120px，和不裁一样。
+   唱片那块不加：唱片故意伸出屏幕右边，而且在最上面，本来就要画 */
+.home-lazy { content-visibility: auto; contain-intrinsic-size: auto 640px; overflow-clip-margin: 120px; }
 .continue-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(250px, 300px); gap: 14px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
 .continue-card { display: grid; grid-template-columns: 64px 1fr; gap: 14px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255, 255, 255, .025); text-align: left; transition: border-color var(--d-state), transform var(--d-fb); }
 .continue-card:hover { border-color: rgba(233, 203, 139, .35); }
@@ -255,7 +268,9 @@ html.sheet-open { overflow: hidden; }
 .results { margin-top: 26px; }
 .results-count { font-size: 13px; }
 .result-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 10px; }
-.result-list li { animation: reveal .5s var(--ease) backwards; animation-delay: calc(var(--i) * 30ms); }
+/* 屏幕外的行先不排版、不绘制（content-visibility: auto），滚到附近才排。行高由封面定（72px 宽、5:7），123px 是准的，滚动条不跳。
+   手机上一屏只露六七行，以前一次排三十行：敲下一个字时浏览器要先把这三十行排完（输入要算光标位置），手机上一两百毫秒 */
+.result-list li { animation: reveal .5s var(--ease) backwards; animation-delay: calc(var(--i) * 30ms); content-visibility: auto; contain-intrinsic-size: auto 123px; }
 .result { width: 100%; display: grid; grid-template-columns: 72px 1fr auto; gap: 16px; align-items: center; padding: 10px 14px 10px 10px; border: 1px solid var(--line); border-radius: 16px; background: rgba(255, 255, 255, .02); text-align: left; transition: border-color var(--d-state), background var(--d-state); }
 .result:hover { border-color: rgba(233, 203, 139, .35); background: rgba(255, 255, 255, .04); }
 .result .cover { display: block; aspect-ratio: 5 / 7; border-radius: 6px; overflow: hidden; }

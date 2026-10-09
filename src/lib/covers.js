@@ -3,81 +3,15 @@
 //   2. 原站封面（轻小说文库每本书都有）：img.wenku8.com 直连不通，走公共图片代理 wsrv.nl（顺便缩到 360 宽转 webp），
 //      不通再换 i0.wp.com。两个代理国内直连实测都通，约 1 秒一张
 //   3. Bangumi 条目封面（原站封面加载失败时才查）
-//   4. 生成封面：按书名哈希挑一套"精装书衣"配色，竖排书名 + 金箔线框（SVG data URL，可直接当 <img>）
+//   4. 生成封面：按书名哈希挑一套"精装书衣"配色，竖排书名 + 金箔线框（画法见 jacket-art.js，后台线程里画，见 jacket.js）
 // 生成封面不是兜底的灰块，而是整站视觉的一部分——光盘、瀑布流、文件夹里大部分书会用它。
 import { useEffect, useState } from 'react';
 import { idbGet, idbSet } from './idb.js';
-import { hash } from './motion.js';
 import { raceImage } from './net.js';
 import { useCatalogBook } from './library.js';
-
-// ---------- 生成封面 ----------
-const JACKETS = [
-  { bg: '#3a1418', bg2: '#22090c', ink: '#f1dcc0', foil: '#d9b46c' }, // 牛血红
-  { bg: '#10302f', bg2: '#081a1a', ink: '#dfe9dc', foil: '#cfae6a' }, // 深青
-  { bg: '#16213a', bg2: '#0a1022', ink: '#e4e2f0', foil: '#d6b878' }, // 墨蓝
-  { bg: '#1f2a1a', bg2: '#10170c', ink: '#e8e4cf', foil: '#c9a660' }, // 苔绿
-  { bg: '#2c1a33', bg2: '#170c1c', ink: '#eadff0', foil: '#d8b97c' }, // 梅紫
-  { bg: '#26221d', bg2: '#13110e', ink: '#efe6d4', foil: '#e0c084' }, // 炭黑
-  { bg: '#4a3115', bg2: '#2a1a08', ink: '#f6e8cc', foil: '#f0d394' }, // 赭石
-  { bg: '#e9e1cf', bg2: '#d6cbb2', ink: '#2a2118', foil: '#9a6f2a' }, // 象牙（少数浅色，瀑布流里提亮节奏）
-];
-const MOTIFS = ['moon', 'sun', 'arc', 'stars', 'rule', 'diamond'];
-const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-
-export function cleanTitle(title = '') {
-  return String(title)
-    .replace(/[（(【\[].*?[)）】\]]/g, '')
-    .replace(/※.*$/, '')
-    .replace(/\s+/g, ' ')
-    .trim() || String(title).trim();
-}
-
-function motif(kind, j, h) {
-  const f = j.foil;
-  switch (kind) {
-    case 'moon': return `<circle cx="214" cy="104" r="34" fill="none" stroke="${f}" stroke-width="1.2" opacity=".8"/><circle cx="226" cy="96" r="30" fill="${j.bg}"/>`;
-    case 'sun': return `<circle cx="210" cy="108" r="22" fill="${f}" opacity=".85"/>${Array.from({ length: 12 }, (_, i) => { const a = i * Math.PI / 6; return `<line x1="${210 + Math.cos(a) * 30}" y1="${108 + Math.sin(a) * 30}" x2="${210 + Math.cos(a) * 40}" y2="${108 + Math.sin(a) * 40}" stroke="${f}" stroke-width="1"/>`; }).join('')}`;
-    case 'arc': return `<path d="M150 186 A70 70 0 0 1 270 120" fill="none" stroke="${f}" stroke-width="1.1" opacity=".75"/><path d="M162 196 A60 60 0 0 1 270 140" fill="none" stroke="${f}" stroke-width=".6" opacity=".5"/>`;
-    case 'stars': return Array.from({ length: 7 }, (_, i) => { const x = 150 + ((h >> (i * 3)) & 127) % 110, y = 60 + ((h >> (i * 2 + 5)) & 255) % 140, r = 1 + (i % 3) * .7; return `<circle cx="${x}" cy="${y}" r="${r}" fill="${f}"/>`; }).join('');
-    case 'diamond': return `<path d="M214 70 L238 104 L214 138 L190 104 Z" fill="none" stroke="${f}" stroke-width="1.1"/><path d="M214 84 L228 104 L214 124 L200 104 Z" fill="${f}" opacity=".35"/>`;
-    default: return `<line x1="150" y1="104" x2="270" y2="104" stroke="${f}" stroke-width="1"/><line x1="150" y1="110" x2="240" y2="110" stroke="${f}" stroke-width=".5"/>`;
-  }
-}
-
-const genCache = new Map();
-/** 生成封面（300×420，SVG data URL）。只依赖书名/作者/文库，结果稳定 */
-export function generatedCover({ title = '', author = '', publisher = '' }) {
-  const key = title + '|' + author;
-  if (genCache.has(key)) return genCache.get(key);
-  const h = hash(key);
-  const j = JACKETS[h % JACKETS.length];
-  const t = cleanTitle(title);
-  // 竖排书名：最多两列，每列最多 9 个字，字号随字数收
-  const chars = [...t.replace(/\s/g, '')];
-  const perCol = chars.length > 9 ? Math.ceil(Math.min(chars.length, 18) / 2) : chars.length;
-  const cols = [chars.slice(0, perCol), chars.slice(perCol, perCol * 2)].filter(c => c.length);
-  const size = Math.max(22, Math.min(40, Math.floor(300 / Math.max(perCol, 6))));
-  const titleSvg = cols.map((col, ci) => {
-    const x = 92 - ci * (size + 10);
-    return col.map((ch, i) => `<text x="${x}" y="${62 + i * (size * 1.08)}" font-size="${size}" text-anchor="middle" dominant-baseline="hanging">${esc(ch)}</text>`).join('');
-  }).join('');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 420" width="300" height="420">
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${j.bg}"/><stop offset="1" stop-color="${j.bg2}"/></linearGradient>
-<linearGradient id="f" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${j.foil}" stop-opacity=".6"/><stop offset=".5" stop-color="#fff4d6" stop-opacity=".95"/><stop offset="1" stop-color="${j.foil}" stop-opacity=".6"/></linearGradient></defs>
-<rect width="300" height="420" fill="url(#g)"/>
-<rect x="14" y="14" width="272" height="392" fill="none" stroke="url(#f)" stroke-width="1"/>
-<rect x="20" y="20" width="260" height="380" fill="none" stroke="${j.foil}" stroke-width=".5" opacity=".5"/>
-<line x1="128" y1="40" x2="128" y2="380" stroke="${j.foil}" stroke-width=".5" opacity=".45"/>
-${motif(MOTIFS[(h >> 5) % MOTIFS.length], j, h)}
-<g fill="${j.ink}" font-family="Noto Serif SC, Songti SC, STSong, SimSun, serif" font-weight="600">${titleSvg}</g>
-<text x="270" y="384" fill="${j.ink}" opacity=".75" font-family="Noto Serif SC, Songti SC, SimSun, serif" font-size="13" text-anchor="end">${esc(author.slice(0, 12))}</text>
-<text x="270" y="364" fill="${j.foil}" font-family="Cinzel, Georgia, serif" font-size="9" letter-spacing="2.5" text-anchor="end">${esc((publisher || 'EBOOK').slice(0, 14))}</text>
-</svg>`;
-  const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
-  genCache.set(key, url);
-  return url;
-}
+import { cleanTitle } from './jacket-art.js';
+import { jacketNow, jacketReady, requestJacket } from './jacket.js';
+export { cleanTitle };
 
 // ---------- Bangumi ----------
 const norm = (s = '') => cleanTitle(s).toLowerCase().replace(/[\s·・:：!！?？,，.。、~～\-—_'"“”‘’「」『』《》]/g, '');
@@ -227,23 +161,30 @@ function forgetCover(src) {
 }
 
 /**
- * 组件里用：先立刻给生成封面，visible 为真时先取原站封面、失败再查 Bangumi，拿到再换。
+ * 组件里用：先给生成封面（后台线程画，画好前 Cover 垫这本书的底色），visible 为真时先取原站封面、失败再查 Bangumi，拿到再换。
  * 返回的 onError 要挂到 <img> 上：真封面加载失败时退回生成封面并重新找。
  * @param {object} book  需要 title / author / publisher；书架条目可带 cover
  * @param {() => boolean} [near]  这本此刻在不在屏幕附近（排队时屏幕上的先加载）；不传当作在
+ * @param {number} [scale]  生成封面画多大（jacketScale，按封面显示的宽度）；0 = 还不知道，先不画
  */
-export function useCover(book, visible = true, near) {
+export function useCover(book, visible = true, near, scale = 0) {
   // 书架条目（下载时从 EPUB 里取封面）：纯文本版 EPUB 里没有封面，以前只能拿「化物语(物语系列一) · 上卷」这种书名去 Bangumi 碰运气，
   // 网络一抖就时有时无。现在按 bookId 借书目里那本书的原站封面，和探索页走同一条（排队 + 记住地址）的路
   const [ownBroken, setOwnBroken] = useState(false);   // EPUB 里取出的封面万一画不出来
   const own = ownBroken ? '' : book?.cover || '';
   const catalogBook = useCatalogBook(book && !own && !book.coverSrc ? book.bookId : undefined);
   const src = book?.coverSrc || catalogBook?.coverSrc || '';
-  const fallback = book ? (own || generatedCover(book)) : '';
-  const [url, setUrl] = useState(fallback);
-  const [real, setReal] = useState(!!own);
+  const ident = own || (book ? `${book.title || ''}|${book.author || ''}` : '');
+  const [found, setFound] = useState('');   // 找到的真封面
+  const [jacket, setJacket] = useState(() => (book && !own ? jacketNow(book, scale) : ''));
   const [attempt, setAttempt] = useState(0);   // 重试次数（最多 3 次，防止坏地址来回跳）
-  useEffect(() => { setUrl(fallback); setReal(!!own); setAttempt(0); }, [fallback]);
+  useEffect(() => { setFound(''); setJacket(book && !own ? jacketNow(book, scale) : ''); setAttempt(0); }, [ident]);
+  // 生成封面：知道显示多大就排队画（后台线程，屏幕上的先画）；已经找到真封面就不画（真封面万一显示失败，found 清空后再画）
+  useEffect(() => {
+    if (!book || own || found || !scale) return;
+    if (jacketReady(book, scale)) { setJacket(jacketNow(book, scale)); return; }
+    return requestJacket(book, scale, near, setJacket);
+  }, [ident, scale, !!found]);
   useEffect(() => {
     // 本地书没有可查的书名；公版古籍去 Bangumi 只会搜到同名动画/漫画的图，统一用生成的书衣
     if (!book || own || !visible || book.source === 'local' || book.source === 'public') return;
@@ -254,19 +195,20 @@ export function useCover(book, visible = true, near) {
       if (!alive) return;
       if (!u) { if (src) later(); return; }
       const im = new Image();
-      im.onload = () => { if (alive) { setUrl(u); setReal(true); } };
+      im.onload = () => { if (alive) setFound(u); };
       im.src = u;
     });
-    if (src) sourceCover(src, near).then(u => { if (!alive) return; if (u) { setUrl(u); setReal(true); } else viaBangumi(); });
+    if (src) sourceCover(src, near).then(u => { if (!alive) return; if (u) setFound(u); else viaBangumi(); });
     else viaBangumi();
     return () => { alive = false; clearTimeout(retry); };
   }, [book?.id, book?.title, visible, attempt, src, own]);
+  const real = !!(own || found);
   const onError = () => {
     if (own) { setOwnBroken(true); return; }
-    if (!real) return;
-    setUrl(fallback); setReal(false);
+    if (!found) return;
+    setFound('');
     if (src) forgetCover(src);
     setAttempt(a => (a < 3 ? a + 1 : a));
   };
-  return { url, real, onError };
+  return { url: own || found || jacket, real, onError };
 }

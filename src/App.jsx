@@ -1,4 +1,4 @@
-import { Suspense, lazy, startTransition, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Suspense, lazy, memo, startTransition, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { HashRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { PageActiveContext } from './lib/pageActive.js';
 import NavBar from './components/NavBar.jsx';
@@ -22,6 +22,7 @@ import Explore from './pages/Explore.jsx';
 import Search from './pages/Search.jsx';
 import Shelf from './pages/Shelf.jsx';
 import Plugins from './pages/Plugins.jsx';
+import { warmer } from './lib/warm.js';
 const Rss = lazy(() => import('./pages/Rss.jsx'));   // 订阅页按需加载
 
 function ReaderMissing() {
@@ -35,7 +36,12 @@ const PREWARM = [['explore', '/explore'], ['search', '/search'], ['shelf', '/she
 // 顶部导航的几页去过就留着（见 lib/pageActive.js）：按路径归到哪一页
 const TAB_OF = (path) => path === '/' ? 'home' : ['explore', 'search', 'shelf', 'plugins', 'rss'].find(k => path === '/' + k || path.startsWith('/' + k + '/')) || 'home';
 
-function Pages({ location }) {
+// memo：切页时只重渲染地址变了的那一页。以前每点一次导航，前台后台留着的五六页全部跟着重渲染一遍，
+// 点击是「离散事件」，React 一口气同步做完不让出主线程，手机上一下五六十毫秒。
+// 地址只比路径、查询、锚点和 state（各页都不看 location.key）：回到地址没变的页，换了个 location 对象也不用重来
+const sameLocation = (a, b) => a.location === b.location || (a.location.pathname === b.location.pathname
+  && a.location.search === b.location.search && a.location.hash === b.location.hash && a.location.state === b.location.state);
+const Pages = memo(function Pages({ location }) {
   return (
     <Suspense fallback={<div className="page" />}>
       <Routes location={location}>
@@ -51,7 +57,7 @@ function Pages({ location }) {
       </Routes>
     </Suspense>
   );
-}
+}, sameLocation);
 
 function Shell() {
   const location = useLocation();
@@ -69,24 +75,79 @@ function Shell() {
   const [libReady, setLibReady] = useState(false);
   useEffect(() => { loadLibrary().finally(() => setLibReady(true)); return trackPointerGlow(); }, []);
 
-  // 空闲预渲染：还没去过的探索 / 搜索 / 书架 / 插件页，趁你停手时在后台先渲染好。
-  // 用并发渲染（startTransition，React 每 5ms 让一次主线程），挂成后台页（content-visibility: hidden，不排版不画），
-  // 第一次点进去就只剩排版和绘制——以前点进探索页那一帧要把渲染、筛选排序、排版、绘制全做完，一百多毫秒。
-  // 一有操作（滚、点、划、按键）就停，停手 1.2 秒再接着来，一次只渲染一页
+  // 空闲预渲染 + 预排版：还没去过的探索 / 搜索 / 书架 / 插件页，趁你停手时在后台一步步先做好，第一次点进去不用现做。
+  //   1. 渲染：并发渲染（startTransition，React 每 5ms 让一次主线程），挂成后台页（content-visibility: hidden，不排版不画）
+  //   2. 排版：一小块一小块排（lib/warm.js），每段几毫秒，段与段之间先画一帧；当前页面里先没排的区块（首页下半截）最先排；
+  //      content-visibility: hidden 会留着排好的结果，点进去只剩绘制（以前手机上第一次进探索 / 书架要一两百毫秒，大半是现排）
+  //   全部做完再预加载书源规则引擎（第一次搜书源时要现加载，手机上一百多毫秒）。
+  // 停手 1.2 秒才开始，之后一步接一步；一有操作（滚、点、划、按键、输入）就停下，排到一半的记着，停手后接着排
   const keptRef = useRef(kept); keptRef.current = kept;
+  const tabRef = useRef(tab); tabRef.current = tab;
+  const routeEls = useRef({});
+  const [warming, setWarming] = useState(null);
+  const warmed = useRef(new Set()), warmers = useRef({}), engineReady = useRef(false);
+  const [warmedEls, sectionWarmers] = useState(() => [new WeakSet(), new WeakMap()])[0];
   useEffect(() => {
     if (splash || locked || reading || !libReady) return;
-    let timer = 0;
-    const next = () => PREWARM.find(([k]) => !keptRef.current[k]);
-    const later = () => { clearTimeout(timer); if (next()) timer = setTimeout(run, 1200); };
-    const run = () => {
-      const item = next();
-      if (!item) return;
-      const [k, path] = item;
-      startTransition(() => setKept(prev => prev[k] ? prev : { ...prev, [k]: { pathname: path, search: '', hash: '', state: null, key: 'prewarm-' + k } }));
-      later();
+    let timer = 0, running = null;   // running：正在分块排版的那一页 { stop }
+    // 分块排一页：先让 React 挂上 data-warming，再一段段排；done() 时这页排完了
+    const warmPage = (k, done) => {
+      let stopped = false, raf = 0, t = 0;
+      const next = () => { raf = requestAnimationFrame(() => { t = setTimeout(tick, 0); }); };
+      const finish = () => { warmed.current.add(k); delete warmers.current[k]; setWarming(w => (w === k ? null : w)); done(); };
+      const tick = () => {
+        if (stopped) return;
+        const route = routeEls.current[k];
+        if (tabRef.current === k || !keptRef.current[k]) { finish(); return; }   // 已经点进去了，用不着
+        if (!route) { next(); return; }   // 上一步的并发渲染还没把这页挂上
+        if (!route.hasAttribute('data-warming')) { next(); return; }   // data-warming 还没挂上
+        const run = warmers.current[k] || (warmers.current[k] = warmer(route.firstElementChild));
+        if (run()) next(); else finish();
+      };
+      setWarming(k);
+      next();
+      return { stop: () => { stopped = true; cancelAnimationFrame(raf); clearTimeout(t); setWarming(w => (w === k ? null : w)); } };
     };
-    const events = ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart', 'scroll'];
+    // 分块排当前页面里先没排的区块（首页近年佳作往下那几块，content-visibility: auto）：排好的结果留着，
+    // 滚到那里只剩绘制。正在屏幕上的不碰（它本来就排好了，临时锁住里面的块反而会闪）
+    const warmSection = (el, done) => {
+      let stopped = false, raf = 0, t = 0;
+      const next = () => { raf = requestAnimationFrame(() => { t = setTimeout(tick, 0); }); };
+      const finish = () => { el.removeAttribute('data-warming'); warmedEls.add(el); done(); };
+      const tick = () => {
+        if (stopped) return;
+        if (!el.isConnected) { finish(); return; }
+        let run = sectionWarmers.get(el);
+        if (!run) sectionWarmers.set(el, run = warmer(el));
+        if (run()) next(); else finish();
+      };
+      el.setAttribute('data-warming', '');
+      next();
+      return { stop: () => { stopped = true; cancelAnimationFrame(raf); clearTimeout(t); el.removeAttribute('data-warming'); } };
+    };
+    const skipped = (el) => el.firstElementChild && !el.firstElementChild.checkVisibility?.({ contentVisibilityAuto: true });
+    const nextStep = () => {
+      const lazy = [...document.querySelectorAll('.route.is-active .home-lazy')].find(el => !warmedEls.has(el));
+      if (lazy) return (done) => { if (skipped(lazy)) return warmSection(lazy, done); warmedEls.add(lazy); done(); };
+      for (const [k, path] of PREWARM) {
+        if (!keptRef.current[k]) return (done) => { startTransition(() => setKept(prev => prev[k] ? prev : { ...prev, [k]: { pathname: path, search: '', hash: '', state: null, key: 'prewarm-' + k } })); done(); };
+        if (!warmed.current.has(k)) return (done) => { if (tabRef.current !== k) return warmPage(k, done); warmed.current.add(k); done(); };
+      }
+      if (!engineReady.current) return (done) => { engineReady.current = true; import('./plugins/legado/index.js').catch(() => { engineReady.current = false; }); done(); };
+      return null;
+    };
+    // 一步做完、这期间没人操作，隔几帧就接着下一步（以前每步都等 1.2 秒，十几步排完要将近二十秒，
+    // 打开 App 没多久就切页时，后台页还没排好）；一有操作才重新等停手 1.2 秒
+    const go = () => {
+      const step = nextStep();
+      if (step) running = step(() => { running = null; clearTimeout(timer); if (nextStep()) timer = setTimeout(go, 120); }) || running;
+    };
+    function later() {
+      if (running) { running.stop(); running = null; }
+      clearTimeout(timer);
+      if (nextStep()) timer = setTimeout(go, 1200);
+    }
+    const events = ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart', 'scroll', 'input', 'compositionupdate'];
     events.forEach(t => addEventListener(t, later, { passive: true, capture: true }));
     later();
     // 封面也趁空闲先拉一批进缓存：探索页第一屏的精选、五个世界拼贴各前 7 张（排队里优先级最低，不和屏幕上的抢）
@@ -95,7 +156,7 @@ function Shell() {
       const worlds = WORLDS.flatMap(w => books.filter(b => b.tags.includes(w.tag)).sort((a, b) => worldScore(b, w.id) - worldScore(a, w.id)).slice(0, 7));
       prefetchCovers([...classics(books, 48), ...worlds]);
     }, 3000);
-    return () => { clearTimeout(timer); clearTimeout(covers); events.forEach(t => removeEventListener(t, later, { capture: true })); };
+    return () => { running?.stop(); clearTimeout(timer); clearTimeout(covers); events.forEach(t => removeEventListener(t, later, { capture: true })); };
   }, [splash, locked, reading, libReady]);
   // 安卓返回键的最底层：不在首页就回上一页（没有历史就回首页），在首页交给系统退到后台。
   // 详情面板、阅读器各自在上面再挂一层，先关它们
@@ -145,7 +206,7 @@ function Shell() {
           const active = k === tab;
           // 不在前台的：留着排版和渲染状态但不画、不占位置、点不到也聚焦不到（inert）
           return (
-            <div key={k} className={`route ${active ? 'is-active' : 'is-kept'}`} aria-hidden={active ? undefined : 'true'} inert={active ? undefined : ''}>
+            <div key={k} ref={(el) => { routeEls.current[k] = el; }} className={`route ${active ? 'is-active' : 'is-kept'}`} data-warming={!active && warming === k ? '' : undefined} aria-hidden={active ? undefined : 'true'} inert={active ? undefined : ''}>
               <PageActiveContext.Provider value={active}>
                 <Pages location={k === tab ? location : loc} />
               </PageActiveContext.Provider>

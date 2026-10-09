@@ -40,6 +40,23 @@ async function epubCoverInner(blob) {
   } catch { return ''; }
 }
 
+// 面板分两步挂：第一帧只挂顶部（封面、书名、作者），简介、标签、下载列表下一帧再挂。
+// 以前点开一本书，面板滑入前要先把整块内容排完（手机上七八十到一百多毫秒，中文排字为主），点了要等一下才开始动；
+// 现在第一帧很轻，滑入马上开始（滑动在合成线程上跑，后面排版不影响它），后半截在面板还没滑到那儿之前就挂好了。
+// 桌面面板是整屏高，后补内容不改变面板大小；手机面板高度跟内容走（最高 92dvh），只有内容明显会顶满时才分两步，
+// 第一帧先撑到 92dvh（.sheet.is-partial），补上内容后高度不变。估得保守（宁可低估），短的照旧一次挂完，免得滑到一半变高
+const PHONE = '(max-width: 760px)';
+function deferRest(book) {
+  if (!matchMedia(PHONE).matches) return true;
+  const perLine = Math.ceil((innerWidth - 36) / 15);   // 简介 15px 字：中文一个字一格，西文算半格（往少里估）
+  const units = [...(book.description || '')].reduce((n, c) => n + (c.charCodeAt(0) > 0x2e80 ? 1 : .5), 0);
+  let h = 60 + 180;   // 抓手、上下留白 + 封面那一栏
+  if (book.description) h += Math.floor(units / perLine) * 27 + 16;
+  if (book.tags.length) h += 50;
+  for (const d of book.downloads) h += d.volumes ? 50 + d.volumes.length * 48 : 72;
+  return h > innerHeight * .92 * 1.15;
+}
+
 function useProgressMap() {
   const [map, setMap] = useState({});
   const set = (key, v) => setMap(m => ({ ...m, [key]: v }));
@@ -54,6 +71,15 @@ export default function BookSheet() {
   const panel = useRef(null);
   const coverRef = useRef(null);
   const book = sheet?.book;
+  const [restFor, setRestFor] = useState(null);   // 后半截已经挂上的那本书
+  const partial = !!book && restFor !== book.id && deferRest(book);
+  useEffect(() => {
+    if (!book) return;
+    if (!partial) { setRestFor(book.id); return; }
+    // 第一帧（只有顶部）画出来以后再挂后半截
+    const r = requestAnimationFrame(() => setRestFor(book.id));
+    return () => cancelAnimationFrame(r);
+  }, [book?.id, partial]);
 
   useEffect(() => { setClosing(false); }, [book?.id]);
   useEffect(() => {
@@ -147,7 +173,7 @@ export default function BookSheet() {
   return (
     <div className={`sheet-layer ${closing ? 'is-closing' : ''}`} role="dialog" aria-modal="true" aria-label={book.title}>
       <div className="sheet-scrim" onClick={close} />
-      <aside ref={panel} className="sheet glass-dense"
+      <aside ref={panel} className={`sheet glass-dense${partial ? ' is-partial' : ''}`}
         onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
         <div className="sheet-grip" aria-hidden="true" />
         <button className="btn btn-ghost btn-icon sheet-close" onClick={close} aria-label="关闭"><Icon name="close" /></button>
@@ -171,6 +197,7 @@ export default function BookSheet() {
             </div>
           </header>
 
+          {!partial && <>
           {book.description && <p className="sheet-desc">{book.description}</p>}
           {book.tags.length > 0 && <div className="sheet-tags">{book.tags.map(t => <span key={t} className="chip chip-static">{t}</span>)}</div>}
           {book.blockedNote && <p className="sheet-note">{book.blockedNote}</p>}
@@ -249,6 +276,7 @@ export default function BookSheet() {
 
           {!book.downloads.length && <p className="sheet-note">这本书暂时没有可用的下载来源。</p>}
           <p className="sheet-source muted">来源：{book.poolSources?.length > 1 ? book.poolSources.join('、') : plugin?.name}</p>
+          </>}
         </div>
       </aside>
     </div>
