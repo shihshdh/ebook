@@ -1,10 +1,10 @@
-import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Suspense, lazy, startTransition, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { HashRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { PageActiveContext } from './lib/pageActive.js';
 import NavBar from './components/NavBar.jsx';
 import Splash, { shouldShowSplash } from './components/Splash.jsx';
 import BookSheet from './components/BookSheet.jsx';
-import UpdateBanner from './components/UpdateBanner.jsx';
+import UpdateCard from './components/UpdateCard.jsx';
 import Toasts from './components/Toasts.jsx';
 import WindowControls, { isDesktopClient } from './components/WindowControls.jsx';
 import LockScreen from './components/LockScreen.jsx';
@@ -13,7 +13,8 @@ import OpenTransition from './effects/OpenTransition.jsx';
 import { UIProvider, useUI } from './lib/ui.jsx';
 import { startDownloadWatch } from './lib/downloads.js';
 import { onBackButton } from './lib/native.js';
-import { loadLibrary } from './lib/library.js';
+import { loadLibrary, libraryBooks, classics, WORLDS, worldScore } from './lib/library.js';
+import { prefetchCovers } from './lib/covers.js';
 import { trackPointerGlow } from './lib/motion.js';
 import { lazyOptional } from './lib/optional.jsx';
 import Home from './pages/Home.jsx';
@@ -27,6 +28,9 @@ function ReaderMissing() {
   return <div className="page center-note"><p className="serif">阅读器还在装订中…</p></div>;
 }
 const Reader = lazyOptional(import.meta.glob('./pages/Reader.jsx'), ReaderMissing);
+
+// 空闲时先在后台渲染好的几页（见 Shell 里的预渲染）
+const PREWARM = [['explore', '/explore'], ['search', '/search'], ['shelf', '/shelf'], ['plugins', '/plugins']];
 
 // 顶部导航的几页去过就留着（见 lib/pageActive.js）：按路径归到哪一页
 const TAB_OF = (path) => path === '/' ? 'home' : ['explore', 'search', 'shelf', 'plugins', 'rss'].find(k => path === '/' + k || path.startsWith('/' + k + '/')) || 'home';
@@ -62,7 +66,37 @@ function Shell() {
   const [locked, setLocked] = useState(needsUnlock);
   const [splash, setSplash] = useState(() => shouldShowSplash() && !reading && !locked);
 
-  useEffect(() => { loadLibrary(); return trackPointerGlow(); }, []);
+  const [libReady, setLibReady] = useState(false);
+  useEffect(() => { loadLibrary().finally(() => setLibReady(true)); return trackPointerGlow(); }, []);
+
+  // 空闲预渲染：还没去过的探索 / 搜索 / 书架 / 插件页，趁你停手时在后台先渲染好。
+  // 用并发渲染（startTransition，React 每 5ms 让一次主线程），挂成后台页（content-visibility: hidden，不排版不画），
+  // 第一次点进去就只剩排版和绘制——以前点进探索页那一帧要把渲染、筛选排序、排版、绘制全做完，一百多毫秒。
+  // 一有操作（滚、点、划、按键）就停，停手 1.2 秒再接着来，一次只渲染一页
+  const keptRef = useRef(kept); keptRef.current = kept;
+  useEffect(() => {
+    if (splash || locked || reading || !libReady) return;
+    let timer = 0;
+    const next = () => PREWARM.find(([k]) => !keptRef.current[k]);
+    const later = () => { clearTimeout(timer); if (next()) timer = setTimeout(run, 1200); };
+    const run = () => {
+      const item = next();
+      if (!item) return;
+      const [k, path] = item;
+      startTransition(() => setKept(prev => prev[k] ? prev : { ...prev, [k]: { pathname: path, search: '', hash: '', state: null, key: 'prewarm-' + k } }));
+      later();
+    };
+    const events = ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart', 'scroll'];
+    events.forEach(t => addEventListener(t, later, { passive: true, capture: true }));
+    later();
+    // 封面也趁空闲先拉一批进缓存：探索页第一屏的精选、五个世界拼贴各前 7 张（排队里优先级最低，不和屏幕上的抢）
+    const covers = setTimeout(() => {
+      const books = libraryBooks();
+      const worlds = WORLDS.flatMap(w => books.filter(b => b.tags.includes(w.tag)).sort((a, b) => worldScore(b, w.id) - worldScore(a, w.id)).slice(0, 7));
+      prefetchCovers([...classics(books, 48), ...worlds]);
+    }, 3000);
+    return () => { clearTimeout(timer); clearTimeout(covers); events.forEach(t => removeEventListener(t, later, { capture: true })); };
+  }, [splash, locked, reading, libReady]);
   // 安卓返回键的最底层：不在首页就回上一页（没有历史就回首页），在首页交给系统退到后台。
   // 详情面板、阅读器各自在上面再挂一层，先关它们
   const navigate = useNavigate();
@@ -128,7 +162,7 @@ function Shell() {
       </main>
       <BookSheet />
       <OpenTransition />
-      <UpdateBanner hidden={reading || splash} />
+      <UpdateCard hidden={reading || splash || locked} />
       <Toasts />
       {splash && <Splash onDone={() => setSplash(false)} />}
       {isDesktopClient && <WindowControls autoHide={reading} />}

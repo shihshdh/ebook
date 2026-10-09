@@ -56,6 +56,8 @@ export function useLibrary() {
   return useSyncExternalStore(fn => { subs.add(fn); return () => subs.delete(fn); }, () => snapshot);
 }
 export const getBook = (id) => state.byId.get(id);
+/** 当前书库里的全部书（不订阅变化；空闲预取封面这类一次性的事用） */
+export const libraryBooks = () => state.books;
 /** 只订阅一本书（书架条目按 bookId 借书目里的封面、别名用）：书目没动这本书时不会让组件重渲染 */
 export function useCatalogBook(id) {
   return useSyncExternalStore(fn => { subs.add(fn); return () => subs.delete(fn); }, () => (id ? state.byId.get(id) : undefined));
@@ -73,6 +75,13 @@ export const hasArt = (b) => !!(b.illustrated || b.taiban);
 export const artRank = (b) => b.illustrated ? 2 : b.taiban ? 1 : 0;
 
 /** 书名/别名/作者检索；输入纯数字时按 wenku8 aid 匹配。illustrated=true 只留"有插图"的书（见 hasArt） */
+// 书名 / 别名 / 作者 / 标签折叠后的写法：每本书只算一次（每敲一个字都要扫全部书，以前每次都重新折叠）
+const folded = new WeakMap();
+const foldedOf = (b) => {
+  let f = folded.get(b);
+  if (!f) folded.set(b, f = { t: fold(b.title), a: fold(b.alt), au: fold(b.author), tags: b.tags.map(fold) });
+  return f;
+};
 export function searchBooks(books, q, { tags = [], status = '', illustrated = false } = {}) {
   const k = fold(q);
   const out = [];
@@ -82,16 +91,18 @@ export function searchBooks(books, q, { tags = [], status = '', illustrated = fa
     if (tags.length && !tags.every(t => b.tags.includes(t))) continue;
     if (!k) { out.push([0, b]); continue; }
     if (/^\d+$/.test(k) && b.aid === k) { out.push([100, b]); continue; }
-    const t = fold(b.title), a = fold(b.alt), au = fold(b.author);
+    const { t, a, au, tags: ft } = foldedOf(b);
     let s = 0;
     if (t === k || a === k) s = 50;
     else if (t.startsWith(k) || a.startsWith(k)) s = 30;
     else if (t.includes(k) || a.includes(k)) s = 20;
     else if (au.includes(k)) s = 10;
-    else if (b.tags.some(x => fold(x) === k)) s = 6;
+    else if (ft.includes(k)) s = 6;
     if (s) out.push([s + (b.illustrated ? 2 : 0), b]);
   }
-  return out.sort((x, y) => y[0] - x[0] || (y[1].updated || '').localeCompare(x[1].updated || '')).map(x => x[1]);
+  // 更新日期是 2026-10-09 这种写法，直接比字符串，和 localeCompare 排出来一样，快得多
+  const newer = (x, y) => { const p = x[1].updated || '', q2 = y[1].updated || ''; return p < q2 ? 1 : p > q2 ? -1 : 0; };
+  return out.sort((x, y) => y[0] - x[0] || newer(x, y)).map(x => x[1]);
 }
 
 // ---------- "世界"：探索页的五个题材入口（效果 ①） ----------
@@ -136,16 +147,28 @@ function baseScore(b) {
     + (b.animated ? 1.5 : 0) + (b.status === '已完结' ? 1 : 0) + (MAJOR.test(b.publisher || '') ? 1 : 0)
     + (b.illustrated ? 1 : b.taiban ? .5 : 0);
 }
+// 分数是一本书固定的属性：每本只算一次（排序时比较函数要调上十几万次，每次都跑正则，首页挂载、切世界会卡一帧）
+const scores = new WeakMap(), worldScores = new Map();
 export function classicScore(b) {
-  // 名单是 wenku8 编号：别让公版书源里编号碰巧相同的书顶上来
-  if (b.source === 'mojimoon' && PICK_RANK.has(b.aid)) return 1000 - PICK_RANK.get(b.aid);
-  return b.source === 'mojimoon' ? baseScore(b) : -1;
+  let s = scores.get(b);
+  if (s === undefined) {
+    // 名单是 wenku8 编号：别让公版书源里编号碰巧相同的书顶上来
+    s = b.source === 'mojimoon' && PICK_RANK.has(b.aid) ? 1000 - PICK_RANK.get(b.aid) : b.source === 'mojimoon' ? baseScore(b) : -1;
+    scores.set(b, s);
+  }
+  return s;
 }
 /** 某个世界里的排序：该世界的精选在前，其余同 classicScore */
 export function worldScore(b, world) {
-  const r = b.source === 'mojimoon' && WORLD_RANK[world]?.get(b.aid);
-  if (r !== undefined && r !== false) return 2000 - r;
-  return classicScore(b);
+  let cache = worldScores.get(world);
+  if (!cache) worldScores.set(world, cache = new WeakMap());
+  let s = cache.get(b);
+  if (s === undefined) {
+    const r = b.source === 'mojimoon' && WORLD_RANK[world]?.get(b.aid);
+    s = r !== undefined && r !== false ? 2000 - r : classicScore(b);
+    cache.set(b, s);
+  }
+  return s;
 }
 /** 按编号名单取书（只要能下载的），保持名单顺序 */
 export function pickList(books, aids) {
@@ -157,7 +180,13 @@ export function pickList(books, aids) {
  * （包括《魔法禁书目录》《零之使魔》《月姬》），推荐给用户却点不开下载，体验很差。
  * 探索、搜索照常列出它们，详情里会说明暂无来源。
  */
+// 排好的结果按书库（books 数组）缓存：首页每次挂载、切回来都要，书库没变就不重排
+const ranked = new WeakMap();
 export function classics(books, n = Infinity) {
-  return books.filter(b => b.source !== 'mojimoon' || b.downloads.length)
-    .sort((a, b) => classicScore(b) - classicScore(a)).slice(0, n);
+  let all = ranked.get(books);
+  if (!all) {
+    all = books.filter(b => b.source !== 'mojimoon' || b.downloads.length).sort((a, b) => classicScore(b) - classicScore(a));
+    ranked.set(books, all);
+  }
+  return all.slice(0, n);
 }

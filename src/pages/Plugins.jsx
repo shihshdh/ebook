@@ -13,7 +13,7 @@ import { platform } from '../lib/native.js';
 import { useUI } from '../lib/ui.jsx';
 import { useTheme } from '../lib/theme.js';
 
-/** 手动检查更新：有新版就让底部的更新横幅出来 */
+/** 手动检查更新：有新版就在当前页弹出更新卡片 */
 function CheckUpdate() {
   const { toast } = useUI();
   const [busy, setBusy] = useState(false);

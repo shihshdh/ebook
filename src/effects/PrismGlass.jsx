@@ -224,7 +224,7 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
       };
       const state = { tx: 0, ty: 0, x: 0, y: 0, rx: 0.1, ry: -0.06, inside: false, hover: -1, visible: false };
       const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-      // 只在倾斜/抬升还没收敛时画；画的时候也不超过 60 帧（高刷屏上省下大半的玻璃折射开销）
+      // 只在倾斜/抬升还没收敛时画，画的时候跟屏幕刷新率；停稳就不画
       const fr = cappedRaf(FPS_ACTIVE);
       let last = 0;
       const loop = (now) => {
@@ -259,8 +259,10 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         if (moving && state.visible && !document.hidden) fr.request(loop);
         else last = 0;
       };
+      // 着色器异步编译完之前不画：第一帧画的时候才同步编译，进搜索页那一下要卡几十毫秒
+      let ready = false;
       const kick = () => {
-        if (!fr.pending && state.visible && !document.hidden) fr.request(loop);
+        if (ready && !fr.pending && state.visible && !document.hidden) fr.request(loop);
       };
       const resize = () => {
         W = Math.max(1, root.clientWidth);
@@ -312,7 +314,6 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
       });
       applyGlass();
       resize();
-      root.setAttribute("data-ready", ""); watchFps();
       cleanup = () => {
         fr.cancel();
         ro.disconnect();
@@ -331,6 +332,13 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         pmrem.dispose();
         renderer.dispose();
       };
+      // 玻璃、纸面的着色器交给驱动在后台并行编译（KHR_parallel_shader_compile），编好再开始画；
+      // 这期间 HTML 标题照常显示，编好后第一帧折射和隐藏 HTML 标题落在同一帧
+      try { await renderer.compileAsync(scene, camera); } catch { /* 不支持就第一次画时同步编译 */ }
+      if (disposed) return;
+      ready = true;
+      kick();
+      root.setAttribute("data-ready", ""); watchFps();
     })().catch(() => {
       cleanup();
       if (!disposed) setMode("static");
@@ -339,6 +347,7 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
       disposed = true;
       cleanup();
     };
-  }, [mode, title.join("\n"), lead, caption]);
+  // lead、caption 是 HTML 字（不画进纹理）：它们变了不用重建 WebGL——以前书库一加载完、书源数一变，就整套拆掉重建一遍
+  }, [mode, title.join("\n")]);
   return <section ref={rootRef} className={`prism-glass ${mode === "glass" ? "has-webgl" : "is-static"}`} style={{ height, "--prism-lines": title.length }}><canvas ref={canvasRef} className="prism-canvas" aria-hidden="true" /><div className="prism-copy"><h2>{title.map((line, i) => <span key={i}>{line}</span>)}</h2></div>{lead && <p className="prism-lead">{lead}</p>}<div className="prism-children">{children}</div><small className="prism-caption">{caption}</small></section>;
 }

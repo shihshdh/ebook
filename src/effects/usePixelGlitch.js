@@ -7,8 +7,8 @@ export function usePixelGlitch(tileRef, canvasRef) {
   useEffect(() => {
     const tile = tileRef.current, cv = canvasRef.current;
     if (!tile || !cv || prefersReduced() || isTouch()) return;
-    const ctx = cv.getContext('2d');
-    const tiny = document.createElement('canvas'), tctx = tiny.getContext('2d');
+    // 画布第一次被划过才建（瀑布流一页三四十张卡，挂载时一口气建七八十个 2D 上下文，进探索页那一帧要多花十几毫秒）
+    let ctx = null, tiny = null, tctx = null;
     let blocks = [], raf = 0, lastSpawn = 0, sized = false;
     const img = () => tile.querySelector('img');
     const fit = () => {
@@ -55,6 +55,7 @@ export function usePixelGlitch(tileRef, canvasRef) {
       if (e.pointerType === 'touch') return;
       const now = performance.now();
       if (now - lastSpawn < 55 || blocks.length > 20) return;
+      if (!ctx) { ctx = cv.getContext('2d'); tiny = document.createElement('canvas'); tctx = tiny.getContext('2d'); }
       if (!sized) fit();
       lastSpawn = now;
       const r = tile.getBoundingClientRect(), cx = e.clientX - r.left, cy = e.clientY - r.top;

@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { acctKey } from '../lib/accounts.js';
 import Cover from '../components/Cover.jsx';
@@ -49,7 +49,9 @@ export default function Search() {
     return () => clearTimeout(t);
   }, [q]);
 
-  const results = useMemo(() => q.trim() ? searchBooks(lib.books, q.trim()).slice(0, 120) : [], [lib.books, q]);
+  // 输入框跟手，结果列表用延后的词在后台分片渲染：敲字那一帧不再等搜索 + 渲染上百行
+  const dq = useDeferredValue(q);
+  const results = useMemo(() => dq.trim() ? searchBooks(lib.books, dq.trim()).slice(0, 120) : [], [lib.books, dq]);
   const remember = (term) => {
     const next = [term, ...history.filter(h => h !== term)].slice(0, 10);
     setHistory(next);
@@ -91,11 +93,22 @@ export default function Search() {
   }, [q, active.length]);
   // 搜索池：书目和书源不分开，同一本书合成一条（lib/pool.js）
   const pooled = useMemo(() => {
-    const term = q.trim();
+    const term = dq.trim();
     // 首页推荐点进来的带着作者（?by=），只对那个书名有效
     const by = term === urlQ ? params.get('by') || '' : '';
     return term ? pool(results, remote?.q === term ? remote.items : [], term, (b) => pluginById[b.source]?.short || '书目', by) : [];
-  }, [results, remote, q, params]);
+  }, [results, remote, dq, params]);
+  // 结果分批挂：先 30 条，滚到附近再补 30 条（一次铺上百行，排版那一帧要几十毫秒）
+  const [limit, setLimit] = useState(30);
+  const more = useRef(null);
+  useEffect(() => { setLimit(30); }, [dq]);
+  useEffect(() => {
+    const el = more.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => { if (e.isIntersecting) setLimit(n => n + 30); }, { rootMargin: '800px' });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [pooled.length > limit]);
   const fromLine = (b) => {
     const s = b.poolSources || [];
     return s.length > 1 ? `${s[0]} 等 ${s.length} 个来源` : s[0] ? `来自 ${s[0]}` : '';
@@ -143,7 +156,7 @@ export default function Search() {
             {!remote && active.length > 0 && [...q.trim()].length < 2 && <> · <button className="btn btn-ghost sm" onClick={() => runRemote(q)}>也在 {active.length} 个书源里搜</button></>}
           </p>
           <ol className="result-list">
-            {pooled.map((b, i) => (
+            {pooled.slice(0, limit).map((b, i) => (
               <li key={b.id} style={{ '--i': Math.min(i, 14) }}>
                 <button className="result" onClick={(e) => open(b, e.currentTarget.querySelector('.cover'))}>
                   <Cover book={b} />
@@ -161,6 +174,7 @@ export default function Search() {
               </li>
             ))}
           </ol>
+          {pooled.length > limit && <div ref={more} className="mw-more muted">继续往下翻…</div>}
           {remote?.errors.length > 0 && (
             <details className="remote-errors">
               <summary className="muted">{remote.errors.length} 个书源没搜成</summary>

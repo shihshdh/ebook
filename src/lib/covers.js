@@ -150,7 +150,7 @@ export function sourceCoverUrls(src) {
 //
 // 封面「一会有一会没有」的三个原因，这里逐个解决：
 //   1. 一屏几十本同时竞速、每本还错峰补发，探索页快速往下翻能一下子打出几百个图片请求，代理被挤爆、纷纷超时
-//      → 全局排队：同时最多 8 本在竞速；每次空出位置，先挑「此刻就在屏幕上」的，没有才轮到翻过去的那些
+//      → 全局排队：同时最多 10 本在竞速；每次空出位置，先挑「此刻就在屏幕上」的，没有才轮到翻过去的那些
 //   2. 某次超时就把这本记成「没有封面」，整个会话都不再试
 //      → 失败的 15 秒后可以再试；组件还在屏幕上时 20 秒后自动重试一次
 //   3. 每次启动都要重新竞速
@@ -166,16 +166,23 @@ function remember(src, url) {
   saveTimer = setTimeout(() => idbSet('kv', KNOWN_KEY, known).catch(() => {}), 1500);
 }
 
-const RACE_MAX = 8, RETRY_MS = 15000;
-let racing = 0;
+// 实测（2026-10-09，开着 Clash）：两个代理冷图 2–4 秒、热图 1–2 秒，原站直连连不上。所以：
+//   超时放到 15 秒（一屏几十张排队时 8 秒常常没到就判失败，其实图在路上）；第二条线 2 秒后才补发（以前 0.9 秒，
+//   几乎每张都发两遍，代理更堵）；失败 5 秒后就能再试（以前 15 秒，期间一直是生成的书衣）
+const RACE_MAX = 12, LOW_MAX = 4, RETRY_MS = 5000;
+let racing = 0, racingLow = 0;
 const waiting = [];   // { run, near }：near() 说这本此刻在不在屏幕附近
 function drain() {
   while (racing < RACE_MAX && waiting.length) {
     let i = waiting.length - 1;
     while (i >= 0 && !waiting[i].near()) i--;
-    const [job] = waiting.splice(i >= 0 ? i : waiting.length - 1, 1);   // 屏幕上的优先，同是屏幕上的后来的先
-    racing++;
-    job.run().finally(() => { racing--; drain(); });
+    // 屏幕外的（翻过去的、空闲预取的）最多同时占 4 个位置，其余永远留给屏幕上的：
+    // 以前预取一口气占满，点进探索页时屏幕上那几本要排在后面，十几秒才出来
+    const low = i < 0;
+    if (low && racingLow >= LOW_MAX) return;
+    const [job] = waiting.splice(low ? waiting.length - 1 : i, 1);   // 屏幕上的优先，同是屏幕上的后来的先
+    racing++; if (low) racingLow++;
+    job.run().finally(() => { racing--; if (low) racingLow--; drain(); });
   }
 }
 const schedule = (fn, near) => new Promise(resolve => {
@@ -183,15 +190,20 @@ const schedule = (fn, near) => new Promise(resolve => {
   drain();
 });
 
-const tried = new Map(); // src → { p: Promise<地址|null>, at, ok }
+const tried = new Map(); // src → { p: Promise<地址|null>, at, ok, nears }
 function sourceCover(src, near) {
   const t = tried.get(src);
-  if (t && (t.ok !== false || Date.now() - t.at < RETRY_MS)) return t.p;
-  const entry = { at: Date.now(), ok: undefined };
+  if (t && (t.ok !== false || Date.now() - t.at < RETRY_MS)) {
+    // 同一本还在排队（比如空闲预取排进去的，那时判断「不在屏幕上」），现在屏幕上的组件也要它：
+    // 把这边的判断挂上去，任何一处在屏幕上就按屏幕上的排，不会被压在预取后面
+    if (near && t.ok === undefined && !t.nears.includes(near)) { t.nears.push(near); drain(); }
+    return t.p;
+  }
+  const entry = { at: Date.now(), ok: undefined, nears: [near || (() => true)] };
   entry.p = (async () => {
     await loadKnown();
     if (known[src]) return known[src];
-    const url = await schedule(() => raceImage(sourceCoverUrls(src), { stagger: 900, timeout: 8000 }), near);
+    const url = await schedule(() => raceImage(sourceCoverUrls(src), { stagger: 2000, timeout: 15000 }), () => entry.nears.some(f => f()));
     entry.ok = !!url;
     // 只记代理地址：原站直连通不通取决于当下的网络（开没开代理、换没换 Wi-Fi），记下来换个网络会卡很久才失败
     if (url && !/^https?:\/\/img\.wenku8\.com\//.test(url)) remember(src, url);
@@ -199,6 +211,14 @@ function sourceCover(src, near) {
   })();
   tried.set(src, entry);
   return entry.p;
+}
+/**
+ * 空闲时先把最可能看到的封面拉进缓存（探索页第一屏、各个世界的拼贴）：之后点进去直接从磁盘缓存出图。
+ * 排队优先级最低（near 恒为假），屏幕上正在看的永远先；省流量模式不预取
+ */
+export function prefetchCovers(books) {
+  if (navigator.connection?.saveData) return;
+  for (const b of books) if (b?.coverSrc) sourceCover(b.coverSrc, () => false);
 }
 /** 记住的地址打不开了：忘掉它，下次重新竞速 */
 function forgetCover(src) {
@@ -222,13 +242,13 @@ export function useCover(book, visible = true, near) {
   const fallback = book ? (own || generatedCover(book)) : '';
   const [url, setUrl] = useState(fallback);
   const [real, setReal] = useState(!!own);
-  const [attempt, setAttempt] = useState(0);   // 重试次数（最多 2 次，防止坏地址来回跳）
+  const [attempt, setAttempt] = useState(0);   // 重试次数（最多 3 次，防止坏地址来回跳）
   useEffect(() => { setUrl(fallback); setReal(!!own); setAttempt(0); }, [fallback]);
   useEffect(() => {
     // 本地书没有可查的书名；公版古籍去 Bangumi 只会搜到同名动画/漫画的图，统一用生成的书衣
     if (!book || own || !visible || book.source === 'local' || book.source === 'public') return;
     let alive = true, retry = 0;
-    const later = () => { if (attempt < 2) retry = setTimeout(() => { if (alive) setAttempt(a => a + 1); }, 20000); };
+    const later = () => { if (attempt < 3) retry = setTimeout(() => { if (alive) setAttempt(a => a + 1); }, 6000); };
     // 查 Bangumi 用书目里的书名和别名（书架条目的书名带「· 上卷」，搜不准）
     const viaBangumi = () => bangumiCover(catalogBook || book).then(u => {
       if (!alive) return;
@@ -246,7 +266,7 @@ export function useCover(book, visible = true, near) {
     if (!real) return;
     setUrl(fallback); setReal(false);
     if (src) forgetCover(src);
-    setAttempt(a => (a < 2 ? a + 1 : a));
+    setAttempt(a => (a < 3 ? a + 1 : a));
   };
   return { url, real, onError };
 }

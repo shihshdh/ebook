@@ -558,17 +558,28 @@ html:has(.shelf-managebar) .toasts { bottom: calc(92px + var(--safe-b)); }
   /* 试过手机上去掉页面里玻璃面板的 backdrop-filter：反而更卡——没了独立图层，面板里一点变化（封面加载、高光）就连着整页重画。保留 */
 }
 
-/* ---------- 有新版本 ---------- */
-.update-banner {
-  position: fixed; right: 20px; bottom: calc(24px + var(--safe-b)); z-index: 110; display: flex; align-items: center; gap: 10px;
-  padding: 10px 10px 10px 16px; border-radius: 18px; max-width: min(92vw, 460px); font-size: 13.5px; animation: toast-in .45s var(--ease) backwards;
+/* ---------- 有新版本：首页弹出的卡片 ---------- */
+.upd-layer { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 20px; }
+.upd-scrim { position: absolute; inset: 0; background: rgba(6, 5, 4, .42); animation: upd-fade .3s var(--ease) backwards; }
+.upd-card {
+  position: relative; width: min(100%, 420px); padding: 26px 26px 20px; border-radius: 26px; text-align: left;
+  box-shadow: 0 40px 90px -30px rgba(0, 0, 0, .7); animation: upd-in .55s var(--ease) backwards;
 }
-.update-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 4px color-mix(in srgb, var(--gold) 22%, transparent); flex: none; }
-.update-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.update-text small { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.update-p { color: var(--gold); padding: 0 10px; }
+.upd-card .eyebrow { margin: 0 0 10px; }
+.upd-card h2 { margin: 0; font-size: 30px; font-weight: 600; letter-spacing: .01em; }
+.upd-ver { margin: 6px 0 0; font-size: 12.5px; }
+.upd-notes { margin: 16px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.7; color: var(--ink2); }
+.upd-actions { display: flex; gap: 10px; margin-top: 20px; }
+.upd-actions .btn { flex: 1; justify-content: center; }
+.upd-bar { flex: 1; height: 40px; display: flex; align-items: center; gap: 12px; }
+.upd-track { display: block; flex: 1; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.upd-track i { display: block; height: 100%; background: var(--gold); transform-origin: left; transform: scaleX(var(--p, 0)); transition: transform .25s linear; }
+.upd-foot { margin: 14px 0 0; font-size: 11.5px; }
+@keyframes upd-fade { from { opacity: 0; } }
+@keyframes upd-in { from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.97); } }
+@media (max-width: 760px) { .upd-layer { padding-bottom: calc(var(--tab-h) + 20px + var(--safe-b)); } }
+@media (prefers-reduced-motion: reduce) { .upd-scrim, .upd-card { animation: none; } }
 .check-update { margin-left: 10px; vertical-align: middle; }
-@media (max-width: 760px) { .update-banner { left: 12px; right: 12px; max-width: none; bottom: calc(var(--tab-h) + 20px + var(--safe-b)); } }
 
 /* ---------- 屏幕外的先不排、不画 ----------
    content-visibility: auto：离视口远的卡片 / 行先跳过排版和绘制，滚到附近才做。

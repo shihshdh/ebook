@@ -20,7 +20,11 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
   const [visible, setVisible] = useState([0, Math.min(n - 1, WINDOW)]);
   const reduced = useRef(false);
   const inView = useRef(true);
-  // 省电：换盘、拖动时 60 帧；只剩唱片慢慢自转（9°/秒）时 20 帧；滚出视口完全停
+  // 舞台尺寸由 ResizeObserver 记下（排版完顺手给的），动画帧里只读缓存。以前每帧读 clientWidth / clientHeight，
+  // 而上一帧刚写过光盘的宽高——一读就逼浏览器当场重排，手机上每帧多出十几到几十毫秒
+  const stageSize = useRef(null);
+  const discSize = useRef(new Map());
+  // 换盘、拖动时跟屏幕刷新率；只剩唱片慢慢自转（9°/秒）时 60 帧；滚出视口完全停（帧率见 lib/frame.js）
   const fr = useRef(null);
   if (!fr.current) fr.current = cappedRaf(FPS_IDLE);
   const wake = () => { fr.current.fps = FPS_ACTIVE; };
@@ -39,12 +43,53 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
   }, []);
   useEffect(() => { if (motion.current.target > n - 1) go(n - 1); }, [n, go]);
 
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const ro = new ResizeObserver(([e]) => {
+      stageSize.current = { w: e.contentRect.width, h: e.contentRect.height };
+      draw.current();   // 这时还没画：马上按新尺寸摆好，不会先画一帧没摆位置的光盘
+    });
+    ro.observe(stage);
+    return () => ro.disconnect();
+  }, []);
+
   // 只在可见时转（滚出视口就停 rAF）
   useEffect(() => {
     const io = new IntersectionObserver(([e]) => { inView.current = e.isIntersecting; window.dispatchEvent(new Event('librarium:disc-view')); }, { rootMargin: '80px' });
     if (stageRef.current) io.observe(stageRef.current);
     return () => io.disconnect();
   }, []);
+
+  // 把光盘摆到进度 p 对应的位置。动画帧里调；舞台尺寸刚量到时（ResizeObserver 回调，还没画）也调一次，第一帧就摆好
+  const draw = useRef(() => {});
+  draw.current = () => {
+    const m = motion.current, size0 = stageSize.current;
+    if (!size0) return;
+    const { w, h } = size0;
+    const narrow = w < 640;
+    const unit = narrow ? Math.min(w / 560, h / 360) : Math.min(w / 1100, h / 520);
+    const size = (narrow ? 250 : 300) * unit;
+    discRefs.current.forEach((el, i) => {
+      const d = i - m.p, a = Math.abs(d);
+      const x = w * .5 + d * (narrow ? 200 : 250) * unit;
+      const y = h * .5 - d * 54 * unit + d * d * 5 * unit;
+      const scale = Math.max(.42, Math.min(1.5, 1 + d * .15 - a * .03));
+      const tilt = 34 + Math.min(a, 1.6) * 12;
+      const spin = reduced.current ? -d * 40 : m.spin * (1 + i % 3 * .15) - d * 40;
+      const fade = a > 3.2 ? Math.max(0, 1 - (a - 3.2) / .8) : 1;
+      el.style.transform = `translate3d(${x - size / 2}px,${y - size / 2}px,0) scale(${scale}) perspective(${900 * unit}px) rotateZ(-24deg) rotateX(${tilt}deg) rotateZ(${spin}deg)`;
+      // 其余几样只在变了时写：唱片静静自转时只有 transform 在变（交给合成器），
+      // 以前每帧都重写宽高 / 透明度 / 层级 / --lift，逼浏览器每帧重算样式、重画投影滤镜
+      const last = discSize.current.get(el) || {}, lift = Math.round(Math.max(0, 1 - a) * 1000) / 1000;
+      const z = 200 - Math.round(a * 20) + (d > 0 ? 6 : 0), op = Math.round(fade * 1000) / 1000;
+      if (last.size !== size) el.style.width = el.style.height = size + 'px';
+      if (last.op !== op) el.style.opacity = String(op);
+      if (last.z !== z) el.style.zIndex = String(z);
+      if (last.lift !== lift) el.style.setProperty('--lift', String(lift));
+      discSize.current.set(el, { size, op, z, lift });
+    });
+  };
 
   useEffect(() => {
     const f = fr.current;
@@ -60,27 +105,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
         m.p += m.v * dt;
         m.spin += dt * 9 + m.v * dt * 60;
       }
-      const stage = stageRef.current;
-      if (stage) {
-        const w = stage.clientWidth, h = stage.clientHeight;
-        const narrow = w < 640;
-        const unit = narrow ? Math.min(w / 560, h / 360) : Math.min(w / 1100, h / 520);
-        const size = (narrow ? 250 : 300) * unit;
-        discRefs.current.forEach((el, i) => {
-          const d = i - m.p, a = Math.abs(d);
-          const x = w * (narrow ? .5 : .5) + d * (narrow ? 200 : 250) * unit;
-          const y = h * .5 - d * 54 * unit + d * d * 5 * unit;
-          const scale = Math.max(.42, Math.min(1.5, 1 + d * .15 - a * .03));
-          const tilt = 34 + Math.min(a, 1.6) * 12;
-          const spin = reduced.current ? -d * 40 : m.spin * (1 + i % 3 * .15) - d * 40;
-          const fade = a > 3.2 ? Math.max(0, 1 - (a - 3.2) / .8) : 1;
-          el.style.width = el.style.height = size + 'px';
-          el.style.transform = `translate3d(${x - size / 2}px,${y - size / 2}px,0) scale(${scale}) perspective(${900 * unit}px) rotateZ(-24deg) rotateX(${tilt}deg) rotateZ(${spin}deg)`;
-          el.style.opacity = String(fade);
-          el.style.zIndex = String(200 - Math.round(a * 20) + (d > 0 ? 6 : 0));
-          el.style.setProperty('--lift', String(Math.max(0, 1 - a)));
-        });
-      }
+      draw.current();
       const lo = Math.max(0, Math.floor(m.p) - WINDOW), hi = Math.min(n - 1, Math.ceil(m.p) + WINDOW);
       setVisible(prev => prev[0] === lo && prev[1] === hi ? prev : [lo, hi]);
       f.fps = Math.abs(m.target - m.p) + Math.abs(m.v) > .002 ? FPS_ACTIVE : FPS_IDLE;

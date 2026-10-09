@@ -44,7 +44,7 @@ export default function PageRiver({ className = '', style }) {
           : (random() < .065 ? '#c89b46' : random() < .5 ? '#f4e6c9' : '#b3a48b')));
         return { u: random(), lane: (random() + random() - 1) * 2.4, z: (random() - .5) * 5, phase: random() * Math.PI * 2, scale: .45 + random() * 1.3, x: 0, y: 0, vx: 0, vy: 0, spin: 0, speed: 0 };
       });
-      // 省电：有人划过、纸页还在弹回时 60 帧；只剩缓慢漂移时 20 帧（漂移每帧不到 1 像素，看不出差别）
+      // 有人划过、纸页还在弹回时跟屏幕刷新率；只剩缓慢漂移时 60 帧（帧率见 lib/frame.js）
       const fr = cappedRaf(FPS_IDLE);
       let width = 1, height = 1, aspect = 1, last = 0, time = 0, visible = false, resizeTimer;
       const pointer = { tx: 2, ty: 0, x: 2, y: 0, active: false };
@@ -52,7 +52,7 @@ export default function PageRiver({ className = '', style }) {
       const stop = () => { fr.cancel(); last = 0; };
       const frame = now => {
         if (disposed || !visible || document.hidden) { last = 0; return; }
-        // 上限放到 0.08 秒：20 帧时每帧 0.05 秒，不能被截短，否则漂移会变慢
+        // 上限放到 0.08 秒：偶尔一帧来晚也不截短，否则漂移会变慢
         const dt = Math.min(.08, last ? (now - last) / 1000 : 1 / fr.fps); last = now; time += dt;
         let energy = Math.abs(pointer.tx - pointer.x) + Math.abs(pointer.ty - pointer.y);
         const ease = 1 - Math.exp(-dt * 3);

@@ -6,7 +6,9 @@ import { getBinary, getJSON, releaseAssetUrls, repoFileUrls } from './net.js';
 import { platform, saveExport } from './native.js';
 
 const OWNER = 'shihshdh', REPO = 'ebook';
+// 「以后再说」只管这一次打开（sessionStorage）：下次打开还提示。以前存在 localStorage 里是永久跳过这个版本，读到就清掉
 const SKIP_KEY = 'librarium.update.skip';
+try { localStorage.removeItem(SKIP_KEY); } catch {}
 export const current = __APP_VERSION__;
 
 /** '0.3.10' > '0.3.9' */
@@ -28,13 +30,13 @@ export async function checkUpdate({ force = false } = {}) {
   // 不走 jsDelivr 的分支缓存（会晚 12 小时），代理 / raw 优先
   const info = await getJSON(repoFileUrls(OWNER, REPO, 'main', 'latest.json', { big: true }));
   if (!info?.version || !newer(info.version, current)) return null;
-  if (!force) { try { if (localStorage.getItem(SKIP_KEY) === info.version) return null; } catch {} }
+  if (!force) { try { if (sessionStorage.getItem(SKIP_KEY) === info.version) return null; } catch {} }
   const asset = platform === 'capacitor' ? info.android : info.windows;
   if (!asset?.file) return null;
   return { version: info.version, notes: info.notes || '', file: asset.file, sha256: asset.sha256 || '' };
 }
 
-export function skipUpdate(version) { try { localStorage.setItem(SKIP_KEY, version); } catch {} }
+export function skipUpdate(version) { try { sessionStorage.setItem(SKIP_KEY, version); } catch {} }
 
 async function sha256Hex(bytes) {
   const d = await crypto.subtle.digest('SHA-256', bytes);

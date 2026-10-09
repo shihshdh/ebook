@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useDeferredValue, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import WorldSwitch from '../effects/WorldSwitch.jsx';
 import MasonryWall from '../effects/MasonryWall.jsx';
@@ -33,14 +33,17 @@ export default function Explore() {
   })), [lib.books]);
 
   const worldTag = WORLDS.find(w => w.id === active)?.tag;
+  // 顶上的镜头动画马上跟着点击走；下面的书单用延后的筛选条件在后台分片重排、重渲染，不和动画抢同一帧
+  const filters = useMemo(() => ({ worldTag, extra, status, onlyIll, sort, active }), [worldTag, extra, status, onlyIll, sort, active]);
+  const f = useDeferredValue(filters);
   const books = useMemo(() => {
-    const list = searchBooks(lib.books, '', { tags: [worldTag, ...extra].filter(Boolean), status, illustrated: onlyIll });
+    const list = searchBooks(lib.books, '', { tags: [f.worldTag, ...f.extra].filter(Boolean), status: f.status, illustrated: f.onlyIll });
     // 精选优先：进了某个世界就按该世界的精选排，没选世界按全站的细腻之选排
-    if (sort === 'classic') list.sort(active ? (a, b) => worldScore(b, active) - worldScore(a, active) : (a, b) => classicScore(b) - classicScore(a));
-    if (sort === 'illustrated') list.sort((a, b) => artRank(b) - artRank(a) || classicScore(b) - classicScore(a));
-    if (sort === 'length') list.sort((a, b) => parseLen(b.length) - parseLen(a.length));
+    if (f.sort === 'classic') list.sort(f.active ? (a, b) => worldScore(b, f.active) - worldScore(a, f.active) : (a, b) => classicScore(b) - classicScore(a));
+    if (f.sort === 'illustrated') list.sort((a, b) => artRank(b) - artRank(a) || classicScore(b) - classicScore(a));
+    if (f.sort === 'length') list.sort((a, b) => parseLen(b.length) - parseLen(a.length));
     return list;
-  }, [lib.books, worldTag, extra, status, onlyIll, sort, active]);
+  }, [lib.books, f]);
   const flip = useMemo(() => lib.books.filter(b => b.illustrated).slice(0, 12), [lib.books]);
   const topTags = lib.tags.filter(([t]) => t !== worldTag).slice(0, 14);
 
@@ -73,7 +76,7 @@ export default function Explore() {
             </button>
           ))}
         </div>
-        <p className="filters-count muted"><span className="num">{books.length.toLocaleString()}</span> 本{worldTag ? ` · ${worldTag}` : ''}{extra.length ? ` · ${extra.join(' · ')}` : ''}</p>
+        <p className="filters-count muted"><span className="num">{books.length.toLocaleString()}</span> 本{f.worldTag ? ` · ${f.worldTag}` : ''}{f.extra.length ? ` · ${f.extra.join(' · ')}` : ''}</p>
       </div>
 
       {lib.status === 'loading' && <div className="loading-line"><span />{lib.message}</div>}

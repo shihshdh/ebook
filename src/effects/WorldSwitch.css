@@ -1,5 +1,4 @@
 .ws {
-  --p: 0;
   position: relative; height: clamp(440px, 64vh, 660px); border-radius: 30px; overflow: hidden; isolation: isolate;
   /* 拉远时背景由黑转暖灰，底部亮起主题色光晕 */
   background:
@@ -8,11 +7,14 @@
   border: 1px solid var(--line);
   transition: background .6s;
 }
-.ws-back { position: absolute; left: clamp(20px, 5vw, 56px); top: clamp(28px, 7vh, 64px); z-index: 1; max-width: 520px; pointer-events: none; }
+/* 镜头运动只在这块里：排版、重绘都关在里面，不牵动整页 */
+.ws { contain: layout paint; }
+.ws-back { position: absolute; left: clamp(20px, 5vw, 56px); top: clamp(28px, 7vh, 64px); z-index: 1; max-width: 520px; pointer-events: none; will-change: opacity; }
 .ws-back-title { margin: 0 0 14px; font-size: clamp(34px, 5vw, 64px); line-height: 1.12; font-weight: 600; color: #f4ecdc; letter-spacing: .02em; }
 .ws-back-sub { margin: 0; font-size: 14px; }
 
-.ws-scene { position: absolute; inset: 0; z-index: 2; clip-path: inset(50% 50% 50% 50%); will-change: clip-path; background: #0b0a08; }
+/* 场景层单独一层：镜头推拉每帧改 clip-path，只动这一层的蒙版，不重画整页（以前每帧把整个文档重新录一遍，10–25ms） */
+.ws-scene { position: absolute; inset: 0; z-index: 2; clip-path: inset(50% 50% 50% 50%); will-change: transform, clip-path; background: #0b0a08; }
 .ws-collage {
   position: absolute; inset: -12% -6%; display: grid; grid-template-columns: repeat(7, 1fr); gap: 14px; transform: rotate(-8deg) scale(1.08);
   /* 省电：40 秒挪 6%，每秒更新 10 次足够 */
@@ -24,8 +26,8 @@
 @keyframes ws-drift { to { transform: rotate(-8deg) scale(1.08) translate3d(-6%, -4%, 0); } }
 .ws-shade { position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8, 7, 6, .92) 0%, rgba(8, 7, 6, .55) 45%, rgba(8, 7, 6, .1) 80%), linear-gradient(0deg, rgba(8, 7, 6, .7), transparent 40%); }
 /* 推进初段：场景先是一整块主题色，再淡出露出拼贴 */
-.ws-veil { position: absolute; inset: 0; background: var(--w); }
-.ws-headline { position: absolute; left: clamp(20px, 5vw, 56px); bottom: clamp(110px, 18vh, 150px); max-width: 560px; opacity: 0; }
+.ws-veil { position: absolute; inset: 0; background: var(--w); will-change: opacity; }
+.ws-headline { position: absolute; left: clamp(20px, 5vw, 56px); bottom: clamp(110px, 18vh, 150px); max-width: 560px; opacity: 0; will-change: opacity; }
 .ws-headline .eyebrow { margin: 0 0 10px; }
 .ws-headline h2 { margin: 0; font-size: clamp(48px, 7.5vw, 104px); line-height: .95; font-weight: 900; letter-spacing: .02em; color: #fff8ea; }
 .ws-headline h2 em { font-style: italic; font-weight: 400; font-size: .5em; margin-left: .2em; color: var(--w); filter: brightness(1.35); }
