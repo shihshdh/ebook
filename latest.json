@@ -1,12 +1,12 @@
 {
-  "version": "0.3.12",
-  "notes": "修复部分书源下载提示没给出目录：兼容章节字段取值、地址中的 POST 选项及请求类型",
+  "version": "0.3.13",
+  "notes": "优化滚动与切页流畅度，修复探索页世界切换；新增首页更新卡片，优化封面加载，书源列表默认折叠",
   "windows": {
-    "file": "EBOOK_0.3.12_x64-setup.exe",
-    "sha256": "3a26ab94b30b4db265b8ad7ba87b47060bd2bfd48f0452bc1a4741c310bbd7c1"
+    "file": "EBOOK_0.3.13_x64-setup.exe",
+    "sha256": "3cbad1c2d05a856fdac4298a8499261ec88204542f1e5cc6e4b76f3be9c1a5cb"
   },
   "android": {
-    "file": "EBOOK_0.3.12.apk",
-    "sha256": "55f8fd2b0a7b7f49437e772258d245ba9c53441c492922bad42a489c64a485b3"
+    "file": "EBOOK_0.3.13.apk",
+    "sha256": "c50a9853515b26536e2262e5768afde3b86ec47c425b84f7234437843c449436"
   }
 }
