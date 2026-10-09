@@ -50,7 +50,7 @@ function RssHome() {
     return list.filter(e => (!group || groupsOf(e.source).includes(group))
       && (!k || `${e.source.sourceName} ${e.source.sourceGroup || ''} ${e.source.sourceComment || ''}`.toLowerCase().includes(k)));
   }, [list, group, q]);
-  useEffect(() => { if (group && groups.length && !groups.some(([g]) => g === group)) pick(''); }, [groups]);
+  useEffect(() => { if (all && group && !groups.some(([g]) => g === group)) pick(''); }, [all, groups, group]);
 
   const open = (e) => e.mode === 'web' ? openWeb(e.home || e.source.sourceUrl, e.source.sourceName, toast) : nav(`/rss/${e.id}`);
 

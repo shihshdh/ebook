@@ -11,6 +11,7 @@ import { lazyOptional } from '../lib/optional.jsx';
 import { prefersReduced } from '../lib/motion.js';
 import { useTheme } from '../lib/theme.js';
 import { useUsableSourceCount } from '../lib/legado.js';
+import { SOURCE_PICKS } from '../lib/picks.js';
 
 // ⑥ 书页之河（ASTRA 负责）；文件没到位时用一团静态暖光顶上
 function RiverFallback() { return <div className="river-fallback" aria-hidden="true" />; }
@@ -114,6 +115,8 @@ export default function Home() {
   // 最近更新：有简介的书（只有书名的条目做推荐太单薄）
   const fresh = useMemo(() => lib.books.filter(b => b.updated && b.description).slice(0, 14), [lib.books]);
   const volumesOf = (b) => b.downloads.find(d => d.kind === 'illustrated')?.volumes.length || 0;
+  // 书源里的好书：只有书名，封面按书名去 Bangumi 找（找不到用生成的书衣），点开进搜索池
+  const picks = useMemo(() => SOURCE_PICKS.map(p => ({ ...p, book: { id: `pick:${p.title}`, source: 'pick', title: p.title, alt: '', author: p.author, tags: [], downloads: [] } })), []);
 
   return (
     <div className="home">
@@ -213,6 +216,21 @@ export default function Home() {
                   </button>
                 ))}
               </div>
+            </div>
+          </section>
+        )}
+
+        {sources > 0 && (
+          <section className="home-section">
+            <div className="section-head"><h2>书源里的好书</h2><Link to="/search" className="btn btn-ghost sm">搜索 <Icon name="arrow" size={14} /></Link></div>
+            <div className="fresh-row">
+              {picks.map(p => (
+                <Link key={p.title} className="fresh-card" to={`/search?${new URLSearchParams({ q: p.title, by: p.author })}`}>
+                  <Cover book={p.book} />
+                  <strong className="serif">{p.title}</strong>
+                  <small>{p.author} · {p.note}</small>
+                </Link>
+              ))}
             </div>
           </section>
         )}

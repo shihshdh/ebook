@@ -9,13 +9,15 @@ import { useSources, importSources, importFromUrl, setSourceEnabled, removeSourc
 const hostOf = (u) => { try { return new URL(u).host; } catch { return u; } };
 const SUBSCRIPTION = /订阅源/;
 
-function summary({ added, updated, broken, errors, rss }) {
+function summary({ added, updated, broken, skipped, errors, rss }) {
   const bad = errors.filter(e => !SUBSCRIPTION.test(e)).length;
   const parts = [];
   if (added) parts.push(`书源新增 ${added} 个`);
   if (updated) parts.push(`更新 ${updated} 个`);
   if (broken) parts.push(`${broken} 个用不了，已收起`);
   if (rss?.added || rss?.updated) parts.push(`订阅源${rss.added ? `新增 ${rss.added} 个` : ''}${rss.updated ? ` 更新 ${rss.updated} 个` : ''}（在「订阅」页）`);
+  const skip = (skipped || 0) + (rss?.skipped || 0);
+  if (skip) parts.push(`跳过 ${skip} 个不收的（成人、影音、漫画、软件工具等）`);
   if (bad) parts.push(`${bad} 条格式不对`);
   return parts.join(' · ') || '没有找到书源';
 }
@@ -41,7 +43,7 @@ function SourceItem({ e, open, onToggle }) {
       <div className="bs-row">
         <div className="bs-name">
           <strong>{e.source.bookSourceName}</strong>
-          <small className="muted">{e.source.bookSourceGroup ? `${e.source.bookSourceGroup} · ` : ''}{hostOf(e.source.bookSourceUrl)}</small>
+          <small className="muted">{e.builtin ? '内置 · ' : ''}{e.source.bookSourceGroup ? `${e.source.bookSourceGroup} · ` : ''}{hostOf(e.source.bookSourceUrl)}</small>
         </div>
         <button className={`bs-badge ${state}`} title={tip} onClick={onToggle} disabled={!lines.length} aria-expanded={open}>{label}</button>
         <button className={`switch ${e.enabled ? 'on' : ''}`} role="switch" aria-checked={e.enabled} disabled={fatal.length > 0 && !e.enabled}
@@ -84,11 +86,11 @@ export default function LegadoSources() {
     e.target.value = '';
     if (!files.length) return;
     run(async () => {
-      const total = { added: 0, updated: 0, broken: 0, errors: [], rss: { added: 0, updated: 0 } };
+      const total = { added: 0, updated: 0, broken: 0, skipped: 0, errors: [], rss: { added: 0, updated: 0, skipped: 0 } };
       for (const f of files) {
         const r = await importSources(await f.text());
-        total.added += r.added; total.updated += r.updated; total.broken += r.broken;
-        total.rss.added += r.rss?.added || 0; total.rss.updated += r.rss?.updated || 0;
+        total.added += r.added; total.updated += r.updated; total.broken += r.broken; total.skipped += r.skipped;
+        total.rss.added += r.rss?.added || 0; total.rss.updated += r.rss?.updated || 0; total.rss.skipped += r.rss?.skipped || 0;
         total.errors.push(...r.errors.map(m => files.length > 1 ? `${f.name}：${m}` : m));
       }
       return total;
@@ -126,8 +128,8 @@ export default function LegadoSources() {
     <section id="booksources" className="settings glass booksources">
       <div className="bs-head">
         <div>
-          <h2 className="serif">自定义书源</h2>
-          <p className="muted">导入你自己的 Legado（阅读 App）书源，搜索页就能在这些书源里现搜、整本下载；文件里的订阅源会放进「订阅」页。{list?.length ? <>已导入 <span className="num">{list.length}</span> 个，能用 <span className="num">{usable.length}</span> 个，启用 <span className="num">{enabled}</span> 个。</> : ''}</p>
+          <h2 className="serif">书源</h2>
+          <p className="muted">已内置默认书源，可直接在搜索页搜书、整本下载，也可以导入自己的 Legado 书源。内置源已通过规则检查，网站是否可用可以点「测一遍」。{list?.length ? <>共 <span className="num">{list.length}</span> 个，启用 <span className="num">{enabled}</span> 个。</> : ''}</p>
         </div>
         <div className="bs-actions">
           <button className={`btn sm ${mode === 'paste' ? 'btn-gold' : ''}`} onClick={() => setMode(m => m === 'paste' ? '' : 'paste')} aria-expanded={mode === 'paste'}><Icon name="copy" size={16} />粘贴</button>
@@ -156,7 +158,7 @@ export default function LegadoSources() {
       {errors.length > 0 && <ul className="bs-errors">{errors.slice(0, 6).map((e, i) => <li key={i}>{e}</li>)}{errors.length > 6 && <li>…还有 {errors.length - 6} 条</li>}</ul>}
 
       {list && !list.length && !mode && (
-        <p className="bs-empty muted">还没有书源。书源是一段描述「怎么在某个网站搜书、读目录、取正文」的规则，可以从你用的阅读 App 里导出。EBOOK 不内置任何网站的书源。</p>
+        <p className="bs-empty muted">当前没有书源。已删除的默认源不会自动加回来；可以从阅读 App 导出书源后，在这里导入。</p>
       )}
 
       {usable.length > 0 && (

@@ -7,8 +7,9 @@ import { searchBooks, useLibrary } from '../lib/library.js';
 import { useUI } from '../lib/ui.jsx';
 import { lazyOptional } from '../lib/optional.jsx';
 import { useTheme } from '../lib/theme.js';
-import { useSources, searchSources, toBook, useUsableSourceCount } from '../lib/legado.js';
-import { enabledPlugins } from '../plugins/registry.js';
+import { useSources, searchSources, useUsableSourceCount } from '../lib/legado.js';
+import { pool } from '../lib/pool.js';
+import { enabledPlugins, pluginById } from '../plugins/registry.js';
 
 // ④ Prism 玻璃折射（ASTRA 负责）；文件没到位时退回静态标题
 function PrismFallback({ title, lead, children }) {
@@ -56,8 +57,8 @@ export default function Search() {
   };
   const open = (b, el) => { if (q.trim()) remember(q.trim()); openBook(b, el); };
 
-  // ---------- 自定义书源（Legado）：按关键词去各书源现搜 ----------
-  // 不跟着每次按键去请求别人的网站：点按钮、按回车，或者书库里一本都没搜到时停顿一下再自动搜
+  // ---------- 书源（Legado）：按关键词去各书源现搜，和书目里的书放进同一个结果列表 ----------
+  // 不跟着每次按键去请求别人的网站：停顿一下（两个字以上）再搜，或者按回车
   const sources = useSources();
   const active = useMemo(() => enabledPlugins().some(p => p.id === 'legado') ? (sources || []).filter(e => e.enabled) : [], [sources]);
   const [remote, setRemote] = useState(null);   // { q, items: [{entry, item}], done, total, errors, running }
@@ -84,19 +85,24 @@ export default function Search() {
   useEffect(() => () => remoteRun.current?.abort(), []);
   useEffect(() => {
     const term = q.trim();
-    if (!term || results.length || !active.length || remoteQ.current === term) return;
+    if ([...term].length < 2 || !active.length || remoteQ.current === term) return;
     const t = setTimeout(() => { if (remoteQ.current !== term) runRemote(term); }, 900);
     return () => clearTimeout(t);
-  }, [q, results.length, active.length]);
-  // 书名和关键词完全一样的排前面，其余按各书源回来的先后
-  const remoteBooks = useMemo(() => {
-    if (!remote) return [];
-    const term = remote.q, rank = (n) => n === term ? 0 : n.includes(term) ? 1 : 2;
-    return remote.items.map(({ entry, item }) => toBook(entry, item)).map((b, i) => [rank(b.title), i, b]).sort((x, y) => x[0] - y[0] || x[1] - y[1]).map(x => x[2]);
-  }, [remote]);
+  }, [q, active.length]);
+  // 搜索池：书目和书源不分开，同一本书合成一条（lib/pool.js）
+  const pooled = useMemo(() => {
+    const term = q.trim();
+    // 首页推荐点进来的带着作者（?by=），只对那个书名有效
+    const by = term === urlQ ? params.get('by') || '' : '';
+    return term ? pool(results, remote?.q === term ? remote.items : [], term, (b) => pluginById[b.source]?.short || '书目', by) : [];
+  }, [results, remote, q, params]);
+  const fromLine = (b) => {
+    const s = b.poolSources || [];
+    return s.length > 1 ? `${s[0]} 等 ${s.length} 个来源` : s[0] ? `来自 ${s[0]}` : '';
+  };
 
   const box = (
-    <form className="search-box glass" onSubmit={(e) => { e.preventDefault(); if (results[0]) open(results[0]); else runRemote(q); }} role="search">
+    <form className="search-box glass" onSubmit={(e) => { e.preventDefault(); if (remoteQ.current !== q.trim()) runRemote(q); else if (pooled[0]) open(pooled[0]); }} role="search">
       <Icon name="search" size={20} />
       <input ref={input} value={q} onChange={(e) => setQ(e.target.value)} placeholder="书名、别名、作者，或 wenku8 编号"
         aria-label="搜索" enterKeyHint="search" autoComplete="off" spellCheck="false" />
@@ -129,52 +135,32 @@ export default function Search() {
 
       {q && (
         <section className="results">
-          <p className="muted results-count">{results.length ? <>找到 <span className="num">{results.length}</span> 本{results.length === 120 ? '（只显示前 120 本）' : ''}</> : (active.length ? '书库里没有这本，看看下面书源里的。' : '没找到。换个写法，或者试试作者名。')}</p>
+          <p className="muted results-count" role="status">
+            {pooled.length
+              ? <>找到 <span className="num">{pooled.length}</span> 本</>
+              : remote?.running || (!remote && active.length > 0 && [...q.trim()].length >= 2) ? '正在搜…' : '没找到。换个写法，或者试试作者名。'}
+            {remote && <> · {remote.running ? `正在搜 ${remote.done} / ${remote.total} 个书源` : `搜了 ${remote.total} 个书源`}</>}
+            {!remote && active.length > 0 && [...q.trim()].length < 2 && <> · <button className="btn btn-ghost sm" onClick={() => runRemote(q)}>也在 {active.length} 个书源里搜</button></>}
+          </p>
           <ol className="result-list">
-            {results.map((b, i) => (
+            {pooled.map((b, i) => (
               <li key={b.id} style={{ '--i': Math.min(i, 14) }}>
                 <button className="result" onClick={(e) => open(b, e.currentTarget.querySelector('.cover'))}>
                   <Cover book={b} />
                   <span className="result-body">
                     <strong className="serif">{b.title}</strong>
                     {b.alt && <small className="muted">{b.alt}</small>}
-                    <span className="result-meta">{b.author}{b.publisher ? ` · ${b.publisher}` : ''}{b.status ? ` · ${b.status}` : ''}</span>
-                    <span className="result-tags">{b.illustrated && <span className="tag tag-gold">插图版</span>}{b.tags.slice(0, 4).map(t => <span key={t} className="tag">{t}</span>)}</span>
+                    <span className="result-meta">{[b.author, b.source === 'legado' ? '' : b.publisher, b.status].filter(Boolean).join(' · ')}</span>
+                    {b.tags.length > 0
+                      ? <span className="result-tags">{b.illustrated && <span className="tag tag-gold">插图版</span>}{b.tags.slice(0, 4).map(t => <span key={t} className="tag">{t}</span>)}</span>
+                      : b.description && <small className="muted result-intro">{b.description.length > 60 ? b.description.slice(0, 60) + '…' : b.description}</small>}
+                    <small className="result-from">{fromLine(b)}</small>
                   </span>
                   <Icon name="arrow" size={18} className="result-go" />
                 </button>
               </li>
             ))}
           </ol>
-        </section>
-      )}
-
-      {q && active.length > 0 && (
-        <section className="results remote-results">
-          <div className="section-head">
-            <h3>自定义书源</h3>
-            {!remote
-              ? <button className="btn sm" onClick={() => runRemote(q)}><Icon name="search" size={16} />在 {active.length} 个书源里搜</button>
-              : <span className="muted num" role="status">{remote.running ? `正在搜 ${remote.done} / ${remote.total} 个书源…` : `${remote.total} 个书源 · ${remote.items.length} 本`}</span>}
-          </div>
-          {remoteBooks.length > 0 && (
-            <ol className="result-list">
-              {remoteBooks.map((b, i) => (
-                <li key={b.id} style={{ '--i': Math.min(i, 14) }}>
-                  <button className="result" onClick={(e) => open(b, e.currentTarget.querySelector('.cover'))}>
-                    <Cover book={b} />
-                    <span className="result-body">
-                      <strong className="serif">{b.title}</strong>
-                      <span className="result-meta">{b.author ? `${b.author} · ` : ''}{b.publisher}</span>
-                      {b.description && <small className="muted result-intro">{b.description.length > 60 ? b.description.slice(0, 60) + '…' : b.description}</small>}
-                    </span>
-                    <Icon name="arrow" size={18} className="result-go" />
-                  </button>
-                </li>
-              ))}
-            </ol>
-          )}
-          {remote && !remote.running && !remote.items.length && <p className="muted results-count">书源里也没搜到。</p>}
           {remote?.errors.length > 0 && (
             <details className="remote-errors">
               <summary className="muted">{remote.errors.length} 个书源没搜成</summary>

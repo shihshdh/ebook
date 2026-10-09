@@ -4,14 +4,19 @@
 //   存：当前账户的 IndexedDB（kv 的 legado:sources），换账户各是各的，账户备份也会带上
 //   搜：启用的书源一起搜（同时最多 6 个），谁先回来先显示；单个书源 15 秒没回就算超时，不拖累别的
 //   下：详情 → 目录 → 各章正文（同时 3 章，失败重试一次），拼成「一章一个标题」的文本，再转成 EPUB 放进书架
-// 应用不内置任何站点的书源：书源永远是用户自己导入的。
+// 首次使用自动加入随包附带的默认书源；自定义导入、停用和删除照常保留。
+// 收什么源见 plugins/legado/source-policy.js：成人、漫画、听书、影视这些导入时不收，启动时也把旧数据清一遍。
 import { useEffect, useState } from 'react';
 import { idbGet, idbSet } from './idb.js';
 import { getText } from './net.js';
+import { mergeDefaults, defaultKeyOf, DEFAULTS_VERSION } from '../plugins/legado/defaults.js';
+import { bookSkipReason } from '../plugins/legado/source-policy.js';
 // 规则引擎、txt→EPUB（带 JSZip）都按需加载：首屏只需要书源列表和开关
 const engine = () => import('../plugins/legado/index.js');
 
 const KEY = 'legado:sources';
+// 装过默认书源的标记；值是装 / 清理到的内置包版本（早期版本写的是 true，算第 1 版）
+const DEFAULTS_KEY = 'legado:defaults:1';
 const hash = (str) => { let h = 2166136261; for (const c of str) { h ^= c.codePointAt(0); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
 export const sourceIdOf = (s) => hash(`${s.bookSourceUrl}|${s.bookSourceName}`);
 
@@ -22,21 +27,50 @@ const FATAL = /^(缺少搜索地址|缺少或无效的(搜索|目录|正文)规�
 export const fatalOf = (check) => (check?.unsupported || []).filter(m => FATAL.test(m));
 
 let cache = null;
+let loading = null;
 const subs = new Set();
 const emit = () => subs.forEach(fn => fn(cache));
 
 /** @returns {Promise<{id, source, enabled, check: {ok, unsupported}, addedAt}[]>} */
 export async function listSources() {
-  if (!cache) cache = (await idbGet('kv', KEY).catch(() => null)) || [];
-  return cache;
+  if (cache) return cache;
+  if (!loading) loading = (async () => {
+    // 读失败不能当成新账户，否则可能覆盖已有的开关和源列表。
+    const [stored, installed] = await Promise.all([idbGet('kv', KEY), idbGet('kv', DEFAULTS_KEY)]);
+    const previous = Array.isArray(stored) ? stored : [];
+    let list = previous.filter(entry => !bookSkipReason(entry.source));
+    if (list.length !== previous.length) await idbSet('kv', KEY, list);
+    const rev = installed === true ? 1 : Number(installed) || 0;
+    if (rev < DEFAULTS_VERSION) {
+      const { default: bundled } = await import('../plugins/legado/default-sources.js');
+      let next;
+      if (!rev) next = mergeDefaults(list, bundled, sourceIdOf);
+      else {
+        // 内置包又审过一遍：旧版带进来、新版去掉的内置源一并删掉；自己导入的不动，删过的也不补回来
+        const keep = new Set(bundled.sources.map(item => defaultKeyOf(item.source)));
+        const kept = (e) => { try { return keep.has(defaultKeyOf(e.source)); } catch { return false; } };
+        next = list.filter(e => !e.builtin || kept(e));
+      }
+      if (next.length !== list.length) await idbSet('kv', KEY, next);
+      // 列表先写入，标记后写入；中途失败可重试，按站点去重不会再次添加。
+      await idbSet('kv', DEFAULTS_KEY, DEFAULTS_VERSION);
+      list = next;
+    }
+    cache = list;
+    return cache;
+  })().finally(() => { loading = null; });
+  return loading;
 }
-async function save(list) { cache = list; await idbSet('kv', KEY, list); emit(); }
+async function save(list) { await idbSet('kv', KEY, list); cache = list; emit(); }
 
 export function useSources() {
   const [list, setList] = useState(cache);
   useEffect(() => {
     let alive = true;
-    listSources().then(l => { if (alive) setList(l); });
+    listSources().then(l => { if (alive) setList(l); }).catch(error => {
+      console.warn('书源加载失败', error);
+      if (alive) setList([]);
+    });
     const fn = (l) => setList(l);
     subs.add(fn);
     return () => { alive = false; subs.delete(fn); };
@@ -58,8 +92,9 @@ export async function importSources(text) {
   } catch { /* 不是合法 JSON：交给 parseSources 报格式错误 */ }
   const { sources, errors } = parseSources(text);
   const list = [...await listSources()];
-  let added = 0, updated = 0, broken = 0;
+  let added = 0, updated = 0, broken = 0, skipped = 0;
   for (const source of sources) {
+    if (bookSkipReason(source)) { skipped++; continue; }
     const id = sourceIdOf(source), check = checkSource(source), fatal = fatalOf(check);
     if (fatal.length) broken++;
     const at = list.findIndex(e => e.id === id);
@@ -69,7 +104,7 @@ export async function importSources(text) {
     else { list.push(entry); added++; }
   }
   if (sources.length) await save(list);
-  return { added, updated, broken, errors, rss };
+  return { added, updated, broken, skipped, errors, rss };
 }
 
 /** 从网址导入（书源合集常以 JSON 链接分享） */
@@ -181,7 +216,8 @@ export function toBook(entry, item) {
   return {
     id: `legado:${entry.id}:${hash(item.bookUrl)}`, source: 'legado', aid: '',
     title: item.name, alt: '', author: item.author || '', publisher: name, status: '', animated: false,
-    tags: (item.kind || '').split(/[,，、|\s]+/).filter(Boolean).slice(0, 4),
+    // 有的书源把分类给成 ["男频","奇幻"] 这种写法：括号引号去掉
+    tags: (item.kind || '').replace(/[[\]"'“”]/g, '').split(/[,，、|\s]+/).filter(Boolean).slice(0, 4),
     description: item.intro || '', length: item.wordCount || '', updated: '', illustrated: false,
     coverSrc: item.coverUrl || '',
     downloads: [{

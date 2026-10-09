@@ -265,6 +265,7 @@ html.sheet-open { overflow: hidden; }
 .result-body small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
 .result-meta { font-size: 12.5px; color: var(--ink2); }
 .result-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.result-from { color: var(--gold-deep); }
 .result-tags .tag { font-size: 11px; padding: 1px 7px; }
 .result-go { color: var(--ink3); }
 

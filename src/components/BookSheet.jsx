@@ -98,14 +98,15 @@ export default function BookSheet() {
   if (!book) return null;
 
   const plugin = pluginById[book.source];
+  // 搜索池合并过的书：下载入口来自不同插件（文库、书源），各自记着 source，按入口走
   const save = async (key, target, title) => {
     if (progress[key]?.state === 'loading') return;
     setProgress(key, { state: 'loading', p: 0 });
     try {
-      const blob = await plugin.download(target, (loaded, total) => setProgress(key, { state: 'loading', p: total ? loaded / total : 0, loaded }));
+      const blob = await (pluginById[target.source] || plugin).download(target, (loaded, total) => setProgress(key, { state: 'loading', p: total ? loaded / total : 0, loaded }));
       const cover = await epubCover(blob);
       // coverSrc 一起存下：EPUB 里没有封面（纯文本版）时，书架上照样能显示原站封面
-      await addToShelf({ id: key, bookId: book.id, source: book.source, title, author: book.author, cover, coverSrc: book.coverSrc || '', ext: 'epub', size: blob.size }, blob);
+      await addToShelf({ id: key, bookId: book.id, source: target.source || book.source, title, author: book.author, cover, coverSrc: book.coverSrc || '', ext: 'epub', size: blob.size }, blob);
       setProgress(key, { state: 'done' });
       toast(`《${title}》已放进书架`, { tone: 'ok' });
     } catch (err) {
@@ -197,11 +198,11 @@ export default function BookSheet() {
           {txts.length > 0 && (
             <section className="dl-block">
               {txts.map(d => (
-                <div key={d.key || 'txt'} className="vol vol-solo">
+                <div key={d.shelfKey || d.key || 'txt'} className="vol vol-solo">
                   <span className="vol-no"><Icon name="book" size={18} /></span>
                   <span className="vol-title">{d.label}<small className="muted">{d.note}</small></span>
                   <span className="vol-meta" />
-                  <Action k={`${book.id}:${d.key || 'txt'}`} target={d} title={d.title || book.title} />
+                  <Action k={d.shelfKey || `${book.id}:${d.key || 'txt'}`} target={d} title={d.title || book.title} />
                 </div>
               ))}
             </section>
@@ -245,7 +246,7 @@ export default function BookSheet() {
           ))}
 
           {!book.downloads.length && <p className="sheet-note">这本书暂时没有可用的下载来源。</p>}
-          <p className="sheet-source muted">来源：{plugin?.name}</p>
+          <p className="sheet-source muted">来源：{book.poolSources?.length > 1 ? book.poolSources.join('、') : plugin?.name}</p>
         </div>
       </aside>
     </div>

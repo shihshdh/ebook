@@ -1,6 +1,7 @@
 // 订阅源（阅读 App 的「订阅」/ RSS 源）：存取、分类、取文章列表、取正文。
 //
-// 和书源一样：订阅源永远是用户自己导入的，应用不内置；源里的脚本（<js>、@js:、java.*、{{表达式}}）一律不执行。
+// 订阅源由用户自己导入（另带 7 个正版 / 公版默认订阅）；源里的脚本（<js>、@js:、java.*、{{表达式}}）一律不执行。
+// 只收拿来读的文字：成人、影音、图片、软件工具、阅读 App 的配套导入时不收，启动时也清一遍（plugins/legado/source-policy.js）。
 // 每个源按能做到的程度分三种打开方式，尽量都能用：
 //   list  规则（ruleArticles / ruleTitle / ruleLink）走得通：EBOOK 里列文章；有 ruleContent 的在 EBOOK 里读正文
 //   rss   没写列表规则：按标准 RSS / Atom 解析
@@ -9,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { idbGet, idbSet } from './idb.js';
 import { nativeRequest } from './native.js';
+import { rssSkipReason } from '../plugins/legado/source-policy.js';
 
 const KEY = 'legado:rss';
 const rules = () => import('../plugins/legado/rules.js');
@@ -74,13 +76,16 @@ const SEEDED = 'legado:rss-seeded';
 export async function listRss() {
   if (cache) return cache;
   loading ||= (async () => {
-    cache = (await idbGet('kv', KEY).catch(() => null)) || [];
+    const stored = (await idbGet('kv', KEY)) || [];
+    const clean = stored.filter(entry => !rssSkipReason(entry.source));
+    if (clean.length !== stored.length) await idbSet('kv', KEY, clean);
+    cache = clean;
     if (!(await idbGet('kv', SEEDED).catch(() => 1))) {
       await idbSet('kv', SEEDED, 1).catch(() => {});
       const { default: defaults } = await import('./rss-defaults.json');
       await importRss(defaults);
     }
-  })();
+  })().finally(() => { loading = null; });
   await loading;
   return cache;
 }
@@ -101,8 +106,9 @@ export function useRss() {
 export async function importRss(entries) {
   const list = [...await listRss()];
   const index = new Map(list.map((e, i) => [e.id, i]));
-  let added = 0, updated = 0, bad = 0, invalid = 0;
+  let added = 0, updated = 0, bad = 0, invalid = 0, skipped = 0;
   for (const raw of entries) {
+    if (isRssSource(raw) && rssSkipReason(raw)) { skipped++; continue; }
     if (!isRssSource(raw) || !String(raw.sourceName || '').trim() || !raw.sourceUrl.trim()) { invalid++; continue; }
     const source = { ...raw, sourceName: raw.sourceName.trim(), sourceUrl: raw.sourceUrl.trim() };
     const id = rssIdOf(source), c = await classify(source);
@@ -112,7 +118,7 @@ export async function importRss(entries) {
     else { index.set(id, list.length); list.push(entry); added++; }
   }
   if (added + updated) await save(list);
-  return { added, updated, bad, invalid };
+  return { added, updated, bad, invalid, skipped };
 }
 export async function setRssEnabled(ids, on) {
   const set = new Set([].concat(ids));

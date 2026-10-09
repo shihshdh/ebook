@@ -83,7 +83,7 @@
 .fresh-row::after { content: ""; position: sticky; }
 .home-section:has(.fresh-row) { position: relative; }
 .fresh-shelf { display: none; }
-.fresh-card { display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; background: none; text-align: left; scroll-snap-align: start; }
+.fresh-card { display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; background: none; text-align: left; scroll-snap-align: start; color: inherit; text-decoration: none; }
 .fresh-card .cover { display: block; aspect-ratio: 5 / 7; border-radius: 8px; overflow: hidden; box-shadow: 0 14px 24px -16px rgba(0, 0, 0, .55), 0 0 0 1px var(--line); transition: transform .45s var(--ease); }
 .fresh-card:hover .cover { transform: translate3d(0, -4px, 0); }
 .fresh-card img { width: 100%; height: 100%; object-fit: cover; }
