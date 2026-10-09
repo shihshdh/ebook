@@ -1,12 +1,12 @@
 {
-  "version": "0.3.11",
-  "notes": "内置 209 个文字书源，严格审核书源和订阅；统一搜索池合并同书多来源，首页新增 16 本书源推荐",
+  "version": "0.3.12",
+  "notes": "修复部分书源下载提示没给出目录：兼容章节字段取值、地址中的 POST 选项及请求类型",
   "windows": {
-    "file": "EBOOK_0.3.11_x64-setup.exe",
-    "sha256": "59261c28056960e4c4d1a740bba5e5cd92a96b7325f1b39af6001db5ca27f362"
+    "file": "EBOOK_0.3.12_x64-setup.exe",
+    "sha256": "3a26ab94b30b4db265b8ad7ba87b47060bd2bfd48f0452bc1a4741c310bbd7c1"
   },
   "android": {
-    "file": "EBOOK_0.3.11.apk",
-    "sha256": "9afd6dd12afb01d82792d504102d5b1e26b94302a4079e0d7e53f305a76f31e5"
+    "file": "EBOOK_0.3.12.apk",
+    "sha256": "55f8fd2b0a7b7f49437e772258d245ba9c53441c492922bad42a489c64a485b3"
   }
 }
