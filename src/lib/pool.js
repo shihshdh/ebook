@@ -5,10 +5,18 @@ import { toBook } from './legado.js';
 
 // 书名、作者比较前：全角转半角，去掉括号里的附注（精校版、全本、作者名…），去空白和标点，不分大小写
 const half = (s) => s.replace(/[！-～]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/　/g, ' ');
+// 算过的记住：每敲一个字都要把上百条结果的书名、别名重新比一遍，每次现算手机上要二十来毫秒
+const normed = new Map();
 const norm = (s) => {
-  const t = half(String(s || ''));
-  const bare = t.replace(/[(（【\[][^)）】\]]*[)）】\]]/g, '');
-  return (bare.trim() ? bare : t).replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase();
+  const raw = String(s || '');
+  let v = normed.get(raw);
+  if (v === undefined) {
+    const t = half(raw);
+    const bare = t.replace(/[(（【\[][^)）】\]]*[)）】\]]/g, '');
+    if (normed.size > 20000) normed.clear();   // 书源搜来的书名没个数，别一直攒着
+    normed.set(raw, v = (bare.trim() ? bare : t).replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase());
+  }
+  return v;
 };
 export const normTitle = norm;
 const normAuthor = (s) => norm(String(s || '').replace(/^\s*(?:作者|作\s*者)\s*[:：]?/, '').replace(/\s*著\s*$/, ''));

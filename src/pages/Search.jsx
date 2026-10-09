@@ -1,9 +1,9 @@
-import { Suspense, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { acctKey } from '../lib/accounts.js';
 import Cover from '../components/Cover.jsx';
 import Icon from '../components/Icon.jsx';
-import { searchBooks, useLibrary } from '../lib/library.js';
+import { prepareSearch, searchBooks, useLibrary } from '../lib/library.js';
 import { useUI } from '../lib/ui.jsx';
 import { lazyOptional } from '../lib/optional.jsx';
 import { useTheme } from '../lib/theme.js';
@@ -22,6 +22,36 @@ function PrismFallback({ title, lead, children }) {
   );
 }
 const PrismGlass = lazyOptional(import.meta.glob('../effects/PrismGlass.jsx'), PrismFallback);
+
+const fromLine = (b) => {
+  const s = b.poolSources || [];
+  return s.length > 1 ? `${s[0]} 等 ${s.length} 个来源` : s[0] ? `来自 ${s[0]}` : '';
+};
+// 结果列表单独 memo：每敲一个字，输入框先跟着变（紧急更新），这时结果还是上一个词的，
+// 不用把几十行重新生成、比对一遍（以前每个字都来一遍，手机上二三十毫秒，打字跟手那一帧就顿）
+const ResultList = memo(function ResultList({ books, limit, onOpen }) {
+  return (
+    <ol className="result-list">
+      {books.slice(0, limit).map((b, i) => (
+        <li key={b.id} style={{ '--i': Math.min(i, 14) }}>
+          <button className="result" onClick={(e) => onOpen(b, e.currentTarget.querySelector('.cover'))}>
+            <Cover book={b} />
+            <span className="result-body">
+              <strong className="serif">{b.title}</strong>
+              {b.alt && <small className="muted">{b.alt}</small>}
+              <span className="result-meta">{[b.author, b.source === 'legado' ? '' : b.publisher, b.status].filter(Boolean).join(' · ')}</span>
+              {b.tags.length > 0
+                ? <span className="result-tags">{b.illustrated && <span className="tag tag-gold">插图版</span>}{b.tags.slice(0, 4).map(t => <span key={t} className="tag">{t}</span>)}</span>
+                : b.description && <small className="muted result-intro">{b.description.length > 60 ? b.description.slice(0, 60) + '…' : b.description}</small>}
+              <small className="result-from">{fromLine(b)}</small>
+            </span>
+            <Icon name="arrow" size={18} className="result-go" />
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
+});
 
 const HISTORY = acctKey('librarium.search');   // 搜索记录跟着账户走
 const readHistory = () => { try { return JSON.parse(localStorage.getItem(HISTORY) || '[]'); } catch { return []; } };
@@ -49,15 +79,18 @@ export default function Search() {
     return () => clearTimeout(t);
   }, [q]);
 
+  useEffect(() => prepareSearch(lib.books), [lib.books]);   // 每本书的折叠写法趁空闲先算好，第一次搜索不用现算
   // 输入框跟手，结果列表用延后的词在后台分片渲染：敲字那一帧不再等搜索 + 渲染上百行
   const dq = useDeferredValue(q);
   const results = useMemo(() => dq.trim() ? searchBooks(lib.books, dq.trim()).slice(0, 120) : [], [lib.books, dq]);
+  const historyNow = useRef(history); historyNow.current = history;
   const remember = (term) => {
-    const next = [term, ...history.filter(h => h !== term)].slice(0, 10);
+    const next = [term, ...historyNow.current.filter(h => h !== term)].slice(0, 10);
     setHistory(next);
     try { localStorage.setItem(HISTORY, JSON.stringify(next)); } catch {}
   };
-  const open = (b, el) => { if (q.trim()) remember(q.trim()); openBook(b, el); };
+  const qNow = useRef(q); qNow.current = q;
+  const open = useCallback((b, el) => { const term = qNow.current.trim(); if (term) remember(term); openBook(b, el); }, [openBook]);   // 不变的函数，结果列表才 memo 得住
 
   // ---------- 书源（Legado）：按关键词去各书源现搜，和书目里的书放进同一个结果列表 ----------
   // 不跟着每次按键去请求别人的网站：停顿一下（两个字以上）再搜，或者按回车
@@ -92,12 +125,13 @@ export default function Search() {
     return () => clearTimeout(t);
   }, [q, active.length]);
   // 搜索池：书目和书源不分开，同一本书合成一条（lib/pool.js）
+  const byParam = params.get('by') || '';
   const pooled = useMemo(() => {
     const term = dq.trim();
     // 首页推荐点进来的带着作者（?by=），只对那个书名有效
-    const by = term === urlQ ? params.get('by') || '' : '';
+    const by = term === urlQ ? byParam : '';
     return term ? pool(results, remote?.q === term ? remote.items : [], term, (b) => pluginById[b.source]?.short || '书目', by) : [];
-  }, [results, remote, dq, params]);
+  }, [results, remote, dq, urlQ, byParam]);   // 不看整个 params：搜索框同步到地址栏时它会换，这里不用跟着重算
   // 结果分批挂：先 30 条，滚到附近再补 30 条（一次铺上百行，排版那一帧要几十毫秒）
   const [limit, setLimit] = useState(30);
   const more = useRef(null);
@@ -109,11 +143,6 @@ export default function Search() {
     io.observe(el);
     return () => io.disconnect();
   }, [pooled.length > limit]);
-  const fromLine = (b) => {
-    const s = b.poolSources || [];
-    return s.length > 1 ? `${s[0]} 等 ${s.length} 个来源` : s[0] ? `来自 ${s[0]}` : '';
-  };
-
   const box = (
     <form className="search-box glass" onSubmit={(e) => { e.preventDefault(); if (remoteQ.current !== q.trim()) runRemote(q); else if (pooled[0]) open(pooled[0]); }} role="search">
       <Icon name="search" size={20} />
@@ -155,25 +184,7 @@ export default function Search() {
             {remote && <> · {remote.running ? `正在搜 ${remote.done} / ${remote.total} 个书源` : `搜了 ${remote.total} 个书源`}</>}
             {!remote && active.length > 0 && [...q.trim()].length < 2 && <> · <button className="btn btn-ghost sm" onClick={() => runRemote(q)}>也在 {active.length} 个书源里搜</button></>}
           </p>
-          <ol className="result-list">
-            {pooled.slice(0, limit).map((b, i) => (
-              <li key={b.id} style={{ '--i': Math.min(i, 14) }}>
-                <button className="result" onClick={(e) => open(b, e.currentTarget.querySelector('.cover'))}>
-                  <Cover book={b} />
-                  <span className="result-body">
-                    <strong className="serif">{b.title}</strong>
-                    {b.alt && <small className="muted">{b.alt}</small>}
-                    <span className="result-meta">{[b.author, b.source === 'legado' ? '' : b.publisher, b.status].filter(Boolean).join(' · ')}</span>
-                    {b.tags.length > 0
-                      ? <span className="result-tags">{b.illustrated && <span className="tag tag-gold">插图版</span>}{b.tags.slice(0, 4).map(t => <span key={t} className="tag">{t}</span>)}</span>
-                      : b.description && <small className="muted result-intro">{b.description.length > 60 ? b.description.slice(0, 60) + '…' : b.description}</small>}
-                    <small className="result-from">{fromLine(b)}</small>
-                  </span>
-                  <Icon name="arrow" size={18} className="result-go" />
-                </button>
-              </li>
-            ))}
-          </ol>
+          <ResultList books={pooled} limit={limit} onOpen={open} />
           {pooled.length > limit && <div ref={more} className="mw-more muted">继续往下翻…</div>}
           {remote?.errors.length > 0 && (
             <details className="remote-errors">

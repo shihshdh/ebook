@@ -82,6 +82,21 @@ const foldedOf = (b) => {
   if (!f) folded.set(b, f = { t: fold(b.title), a: fold(b.alt), au: fold(b.author), tags: b.tags.map(fold) });
   return f;
 };
+/**
+ * 趁空闲把每本书的折叠写法先算好（搜索页一挂上就开始）。第一次搜索要把四千多本书一本本折叠，
+ * 在搜索页的渲染里一口气做完（手机上四五十毫秒，React 也拆不开），敲第一个字那一下就顿
+ * @returns 停止函数
+ */
+export function prepareSearch(books) {
+  if (typeof requestIdleCallback !== 'function') return () => {};
+  let i = 0, id = 0;
+  const work = (deadline) => {
+    while (i < books.length && deadline.timeRemaining() > 1) foldedOf(books[i++]);
+    id = i < books.length ? requestIdleCallback(work) : 0;
+  };
+  id = requestIdleCallback(work);
+  return () => cancelIdleCallback(id);
+}
 export function searchBooks(books, q, { tags = [], status = '', illustrated = false } = {}) {
   const k = fold(q);
   const out = [];

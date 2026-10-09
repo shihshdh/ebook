@@ -1,5 +1,5 @@
 import { Suspense, lazy, memo, startTransition, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { HashRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { HashRouter, NavigationType, Route, Routes, UNSAFE_LocationContext as LocationContext, useLocation, useNavigate } from 'react-router-dom';
 import { PageActiveContext } from './lib/pageActive.js';
 import NavBar from './components/NavBar.jsx';
 import Splash, { shouldShowSplash } from './components/Splash.jsx';
@@ -39,8 +39,7 @@ const TAB_OF = (path) => path === '/' ? 'home' : ['explore', 'search', 'shelf', 
 // memo：切页时只重渲染地址变了的那一页。以前每点一次导航，前台后台留着的五六页全部跟着重渲染一遍，
 // 点击是「离散事件」，React 一口气同步做完不让出主线程，手机上一下五六十毫秒。
 // 地址只比路径、查询、锚点和 state（各页都不看 location.key）：回到地址没变的页，换了个 location 对象也不用重来
-const sameLocation = (a, b) => a.location === b.location || (a.location.pathname === b.location.pathname
-  && a.location.search === b.location.search && a.location.hash === b.location.hash && a.location.state === b.location.state);
+const sameLocation = (a, b) => a === b || (a.pathname === b.pathname && a.search === b.search && a.hash === b.hash && a.state === b.state);
 const Pages = memo(function Pages({ location }) {
   return (
     <Suspense fallback={<div className="page" />}>
@@ -57,7 +56,7 @@ const Pages = memo(function Pages({ location }) {
       </Routes>
     </Suspense>
   );
-}, sameLocation);
+}, (a, b) => sameLocation(a.location, b.location));
 
 function Shell() {
   const location = useLocation();
@@ -189,6 +188,14 @@ function Shell() {
     setKept(k => (k[tab] === location ? k : { ...k, [tab]: location }));
     window.scrollTo(0, prev === tab && prevPath !== pathname ? 0 : scrolls.current[tab] || 0);
   }, [pathname, location.search]);
+  // 每页自己的路由地址，地址没变就给同一个对象（套在 Pages 外面）。光有 Pages 的 memo 不够：里面的 <Routes location> 自己
+  // 订着当前地址，地址一变（切页、搜索框同步到地址栏）就给整页换一个新的地址上下文，后台页里用 useNavigate / Link 的
+  // 组件（首页、插件页……）跟着全部重渲染，手机上一次五六十毫秒。外面套一层不变的，后台页就纹丝不动
+  const locCtx = useRef({});
+  const locationContext = (k, loc) => {
+    const prev = locCtx.current[k];
+    return prev && sameLocation(prev.location, loc) ? prev : (locCtx.current[k] = { location: loc, navigationType: NavigationType.Pop });
+  };
 
   if (locked) return (
     <>
@@ -208,7 +215,9 @@ function Shell() {
           return (
             <div key={k} ref={(el) => { routeEls.current[k] = el; }} className={`route ${active ? 'is-active' : 'is-kept'}`} data-warming={!active && warming === k ? '' : undefined} aria-hidden={active ? undefined : 'true'} inert={active ? undefined : ''}>
               <PageActiveContext.Provider value={active}>
-                <Pages location={k === tab ? location : loc} />
+                <LocationContext.Provider value={locationContext(k, active ? location : loc)}>
+                  <Pages location={active ? location : loc} />
+                </LocationContext.Provider>
               </PageActiveContext.Provider>
             </div>
           );
