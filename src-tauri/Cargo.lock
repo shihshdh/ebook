@@ -2090,7 +2090,7 @@ dependencies = [
 
 [[package]]
 name = "librarium"
-version = "0.3.14"
+version = "0.3.15"
 dependencies = [
  "percent-encoding",
  "serde",

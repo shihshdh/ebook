@@ -3,7 +3,7 @@
 接手的人先读完这页。用户要求：**极致丝滑、不偷工减料、不许把动画调快**（「我要的是丝滑，不是动效加快」）；视觉不能变。
 用户笔记本容易过热：测完关掉 vite preview、浏览器、Gradle。
 
-## 已经做完（都在这个分支的提交里，尚未发版）
+## 已经做完（都在这个分支的提交里，随 0.3.15 发版）
 
 数字都是手机路径：390×844、DPR 3、CPU 降速 4 倍、**开触屏模拟**（不开的话会跑电脑特效路径，比如搜索页玻璃，真手机上本来是关的）。
 「卡顿」= 主线程长任务超过 50ms 部分之和。对照是 0.3.13 原版。
@@ -318,6 +318,33 @@ INJECT_CSS='.home-lazy .cover, .home-lazy strong, .home-lazy small, .home-lazy .
 ```
 看解锁那几帧的合成输入降不降。降的话再正式改（每处都要比对截图：clip 不建块格式化上下文，外边距折叠也可能变）。
 
+### 第九轮（云端）：切页的样式重算、订阅页预渲染、开屏排序
+
+34. `src/styles/app.css` + `src/App.jsx`（`9ed7000`）：后台页动画暂停规则 `.route.is-kept * { animation-play-state: paused }` 换成 `.route[data-unseen] *`。
+    - 原来那条：切页时 `is-kept` 一摘一挂，类在祖先上、后代是通配符，浏览器只能把进来那页**每个元素**重算样式（第一次进探索 305 个、4 倍降速三四十毫秒）。
+    - 查下来它对**去过的页本来就不起作用**：`content-visibility: hidden` 的页里不算样式，规则落不到元素上——入场动画没播完就切走的、
+      探索页的慢漂移在后台照样按时间走完（逐步记了 `document.getAnimations()` 的状态，原版就是这样）；后台的循环动画浏览器也不跑
+      （停在书架 5 秒，样式重算次数和全停时一样）。
+    - 它真正管用的只有空闲预渲染挂上、**还没去过**的页：预排版时样式算过，入场动画已经建好，要停在开头等第一次点进去。
+      所以只给没去过的页挂 `data-unseen`（App.jsx 记 `seen`），第一次进去时摘一次，之后切页只动 route 自己。
+    - 试过、没用的：去过的页切走时用 Web Animations 的 `pause()` 一个个停、切回来 `play()`——比原版「更对」，但切回来时没播完的入场动画会接着播，
+      和原版看到的不一样（原版是已经播完），视觉变了，没合。
+    - 动画状态逐步核对和原版一致（`animcheck.mjs` 的思路：每一步列出每页的动画名、播放状态、当前时间）。
+    - 交替 A/B 6 轮：切页卡顿合计均 **77 → 34**，最长帧中位 83 → 75。
+35. `src/App.jsx` + `src/lib/rss.js`（`4cbf636`）：导入过订阅源（导航栏有「订阅」）时，空闲流水线最后也预渲染、预排订阅页。
+    订阅页按需加载：先 `import('./pages/Rss.jsx')` 下好代码块再挂，不然挂上的是 Suspense 占位，排了个空壳。
+    A/B 各 4 次（点进订阅页再上下滑）：卡顿 17/14/41/38 → 0/3/6/36，最长帧 67/83/100/100 → 33/50/50/100。
+36. `src/lib/library.js`（`d8a9c3a`）：开屏时书库按日期排序不用 `localeCompare`（日期都是 `2026-10-09` 写法或空串，直接比字符串顺序一样，
+    真实书库 4798 本逐本核对过；`localeCompare` 第一次用要先建语言排序规则）；首页经典排序先把每本的分数取出来再排（排序稳定，同分先后不变）。
+    4 倍降速冷启动各 2 次：书库排序 55/113 → 26/44ms，经典排序 28/51 → 22/36ms。内容出现时机没变（用户选的「只做不改时机的」）。
+    开屏期间另外两段没动：NavBar 滑块第一次量尺寸时的强制排版（就是首页第一次排版，挪不掉）、首页第一次渲染。
+37. 查过、没改的：
+    - 插件页滚动里偶尔一个 120–170ms 的帧：是加载后二十来秒浏览器自己做的那次完整垃圾回收（MajorGC；堆一直 18MB 不涨，DOM 才 1500 个元素）。
+      0.3.13 原版同一时刻也有、还更长（137/160ms 对现在 120/149ms），落在哪个操作上看时间。插件页整体对照原版：卡顿 176/235 → 40/45。
+    - 第一次点进插件页那帧（4 倍降速约 100ms）：大半是恢复滚动位置的 `window.scrollTo` 逼着当场算新页面的样式和排版——这一帧本来就要算，挪不掉。
+
+新脚本（`scripts/perf/` 以外的，见「发版」）：`发版.bat`、`release.mjs`。
+
 ### 首页滚动（没解决，查到的）
 
 首页滚动是唯一没比原版好的场景（最长帧 63–80，常有一帧 50ms 以上）。慢帧里大头是 **PrePaint 的 CompositingInputs**（24 / 39 / 54ms），
@@ -341,8 +368,18 @@ INJECT_CSS='.home-lazy .cover, .home-lazy strong, .home-lazy small, .home-lazy .
    拉代码前先丢掉（`git stash` 或 `git checkout -- 这几个文件`），不然会冲突。本机复测一次切页 A/B，再在手机上看一眼滑块。
 5. **首页滚动**：见「首页滚动（没解决，查到的）」和「第八轮」。本机先复测一次（唱片架那项改了以后每帧主线程轻了），再试第八轮末尾的 `overflow: clip` 实验。可以试的方向：只在离屏幕近一点时才解锁下一个区块、提前一两屏解锁（把那一帧挪到手指还没滑到的时候）；
    或者减少区块里自带分层的元素（overflow 裁剪的圆角封面、带 opacity 动画的 reveal）再量合成输入。
-6. 开屏期间的长任务本身（书库处理 ~320ms、首页第一次整页排版 ~380ms，4 倍降速）：书库处理挪进 Worker、首页排版分块。会改内容出现时机，要先问。
-7. 真机验证：手机 APK、Windows 客户端都还没打这一轮的包（手感、开屏、流畅度改动都只在网页上测过）。
+6. ~~开屏期间的长任务~~：问过用户，选「只做不改时机的」，做完了（第九轮 36）。挪进 Worker、首页排版分块会改内容出现时机，用户没要。
+7. **发版 0.3.15**（用户要的）：版本号四处已改（安卓 versionCode 13），更新说明 `docs/RELEASE_0.3.15.md`，代码在 main 上。
+   本机：`git checkout main && git pull`（ASTRA 有没提交的改动先 `git stash`），装好 GitHub CLI 并 `gh auth login`，双击 `发版.bat`。见下面「发版」。
+8. 真机验证：发版前后在手机、Windows 上过一遍（手感、开屏、流畅度改动都只在网页上测过）。
+
+## 发版
+
+`发版.bat`（项目根）：`node release.mjs --check`（在 main、工作区干净、和 GitHub 上的 main 一致、四处版本号一致、有正式签名、有更新说明）
+→ `打包桌面版.bat` → 安装包复制到 `release/` → `打包安卓版.bat` → `gradlew --stop` → `node release.mjs`。
+`release.mjs`：算 SHA-256；**先**建 Release `v<版本>`、传两个文件（`gh release create`），核对附件都在，**再**改 `latest.json` 和 README 的下载链接、推 main。
+顺序反过来的话，客户端读到新清单、附件还没传完，点更新会 404。没装 gh：正文写在 `release/RELEASE_BODY.md`，网页上手动建好后跑 `node release.mjs --manifest`。
+包比当前代码旧（之前打的）、没有 `android/keystore.properties`（APK 不是正式签名、装不上去覆盖旧版）都会停下。
 
 ## 怎么测
 
@@ -353,7 +390,7 @@ npx vite preview --port 5181 --strictPort &      # 被测版本
 # 调试构建（不压缩，看函数名）：npx vite build --minify false --outDir <某处>，preview 到 5182
 cd scripts/perf
 BLOCK=1 IDLE=12000 node measure.mjs <临时目录> http://127.0.0.1:5181/ <临时目录>/out.json mobile [场景,场景]
-#   场景：home-scroll disc-flip page-switch world-switch explore-scroll sheet-open sheet-tap search-type
+#   场景：home-scroll disc-flip page-switch world-switch explore-scroll sheet-open sheet-tap plugins-scroll rss-scroll search-type
 #     （sheet-tap 和 sheet-open 点同样三本书，但用真触摸按下 80ms 再抬起，有 pointerdown；测按下时做的事要用它）
 #   DETAIL=1 打印长帧组成；TRACE=场景 存追踪到 <临时目录>/perf/<场景>.trace.json，再用 tasks.mjs / tree.mjs 看
 #     （第二轮加的：taskdump.mjs <trace> <时间> 看某个长任务的完整事件树；fontev.mjs <trace> 看字体加载 / 失效）
@@ -385,5 +422,5 @@ node startup.mjs <临时目录> http://127.0.0.1:5181/ 标签 4 mobile && python
 ## 注意
 
 - 同一工作区里 ASTRA（Codex）在做 `docs/ASTRA_TASKS_R6.md`（下载链路体检），它的文件：`src/plugins/mojimoon/*`、`src/plugins/public/*`、`scripts/**`（除 `scripts/perf/`）、`docs/ASTRA_*`。别碰。
-- 0.3.14（插图版改从 mojimoon/wenku8-epub 下载）在 main 的提交 `fa523b4`，尚未推送 / 发版，由用户决定。
+- 0.3.14（插图版改从 mojimoon/wenku8-epub 下载，提交 `fa523b4`）一直没单独发；用户定了和这一轮流畅度一起发成 **0.3.15**（跳过 0.3.14 这个号）。
 - Windows 安装包、APK 只能在用户本机打（`docs/BUILD.md`）。
