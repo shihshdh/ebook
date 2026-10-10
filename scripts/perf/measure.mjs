@@ -162,6 +162,9 @@ try {
       await p.eval(`document.querySelector('.sheet-close')?.click()`); await sleep(800);
     }
   });
+  // 插件页（几百个书源的长列表）、订阅页：往下划到底再划回来
+  await scenario('plugins-scroll', async () => { await nav('插件'); await sleep(700); await scrollTo(0); await sleep(300); await scrollBy(6000); await sleep(200); await scrollBy(-6000); });
+  await scenario('rss-scroll', async () => { if (!(await nav('订阅'))) return; await sleep(900); await scrollTo(0); await sleep(300); await scrollBy(4000); await sleep(200); await scrollBy(-4000); });
   await scenario('search-type', async () => {
     await nav('搜索'); await sleep(600);
     await p.eval(`document.querySelector('.search-box input').focus()`);
