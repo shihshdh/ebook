@@ -1,12 +1,12 @@
 {
-  "version": "0.3.13",
-  "notes": "优化滚动与切页流畅度，修复探索页世界切换；新增首页更新卡片，优化封面加载，书源列表默认折叠",
+  "version": "0.3.15",
+  "notes": "手机端全面提速：切页、滚动、搜索、打开书详情、换世界更顺，开屏不再闪；底栏滑块更圆润；修复插图重制版下载",
   "windows": {
-    "file": "EBOOK_0.3.13_x64-setup.exe",
-    "sha256": "3cbad1c2d05a856fdac4298a8499261ec88204542f1e5cc6e4b76f3be9c1a5cb"
+    "file": "EBOOK_0.3.15_x64-setup.exe",
+    "sha256": "be036b6ba8371595a10ca369f00248856ebb4b6702ddacccda3c6f83b68ef792"
   },
   "android": {
-    "file": "EBOOK_0.3.13.apk",
-    "sha256": "c50a9853515b26536e2262e5768afde3b86ec47c425b84f7234437843c449436"
+    "file": "EBOOK_0.3.15.apk",
+    "sha256": "f916feaa93733d8fe98179418acfdb06962b0d4cb1a0234c540e510730cac3a8"
   }
 }
