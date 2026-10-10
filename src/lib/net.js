@@ -198,16 +198,21 @@ export async function getBinary(urls, onProgress, { expectZip = false, validate,
 
   // 原生端：赢家要等整个文件下完才算数（Capacitor 拿不到流）。
   // 几个请求同时在下时，进度条跟着领先的那个走，不来回跳。
+  // 下完、核对过是有效文件才报 100%，之前最多到 99%：核对没过的那一路作废、换别的线路接着下，进度条退回 0。
+  // 以前先报 100% 再核对，核对没过时进度条停在 100% 干等别的线路，看着像卡死（0.3.15 检查更新就这样）
   let best = 0;
   const lead = (loaded, total) => {
-    const f = total ? loaded / total : 0;
-    if (f >= best) { best = f; onProgress?.(loaded, total); }
+    const f = total ? Math.min(loaded / total, .99) : 0;
+    if (f >= best) { best = f; onProgress?.(total ? f * total : 0, total); }
   };
   // Capacitor 的请求中止不了，错峰拉长，免得同时下好几份
   const stagger = platform === 'capacitor' ? 5000 : 2000;
   const { value } = await race(list, async (u, s) => {
-    const blob = await nativeGetBinary(u, lead, { signal: s });
-    await check(blob);
+    let mine = 0;
+    const blob = await nativeGetBinary(u, (loaded, total) => { mine = total ? Math.min(loaded / total, .99) : 0; lead(loaded, total); }, { signal: s });
+    try { await check(blob); }
+    catch (e) { if (mine && mine >= best && !s.aborted) { best = 0; onProgress?.(0, 0); } throw e; }
+    onProgress?.(blob.size, blob.size);
     return blob;
   }, { stagger, signal });
   return value;

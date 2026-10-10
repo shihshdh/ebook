@@ -619,6 +619,8 @@ html:has(.shelf-managebar) .toasts { bottom: calc(92px + var(--safe-b)); }
 .upd-track { display: block; flex: 1; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; }
 .upd-track i { display: block; height: 100%; background: var(--gold); transform-origin: left; transform: scaleX(var(--p, 0)); transition: transform .25s linear; }
 .upd-foot { margin: 14px 0 0; font-size: 11.5px; }
+.upd-foot a { color: var(--gold); text-decoration: underline; text-underline-offset: 2px; }
+.upd-bar .upd-cancel { flex: none; }
 @keyframes upd-fade { from { opacity: 0; } }
 @keyframes upd-in { from { opacity: 0; transform: translate3d(0, 18px, 0) scale(.97); } }
 @media (max-width: 760px) { .upd-layer { padding-bottom: calc(var(--tab-h) + 20px + var(--safe-b)); } }

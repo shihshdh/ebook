@@ -43,12 +43,22 @@ async function sha256Hex(bytes) {
   return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-/** 下载并安装。onProgress(0..1)。返回给用户看的提示 */
-export async function installUpdate(u, onProgress) {
-  const blob = await getBinary(releaseAssetUrls(OWNER, REPO, `v${u.version}`, u.file),
-    (loaded, total) => onProgress?.(total ? loaded / total : 0), { expectZip: platform === 'capacitor' });
+const assetUrls = (u) => releaseAssetUrls(OWNER, REPO, `v${u.version}`, u.file);
+/** 在系统浏览器里下安装包用的地址（国内加速线路）：应用里下不动的时候给用户一个退路 */
+export const browserDownloadUrl = (u) => assetUrls(u)[0];
+
+/**
+ * 下载并安装。onProgress(0..1)；onPhase('download' | 'verify' | 'install') 告诉界面现在在哪一步；signal 中止下载（点「取消」）。
+ * 返回给用户看的提示
+ */
+export async function installUpdate(u, onProgress, { onPhase, signal } = {}) {
+  onPhase?.('download');
+  const blob = await getBinary(assetUrls(u),
+    (loaded, total) => onProgress?.(total ? loaded / total : 0), { expectZip: platform === 'capacitor', signal });
+  onPhase?.('verify');
   const bytes = new Uint8Array(await blob.arrayBuffer());
   if (u.sha256 && (await sha256Hex(bytes)) !== u.sha256.toLowerCase()) throw new Error('安装包校验没通过，换个网络再试');
+  onPhase?.('install');
   if (platform === 'capacitor') {
     const { installApk } = await import('./native.js');
     await installApk(u.file, bytes);
