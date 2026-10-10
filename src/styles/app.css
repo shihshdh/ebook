@@ -140,6 +140,8 @@
 .chip-static { pointer-events: none; height: 28px; font-size: 12px; }
 .sheet-note { padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--line2); color: var(--ink2); font-size: 13px; }
 .sheet-source { margin-top: 26px; font-size: 12px; }
+/* 字形预热（lib/glyph-warm.js）：屏幕外按书详情的字重、字号先排字。不画、不占位，排版自己关在里面不牵连页面 */
+.glyph-warm { position: fixed; left: 0; top: 0; width: 320px; height: 0; overflow: hidden; visibility: hidden; contain: strict; pointer-events: none; }
 .dl-block { margin-top: 14px; }
 .dl-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .dl-head h3 { margin: 0; font-family: var(--serif); font-size: 18px; color: var(--gold); }

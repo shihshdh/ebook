@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { isTouch, prefersReduced } from '../lib/motion.js';
 import './FolderFan.css';
 
-export default function FolderFan({ cards, label, note, word = 'reading', onOpen, onOpenCard, sticker = 'EPUB' }) {
+export default function FolderFan({ cards, label, note, word = 'reading', onOpen, onOpenCard, onPressCard, sticker = 'EPUB' }) {
   const n = cards.length, mid = (n - 1) / 2;
   const stageRef = useRef(null);
   const [written, setWritten] = useState(false);
@@ -36,7 +36,7 @@ export default function FolderFan({ cards, label, note, word = 'reading', onOpen
         {cards.map((card, i) => {
           const k = i - mid, edge = Math.abs(k);
           return (
-            <button key={card.key} type="button" className="ff-card" onClick={(e) => onOpenCard(card.key, e.currentTarget)} aria-label={'打开 ' + card.title}
+            <button key={card.key} type="button" className="ff-card" onClick={(e) => onOpenCard(card.key, e.currentTarget)} onPointerDown={onPressCard && (() => onPressCard(card.key))} aria-label={'打开 ' + card.title}
               style={{
                 '--rest-x': `${k * 10}px`, '--rest-r': `${k * 3}deg`,
                 '--open-x': `${k * 112}px`, '--open-y': `${-150 + edge * edge * 15}px`, '--open-r': `${k * 13}deg`,

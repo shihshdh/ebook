@@ -10,6 +10,7 @@ import { listNotes } from '../lib/shelf.js';
 import { useReadingStats, fmtMinutes } from '../lib/readstats.js';
 import { classicScore } from '../lib/library.js';
 import { saveExport } from '../lib/native.js';
+import { pressBook } from '../lib/glyph-warm.js';
 
 const pct = (it) => Math.round((it?.progress?.percent || 0) * 100);
 export const isFinished = (it) => (it.progress?.percent || 0) >= .98;
@@ -163,7 +164,7 @@ export function ForYou({ items, books, byId, onOpen }) {
       <ol className="sp-rec-list">
         {picks.map(({ b, because, overlap }, i) => (
           <li key={b.id} style={{ '--i': i }}>
-            <button onClick={(e) => onOpen(b, e.currentTarget.querySelector('.cover'))}>
+            <button onClick={(e) => onOpen(b, e.currentTarget.querySelector('.cover'))} {...pressBook(b)}>
               <Cover book={b} alt="" />
               <span className="sp-rec-body">
                 <strong className="serif">{b.title.replace(/\(.*?\)$/, '')}</strong>
