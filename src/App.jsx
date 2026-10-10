@@ -210,6 +210,9 @@ function Shell() {
     setKept(k => (k[tab] === location ? k : { ...k, [tab]: location }));
     window.scrollTo(0, prev === tab && prevPath !== pathname ? 0 : scrolls.current[tab] || 0);
   }, [pathname, location.search]);
+  // 去过哪几页：还没去过的后台页（空闲预渲染挂上的）挂 data-unseen，里面的动画停在开头，第一次点进去才播（见 app.css）
+  const seen = useRef(new Set());
+  useLayoutEffect(() => { if (tab) seen.current.add(tab); }, [tab]);
   // 每页自己的路由地址，地址没变就给同一个对象（套在 Pages 外面）。光有 Pages 的 memo 不够：里面的 <Routes location> 自己
   // 订着当前地址，地址一变（切页、搜索框同步到地址栏）就给整页换一个新的地址上下文，后台页里用 useNavigate / Link 的
   // 组件（首页、插件页……）跟着全部重渲染，手机上一次五六十毫秒。外面套一层不变的，后台页就纹丝不动
@@ -235,7 +238,7 @@ function Shell() {
           const active = k === tab;
           // 不在前台的：留着排版和渲染状态但不画、不占位置、点不到也聚焦不到（inert）
           return (
-            <div key={k} ref={(el) => { routeEls.current[k] = el; }} className={`route ${active ? 'is-active' : 'is-kept'}`} data-warming={!active && warming === k ? '' : undefined} aria-hidden={active ? undefined : 'true'} inert={active ? undefined : ''}>
+            <div key={k} ref={(el) => { routeEls.current[k] = el; }} className={`route ${active ? 'is-active' : 'is-kept'}`} data-warming={!active && warming === k ? '' : undefined} data-unseen={active || seen.current.has(k) ? undefined : ''} aria-hidden={active ? undefined : 'true'} inert={active ? undefined : ''}>
               <PageActiveContext.Provider value={active}>
                 <LocationContext.Provider value={locationContext(k, active ? location : loc)}>
                   <Pages location={active ? location : loc} />

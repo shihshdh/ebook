@@ -68,7 +68,11 @@
 .route.is-kept[data-warming] { content-visibility: visible; height: 0; overflow: hidden; visibility: hidden; }
 .home-lazy[data-warming] { content-visibility: visible; }
 [data-warming] > :not([data-warm]), [data-warming] [data-warm="part"] > :not([data-warm]) { content-visibility: hidden; }
-.route.is-kept *, .route.is-kept *::before, .route.is-kept *::after { animation-play-state: paused !important; }   /* 后台页面的循环动画停着 */
+/* 还没去过的后台页（空闲预渲染挂上的，App.jsx 给它挂 data-unseen）：预排版时样式算过，入场动画已经建好，全停在开头，
+   第一次点进去才播。以前写的是 .route.is-kept *：切页时 is-kept 一摘一挂，进来那页每个元素都得重算样式（手机上一次几十毫秒）；
+   而去过的页本来就停不住——content-visibility: hidden 的页里不算样式，这条规则落不到元素上（后台的循环动画浏览器也不跑，不占主线程）。
+   现在只有第一次进一页时摘一次 data-unseen */
+.route[data-unseen] *, .route[data-unseen] *::before, .route[data-unseen] *::after { animation-play-state: paused !important; }
 .route.is-active { animation: route-in .32s var(--ease) backwards; }
 @keyframes route-in { from { opacity: 0; transform: translate3d(0, 8px, 0); } }
 .route-reader.is-active { animation: none; }
