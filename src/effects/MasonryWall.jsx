@@ -100,6 +100,20 @@ function tilesOf(books, from, to, hasFlip) {
 }
 // 卡片上用衬线字的：书名、摘句（作者行、出处行是无衬线的系统字，不用下）
 const serifText = (tiles) => tiles.map(t => t.kind === 'quote' ? t.line.slice(0, 46) + '。' : t.kind === 'book' ? t.book.title : '').join('');
+
+// 换世界提前准备用（见 Explore.jsx）：这份书单第一页上的字，按卡片里的样式分开——书名、摘句是衬线，作者 · 状态、摘句出处是无衬线。
+// 槽位的标签、类名要和下面 BookTile / QuoteTile 一致（字号全靠类名）
+export const PAGE_SLOTS = [['figure.mw-tile>figcaption>strong', ''], ['div.mw-quote>p', 'serif'], ['figure.mw-tile>figcaption>span', ''], ['div.mw-quote>small', '']];
+export function firstPageText(books, flip = []) {
+  const tiles = tilesOf(books, 0, PAGE, flip.length > 1);
+  const pick = (kind, fn) => tiles.filter(t => t.kind === kind).map(fn).join('');
+  return [
+    pick('book', t => t.book.title),
+    pick('quote', t => t.line.slice(0, 46) + '。'),
+    pick('book', t => `${t.book.author}${t.book.status ? ` · ${t.book.status}` : ''}`),
+    pick('quote', t => `—《${t.book.title}》`),
+  ];
+}
 // 和原来的 CSS 一致：宽屏最多 5 列、每列至少 200px，窄屏（≤760px）2 列
 const narrowMQ = '(max-width: 760px)';
 const layoutFor = (width) => {

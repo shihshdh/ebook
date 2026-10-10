@@ -61,7 +61,7 @@ function build() {
 
 // 空闲预热：一批到处都会用到的字（比如搜索结果行的标签、出版社、状态）按指定样式先排一遍。
 // 和按下时的预热共用屏幕外那个盒子；只在 requestIdleCallback 里一小段一小段地排（这一段空闲用完就停、下次空闲接着排），
-// 不和滚动、动画、按下时的预热抢主线程。只排无衬线（系统字体）的槽位：衬线字没下好的分片会被排字触发下载（见开头）
+// 不和滚动、动画、按下时的预热抢主线程。衬线字要先用 loadSerif 把分片下好再交给它：没下好的分片会被排字触发下载（见开头）
 const idleJobs = [];
 let idleScheduled = false;
 const whenIdle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn) : setTimeout(() => fn({ timeRemaining: () => 4 }), 200));

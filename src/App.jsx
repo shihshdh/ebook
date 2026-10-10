@@ -19,7 +19,8 @@ import { trackPointerGlow } from './lib/motion.js';
 import './lib/press.js';   // 触屏按下反馈
 import { lazyOptional } from './lib/optional.jsx';
 import Home from './pages/Home.jsx';
-import Explore from './pages/Explore.jsx';
+import Explore, { prepareWorlds } from './pages/Explore.jsx';
+import { atMost } from './lib/fonts.js';
 import Search from './pages/Search.jsx';
 import Shelf from './pages/Shelf.jsx';
 import Plugins from './pages/Plugins.jsx';
@@ -85,7 +86,7 @@ function Shell() {
   const tabRef = useRef(tab); tabRef.current = tab;
   const routeEls = useRef({});
   const [warming, setWarming] = useState(null);
-  const warmed = useRef(new Set()), warmers = useRef({}), engineReady = useRef(false);
+  const warmed = useRef(new Set()), warmers = useRef({}), engineReady = useRef(false), worldsReady = useRef(false);
   const [warmedEls, sectionWarmers] = useState(() => [new WeakSet(), new WeakMap()])[0];
   useEffect(() => {
     if (splash || locked || reading || !libReady) return;
@@ -131,7 +132,21 @@ function Shell() {
       if (lazy) return (done) => { if (skipped(lazy)) return warmSection(lazy, done); warmedEls.add(lazy); done(); };
       for (const [k, path] of PREWARM) {
         if (!keptRef.current[k]) return (done) => { startTransition(() => setKept(prev => prev[k] ? prev : { ...prev, [k]: { pathname: path, search: '', hash: '', state: null, key: 'prewarm-' + k } })); done(); };
-        if (!warmed.current.has(k)) return (done) => { if (tabRef.current !== k) return warmPage(k, done); warmed.current.add(k); done(); };
+        // 换世界要用的字体（见 Explore.jsx 的 prepareWorlds）放在预排探索页之前、等它下好才往下走
+        // （中途有人操作被叫停的话撤回标记，停手以后重来）
+        if (k === 'explore' && !worldsReady.current) return (done) => {
+          worldsReady.current = true;
+          const r = prepareWorlds(libraryBooks(), done);
+          return { stop: () => { r.stop(); worldsReady.current = false; } };
+        };
+        if (!warmed.current.has(k)) return (done) => {
+          if (tabRef.current === k) { warmed.current.add(k); done(); return; }
+          if (document.fonts?.status !== 'loading') return warmPage(k, done);
+          // 还有字体在下（比如瀑布流、换世界的预取）：等它到了再排。分片到得晚的话，会把刚排好的整页衬线字作废，点进去照样现排
+          let stopped = false, inner = null;
+          atMost(document.fonts.ready, 3000).then(() => { if (!stopped) inner = warmPage(k, done); });
+          return { stop: () => { stopped = true; inner?.stop(); } };
+        };
       }
       if (!engineReady.current) return (done) => { engineReady.current = true; import('./plugins/legado/index.js').catch(() => { engineReady.current = false; }); done(); };
       return null;
