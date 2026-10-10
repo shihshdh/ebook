@@ -98,28 +98,51 @@ export default function BookSheet() {
     setTimeout(() => { closeBook(); setClosing(false); }, 320);
   };
 
-  // 手机：从抽屉顶部往下拖，超过 120px 或甩得快就关
+  // 手机：内容在顶上时往下拖，面板跟手；超过 120px、或者往下甩（松手前 ~100ms 的速度）就关。
+  // 用触摸事件、touchmove 不是 passive：面板是 touch-action: pan-y，以前用指针事件，手指一往下动浏览器就把这一下当滚动接管
+  // （发 pointercancel），面板只跟了几像素就弹回去，拖不下来。现在内容在顶上、手指往下拉时 preventDefault 不让它滚；
+  // 往上推、横着划、内容没在顶上：不管，照常滚动。速度以前按「整段位移 ÷ 整段时间」算，先慢后快地甩也算不快
   const drag = useRef(null);
-  const onPointerDown = (e) => {
-    if (!isTouch() || e.target.closest('button,a')) return;
-    const scroller = panel.current?.querySelector('.sheet-body');
-    if (scroller && scroller.scrollTop > 0 && !e.target.closest('.sheet-grip')) return;
-    drag.current = { y: e.clientY, t: performance.now(), dy: 0 };
-  };
-  const onPointerMove = (e) => {
-    const d = drag.current; if (!d) return;
-    d.dy = Math.max(0, e.clientY - d.y);
-    panel.current.style.transition = 'none';
-    panel.current.style.transform = `translate3d(0,${d.dy}px,0)`;
-  };
-  const onPointerUp = () => {
-    const d = drag.current; if (!d) return;
-    drag.current = null;
-    const v = d.dy / Math.max(1, performance.now() - d.t);
-    panel.current.style.transition = '';
-    panel.current.style.transform = '';
-    if (d.dy > 120 || v > .6) close();
-  };
+  useEffect(() => {
+    const el = panel.current;
+    if (!el || !isTouch()) return;
+    const start = (e) => {
+      drag.current = null;
+      if (e.touches.length !== 1 || e.target.closest('button,a')) return;
+      const scroller = el.querySelector('.sheet-body');
+      if (scroller && scroller.scrollTop > 0 && !e.target.closest('.sheet-grip')) return;
+      const t = e.touches[0];
+      drag.current = { x: t.clientX, y: t.clientY, dy: 0, on: false, track: [[t.clientY, e.timeStamp]] };
+    };
+    const move = (e) => {
+      const d = drag.current; if (!d) return;
+      const t = e.touches[0], dy = t.clientY - d.y, dx = t.clientX - d.x;
+      if (!d.on) {
+        if (dy <= 0 || Math.abs(dx) > dy) { drag.current = null; return; }   // 往上推 / 横着：交给滚动
+        d.on = true;
+      }
+      if (e.cancelable) e.preventDefault();
+      d.dy = Math.max(0, dy);
+      d.track.push([t.clientY, e.timeStamp]);
+      if (d.track.length > 12) d.track.shift();
+      el.style.transition = 'none';
+      el.style.transform = `translate3d(0,${d.dy}px,0)`;
+    };
+    const end = (e) => {
+      const d = drag.current; drag.current = null;
+      if (!d?.on) return;
+      const from = e.type === 'touchend' && d.track.find(([, t]) => e.timeStamp - t <= 100);
+      const v = from && e.timeStamp - from[1] >= 8 ? (d.track.at(-1)[0] - from[0]) / (e.timeStamp - from[1]) : 0;
+      // 关：面板停在手指松开的地方，关闭动画从这里接着往下滑（以前先跳回顶上再滑下去）
+      if (d.dy > 120 || v > .4) { close(); return; }   // 400px/s：比翻页（200px/s）高，关错了得重新找书
+      el.style.transition = ''; el.style.transform = '';
+    };
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchmove', move, { passive: false });
+    el.addEventListener('touchend', end, { passive: true });
+    el.addEventListener('touchcancel', end, { passive: true });
+    return () => { el.removeEventListener('touchstart', start); el.removeEventListener('touchmove', move); el.removeEventListener('touchend', end); el.removeEventListener('touchcancel', end); };
+  }, [book?.id]);
 
   if (!book) return null;
 
@@ -173,8 +196,7 @@ export default function BookSheet() {
   return (
     <div className={`sheet-layer ${closing ? 'is-closing' : ''}`} role="dialog" aria-modal="true" aria-label={book.title}>
       <div className="sheet-scrim" onClick={close} />
-      <aside ref={panel} className={`sheet glass-dense${partial ? ' is-partial' : ''}`}
-        onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>
+      <aside ref={panel} className={`sheet glass-dense${partial ? ' is-partial' : ''}`}>
         <div className="sheet-grip" aria-hidden="true" />
         <button className="btn btn-ghost btn-icon sheet-close" onClick={close} aria-label="关闭"><Icon name="close" /></button>
         <div className="sheet-body">

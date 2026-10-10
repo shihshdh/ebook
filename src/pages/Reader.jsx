@@ -24,6 +24,19 @@ import '../styles/reader.css';
 const flatten = (items, depth = 0) => items.flatMap(item => [{ ...item, depth }, ...flatten(item.subitems || [], depth + 1)]);
 const cfiCmp = new EpubCFI();
 const EASE = 'cubic-bezier(.16,1,.3,1)';
+// 横划翻页的判定。以前只看松手时的位移（横着超过 40px、还要比竖的多 1.3 倍）：像番茄那样轻轻一拨，手指只走了十几二十像素，
+// 点按不算、翻页也不算，什么都不发生，得「用点力」划长一点。现在看松手前 ~100ms 的速度：过了 SLOP、够快就翻；
+// 慢慢拖过 DIST 也翻；往回甩（速度和位移反方向）= 改主意，弹回
+const SLOP = 8;      // 动过这么多像素才算拖动（再小是点按）
+const FLING = .2;    // 松手速度（px/ms，= 200px/s）超过这个算「拨」。浏览器会把点按容差里的移动合并掉，轻拨 20px 往往只来一两个触点，门槛不能高
+const DIST = 40;     // 慢慢拖，超过这个距离松手也翻
+/** 往哪翻：1 下一页、-1 上一页、0 弹回。track：[[x, 时间]...] 最近的触点 */
+function swipeDir(dx, track, x, t) {
+  const from = track.find(([, tt]) => t - tt <= 100);   // 松手前 100ms 内最早的点；手指停住不动再松手就没有，速度算 0
+  const v = from && t - from[1] >= 8 ? (x - from[0]) / (t - from[1]) : 0;
+  if (Math.abs(v) >= FLING) return Math.sign(v) === Math.sign(dx) ? -Math.sign(dx) : 0;
+  return Math.abs(dx) >= DIST ? -Math.sign(dx) : 0;
+}
 // 划线四色：金、绯、青、紫（和整站点缀色一致）
 const INKS = { gold: '#e2b45c', rose: '#ff8f80', jade: '#7fd4a8', lilac: '#b9a8f0' };
 const hlStyle = (color, dark) => ({ fill: INKS[color] || INKS.gold, 'fill-opacity': dark ? '0.32' : '0.42', 'mix-blend-mode': dark ? 'screen' : 'multiply' });
@@ -121,6 +134,7 @@ export default function Reader() {
   const [canReturn, setCanReturn] = useState(false);
   const [toast, setToast] = useState('');
   const [pull, setPull] = useState(0);                  // 下拉书签的位移
+  const pullArmed = useRef(false);                      // 下拉已经到位（松手就加 / 删书签）
   const [notes, setNotes] = useState([]);               // 划线与笔记
   const [sel, setSel] = useState(null);                 // 选中文字的浮层 {cfi, text, x, y, top, existing}
   const [draft, setDraft] = useState(null);             // 正在写的笔记 {cfi, text}
@@ -141,6 +155,7 @@ export default function Reader() {
   const display = (target, remember = true) => {
     const r = engine.current?.rendition;
     if (!r) return;
+    settleSwipe();
     if (remember && position.current?.cfi) { history.current.push(position.current.cfi); setCanReturn(true); }
     turnDir.current = 0;
     return r.display(target).then(() => { if (typeof target === 'string' && target.startsWith('epubcfi(')) settle(target); }).catch(() => say('无法跳转到该位置'));
@@ -154,12 +169,75 @@ export default function Reader() {
   const turn = (dir) => {
     const r = engine.current?.rendition;
     if (!r) return;
+    settleSwipe();
     turnDir.current = dir;
     Promise.resolve(dir < 0 ? r.prev() : r.next()).catch(() => {});
   };
+
+  // ---------- 横划翻页：书页跟手 ----------
+  // 同一章的书页都排在一个很宽的 iframe 里，epub.js 的容器（overflow: hidden）横着滚一屏就是翻一页。
+  // 所以手指拖动时直接平移书页（.epub-view），露出的就是真实的相邻一页，1:1 跟手；松手翻过去还是弹回，
+  // 走完剩下距离的那一帧里，同步调 epub.js 自己的 manager.next() / prev() 滚过去、清掉平移，看不出接缝。
+  // 相邻一页在别的章（还没排出来）、从右往左排版、固定版式：照旧整页只挪 35%、变淡，松手再翻（和原来一样）。
+  const swipe = useRef(null);   // 这一次拖动：{ pg, mode: 'follow' | 'nudge', x, anims, done }
+  const pager = () => {
+    const r = engine.current?.rendition, m = r?.manager;
+    if (!m?.isPaginated || m.settings.axis !== 'horizontal' || (m.settings.direction && m.settings.direction !== 'ltr') || m.layout?.name === 'pre-paginated') return null;
+    const c = m.container, delta = m.layout.delta;
+    const views = [...c.children].filter(el => el.classList.contains('epub-view'));
+    if (!views.length || !delta) return null;
+    // 和 DefaultViewManager.next / prev 判断「这一章里还有没有」的算法一致
+    return { r, m, delta, views, next: c.scrollLeft + c.offsetWidth + delta <= c.scrollWidth, prev: c.scrollLeft > 0 };
+  };
+  const shiftViews = (pg, x) => { for (const v of pg.views) v.style.transform = x ? `translate3d(${x}px,0,0)` : ''; };
+  const nudge = (dx) => {   // 老样子：整页挪 35%、变淡；dx = null 弹回
+    const h = host.current;
+    if (!h) return;
+    if (dx == null) { h.style.transition = `transform .35s ${EASE}, opacity .35s`; h.style.transform = ''; h.style.opacity = ''; return; }
+    h.style.transition = 'none'; h.style.transform = `translate3d(${dx * .35}px,0,0)`; h.style.opacity = String(1 - Math.min(.35, Math.abs(dx) / 900));
+  };
+  // 上一次松手的收尾还没走完就又动了（快速连翻、又点了一下）：直接走完，从新的一页开始。
+  // 拖到一半没收到松手（不该有，保险）：书页放回原位
+  function settleSwipe() {
+    const s = swipe.current;
+    if (!s) return;
+    swipe.current = null;
+    if (s.anims) s.done();
+    else { if (s.pg) shiftViews(s.pg, 0); if (s.mode === 'nudge') nudge(null); }
+  }
+  const swipeMove = (dx) => {
+    if (swipe.current?.anims) settleSwipe();
+    const s = swipe.current || (swipe.current = { pg: pager(), mode: '' });
+    const follow = s.pg && (dx < 0 ? s.pg.next : s.pg.prev);
+    if (follow) {
+      if (s.mode === 'nudge') { const h = host.current; h.style.transition = 'none'; h.style.transform = ''; h.style.opacity = ''; }
+      shiftViews(s.pg, dx);
+    } else {
+      if (s.mode === 'follow') shiftViews(s.pg, 0);
+      nudge(dx);
+    }
+    s.mode = follow ? 'follow' : 'nudge'; s.x = dx;
+  };
+  // dir：1 下一页、-1 上一页、0 弹回
+  const swipeEnd = (dir) => {
+    const s = swipe.current;
+    if (!s || s.mode !== 'follow') { swipe.current = null; nudge(null); if (dir) turn(dir); return; }
+    const { pg } = s;
+    // 松手那一下的方向在别的章（手指最后越过了起点，很少见）：书页放回原位，按普通翻页走
+    if (dir && !(dir > 0 ? pg.next : pg.prev)) { swipe.current = null; shiftViews(pg, 0); turn(dir); return; }
+    const to = dir ? -dir * pg.delta : 0;
+    s.done = () => {
+      s.anims.forEach(a => a.cancel());
+      shiftViews(pg, 0);
+      if (dir) { dir > 0 ? pg.m.next() : pg.m.prev(); pg.r.reportLocation(); }   // 这一章里的翻页是同步滚动，和清平移在同一帧
+    };
+    // 走完剩下的距离：翻过去 300ms（和点按翻页的滑入一样），弹回 .35s（和原来的弹回一样）
+    s.anims = pg.views.map(v => v.animate([{ transform: `translate3d(${s.x}px,0,0)` }, { transform: to ? `translate3d(${to}px,0,0)` : 'none' }], { duration: dir ? 300 : 350, easing: EASE, fill: 'forwards' }));
+    s.anims[0].onfinish = () => { if (swipe.current === s) { swipe.current = null; s.done(); } };
+  };
   const chapterJump = (dir) => {
     const sec = engine.current?.book?.spine.get(loc.spine + dir);
-    if (sec) { turnDir.current = dir; engine.current.rendition.display(sec.href); }
+    if (sec) { settleSwipe(); turnDir.current = dir; engine.current.rendition.display(sec.href); }
   };
   const goReturn = () => {
     const cfi = history.current.pop();
@@ -319,17 +397,19 @@ export default function Reader() {
         turn(['ArrowLeft', 'ArrowUp', 'PageUp'].includes(e.key) || (e.key === ' ' && e.shiftKey) ? -1 : 1);
       }
     },
-    // 手指拖动：横向页面跟手；从顶部向下拉 = 书签
-    drag: (dx, dy, phase) => {
-      const h = host.current;
-      if (!h) return;
+    // 横划翻页（见上面「书页跟手」）
+    swipeMove, swipeEnd, settleSwipe,
+    // 从顶部往下拉 = 书签：拉到位那一下轻震（松手加 / 删书签时 toggleBookmark 自己再震一下）
+    pull: (dy, phase) => {
+      const p = Math.max(0, Math.min(110, dy * .45)), armed = p >= 72;
       if (phase === 'move') {
-        if (Math.abs(dx) > Math.abs(dy)) { h.style.transition = 'none'; h.style.transform = `translate3d(${dx * .35}px,0,0)`; h.style.opacity = String(1 - Math.min(.35, Math.abs(dx) / 900)); }
-        else if (dy > 0) setPull(Math.min(110, dy * .45));
+        if (armed && !pullArmed.current) haptic('light');
+        pullArmed.current = armed;
+        setPull(p);
         return;
       }
-      h.style.transition = `transform .35s ${EASE}, opacity .35s`; h.style.transform = ''; h.style.opacity = '';
-      if (phase === 'pull' && dy * .45 >= 72) toggleBookmark();
+      if (phase === 'end' && armed) toggleBookmark();
+      pullArmed.current = false;
       setPull(0);
     },
   };
@@ -370,29 +450,47 @@ export default function Reader() {
           act.current.tap(viewX(e.clientX));
         };
         const key = e => act.current.key(e);
+        // 手指（分页模式）：横划翻页，从顶部往下拉加书签。动过 SLOP 才认方向，认定了这一下就不再变（拇指划出的弧线不会半路变成别的）
+        // 触点换算成外层页面的坐标。iframe 里的 clientX 是相对 iframe 的，而书页拖动时 iframe 跟着平移（下拉书签时跟着下移）：
+        // 手指走 180px、书页跟到 90px，手指在 iframe 里就只「走了」90px——自己把自己抵消一半。旧版整页挪 35% 也一样被抵消，
+        // 40px 的门槛实际要划 54px，下拉书签实际要拉 230 多像素
+        const at = (p) => { const fr = contents.window.frameElement.getBoundingClientRect(); return [p.clientX + fr.left, p.clientY + fr.top]; };
         const start = e => {
-          if (e.touches.length !== 1) return;
-          const fr = contents.window.frameElement.getBoundingClientRect();
-          t0 = { x: e.touches[0].clientX, y: e.touches[0].clientY, top: e.touches[0].clientY + fr.top < 180 };
+          if (e.touches.length !== 1) { cancel(); return; }   // 第二根手指（缩放之类）：这一下不算
+          // 先换算再收尾：这个触点的 iframe 坐标是按收尾动画走到一半时的位置算的，收尾（清平移、滚一屏）以后 iframe 就挪了
+          const [x, y] = at(e.touches[0]);
+          act.current.settleSwipe();
+          t0 = { x, y, top: y < 180, axis: '', track: [[x, e.timeStamp]] };
         };
         const move = e => {
           if (!t0 || prefsRef.current.readerMode !== 'paginated') return;
-          const dx = e.touches[0].clientX - t0.x, dy = e.touches[0].clientY - t0.y;
-          if (Math.abs(dx) > 8 || (dy > 8 && t0.top)) act.current.drag(dx, t0.top ? dy : 0, 'move');
+          const [x, y] = at(e.touches[0]), dx = x - t0.x, dy = y - t0.y;
+          t0.track.push([x, e.timeStamp]);
+          if (t0.track.length > 12) t0.track.shift();
+          if (!t0.axis) {
+            if (Math.abs(dx) > SLOP && Math.abs(dx) >= Math.abs(dy)) t0.axis = 'x';
+            else if (t0.top && dy > SLOP && dy > Math.abs(dx)) t0.axis = 'y';
+            else if (Math.abs(dy) > SLOP) t0.axis = '-';   // 竖着划：分页模式下没有别的用处，不当翻页
+          }
+          if (t0.axis === 'x') act.current.swipeMove(dx);
+          else if (t0.axis === 'y') act.current.pull(dy, 'move');
         };
         const end = e => {
-          if (!t0) return;
-          const dx = e.changedTouches[0].clientX - t0.x, dy = e.changedTouches[0].clientY - t0.y;
-          if (prefsRef.current.readerMode === 'paginated') {
-            if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.3) { suppress = Date.now() + 500; act.current.drag(0, 0, 'end'); act.current.turn(dx < 0 ? 1 : -1); }
-            else if (t0.top && dy > 30 && dy > Math.abs(dx)) { suppress = Date.now() + 500; act.current.drag(0, dy, 'pull'); }
-            else act.current.drag(0, 0, 'end');
-          }
-          t0 = null;
+          const g = t0; t0 = null;
+          if (!g || prefsRef.current.readerMode !== 'paginated') return;
+          const [x, y] = at(e.changedTouches[0]);
+          if (g.axis === 'x') { suppress = Date.now() + 500; act.current.swipeEnd(swipeDir(x - g.x, g.track, x, e.timeStamp)); }
+          else if (g.axis === 'y') { suppress = Date.now() + 500; act.current.pull(y - g.y, 'end'); }
         };
+        // 被系统打断（来电、手势导航、第二根手指）：书页回原位，不翻
+        function cancel() {
+          const g = t0; t0 = null;
+          if (g?.axis === 'x') act.current.swipeEnd(0);
+          else if (g?.axis === 'y') act.current.pull(0, 'cancel');
+        }
         doc.addEventListener('click', click); doc.addEventListener('keydown', key);
-        doc.addEventListener('touchstart', start, { passive: true }); doc.addEventListener('touchmove', move, { passive: true }); doc.addEventListener('touchend', end, { passive: true });
-        disposers.push(() => { doc.removeEventListener('click', click); doc.removeEventListener('keydown', key); doc.removeEventListener('touchstart', start); doc.removeEventListener('touchmove', move); doc.removeEventListener('touchend', end); });
+        doc.addEventListener('touchstart', start, { passive: true }); doc.addEventListener('touchmove', move, { passive: true }); doc.addEventListener('touchend', end, { passive: true }); doc.addEventListener('touchcancel', cancel, { passive: true });
+        disposers.push(() => { doc.removeEventListener('click', click); doc.removeEventListener('keydown', key); doc.removeEventListener('touchstart', start); doc.removeEventListener('touchmove', move); doc.removeEventListener('touchend', end); doc.removeEventListener('touchcancel', cancel); });
       });
       rendition.on('selected', (cfiRange, contents) => {
         const text = contents.window.getSelection()?.toString().trim();

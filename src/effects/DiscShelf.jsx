@@ -8,15 +8,21 @@ import Icon from '../components/Icon.jsx';
 import { prefersReduced } from '../lib/motion.js';
 import { FPS_ACTIVE, FPS_IDLE, cappedRaf } from '../lib/frame.js';
 import { pressBook, stopWarm, warmBook } from '../lib/glyph-warm.js';
+import { haptic } from '../lib/native.js';
 import './DiscShelf.css';
 
 const WINDOW = 4;
+// 拖动松手：以前只按停手位置四舍五入——快速甩一下（手指走 60px）只算 0.4 张，又弹回原来那张，得「用力」拖过半张。
+// 现在看松手前 ~100ms 的速度：够快就顺着甩的方向多推一段（按 FLING_MS 的惯性估），至少换一张，一次最多 FLING_MAX 张
+const FLING = .25;       // px/ms
+const FLING_MS = 160;    // 惯性：按松手速度再走这么久的距离
+const FLING_MAX = 3;
 
 export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }) {
   const n = books.length;
   const stageRef = useRef(null);
   const discRefs = useRef(new Map());
-  const motion = useRef({ p: 0, v: 0, target: 0, spin: 0, last: 0 });
+  const motion = useRef({ p: 0, v: 0, target: 0, spin: 0, last: 0, felt: 0 });   // felt：上次震过的那一张
   const [current, setCurrent] = useState(0);
   const [visible, setVisible] = useState([0, Math.min(n - 1, WINDOW)]);
   const reduced = useRef(false);
@@ -107,6 +113,9 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
         m.spin += dt * 9 + m.v * dt * 60;
       }
       draw.current();
+      // 换到新的一张、盘停到位（离目标不到 0.04 张）那一下轻震（安卓；拖动中目标不是整数，不震）
+      const at = Math.round(m.target);
+      if (at === m.target && at !== m.felt && Math.abs(m.target - m.p) < .04) { m.felt = at; haptic('light'); }
       const lo = Math.max(0, Math.floor(m.p) - WINDOW), hi = Math.min(n - 1, Math.ceil(m.p) + WINDOW);
       setVisible(prev => prev[0] === lo && prev[1] === hi ? prev : [lo, hi]);
       f.fps = Math.abs(m.target - m.p) + Math.abs(m.v) > .002 ? FPS_ACTIVE : FPS_IDLE;
@@ -139,19 +148,32 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
 
   // 拖动：横向一张盘的距离换一张；位移很小当点击
   const drag = useRef({ id: -1, x: 0, start: 0, moved: false });
-  const down = (e) => { if (e.button !== 0) return; drag.current = { id: e.pointerId, x: e.clientX, start: motion.current.target, moved: false }; };
+  const down = (e) => { if (e.button !== 0) return; drag.current = { id: e.pointerId, x: e.clientX, start: motion.current.target, moved: false, track: [[e.clientX, e.timeStamp]] }; };
+  const perDisc = () => (innerWidth < 640 ? 150 : 230);   // 拖多少像素换一张
   const move = (e) => {
     const g = drag.current;
     if (g.id !== e.pointerId) return;
     const dx = e.clientX - g.x;
+    g.track.push([e.clientX, e.timeStamp]);
+    if (g.track.length > 12) g.track.shift();
     if (!g.moved && Math.abs(dx) > 6) { g.moved = true; stageRef.current?.setPointerCapture(e.pointerId); stopWarm(); }
-    if (g.moved) { motion.current.target = Math.max(-.4, Math.min(n - .6, g.start - dx / (innerWidth < 640 ? 150 : 230))); wake(); }
+    if (g.moved) { motion.current.target = Math.max(-.4, Math.min(n - .6, g.start - dx / perDisc())); wake(); }
   };
   const up = (e) => {
     const g = drag.current;
     if (g.id !== e.pointerId) return;
     drag.current.id = -1;
-    if (g.moved) go(Math.round(motion.current.target));
+    if (!g.moved) return;
+    let to = motion.current.target;
+    const from = e.type === 'pointerup' && g.track.find(([, t]) => e.timeStamp - t <= 100);   // 被打断（pointercancel）不算甩
+    const v = from && e.timeStamp - from[1] >= 8 ? (e.clientX - from[0]) / (e.timeStamp - from[1]) : 0;
+    if (Math.abs(v) >= FLING) {
+      const dir = v < 0 ? 1 : -1;   // 手指往左甩 = 往后翻
+      to = Math.round(to - v * FLING_MS / perDisc());
+      const base = Math.round(g.start);
+      to = dir > 0 ? Math.min(Math.max(to, base + 1), base + FLING_MAX) : Math.max(Math.min(to, base - 1), base - FLING_MAX);
+    }
+    go(Math.round(to));
   };
   const at = Math.min(current, n - 1);
   const clickDisc = (i, el) => {

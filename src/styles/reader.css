@@ -48,7 +48,8 @@
 }
 .is-touch .rd-ribbon { right: 18px; }
 .rd-ribbon svg { width: 100%; height: 100%; fill: rgba(255, 246, 225, .14); stroke: rgba(255, 246, 225, .25); stroke-width: 1; }
-.rd-ribbon:hover, .reader2.is-open .rd-ribbon { transform: translate3d(0, -12px, 0); }
+.reader2.is-open .rd-ribbon { transform: translate3d(0, -12px, 0); }
+@media (hover: hover) { .rd-ribbon:hover { transform: translate3d(0, -12px, 0); } }
 .rd-ribbon.on { transform: none; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .45)); }
 .rd-ribbon.on svg { fill: #d9b46c; stroke: #f6e3b4; }
 .has-sidebar .rd-ribbon { right: clamp(16px, calc((100% - 340px) / 2 - 380px + 18px), 50vw); }
@@ -84,7 +85,7 @@
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; height: 40px; padding: 0 12px; border: 0; border-radius: 13px;
   background: none; color: var(--ink2); font-size: 13px; white-space: nowrap; transition: background .2s, color .2s, transform .12s;
 }
-.rd-btn:hover { background: rgba(255, 255, 255, .07); color: var(--ink); }
+@media (hover: hover) { .rd-btn:hover { background: rgba(255, 255, 255, .07); color: var(--ink); } }
 .rd-btn:active { transform: scale(.95); }
 .rd-btn.on { color: var(--gold); }
 .rd-btn.sm { height: 32px; min-width: 32px; padding: 0 10px; font-size: 12px; border-radius: 10px; }
@@ -153,7 +154,7 @@
   width: 100%; display: flex; flex-direction: column; text-align: left; padding: 10px 12px 10px calc(12px + var(--depth, 0) * 16px); border: 0; border-radius: 12px;
   background: none; color: var(--ink2); font-size: 14px; line-height: 1.45; transition: background .2s, color .2s;
 }
-.rd-toc li button:hover { background: rgba(255, 255, 255, .05); color: var(--ink); }
+@media (hover: hover) { .rd-toc li button:hover { background: rgba(255, 255, 255, .05); color: var(--ink); } }
 .rd-toc li.is-read button { color: var(--ink3); }
 .rd-toc li.is-current button { color: var(--gold); background: linear-gradient(90deg, rgba(233, 203, 139, .14), transparent); box-shadow: inset 2px 0 0 var(--gold); }
 .rd-toc small { font-size: 11px; color: var(--ink3); margin-top: 2px; }
@@ -208,7 +209,7 @@
 .rd-sel.below::after { top: -6px; border-bottom: 0; border-right: 0; }
 .rd-sel-inks { display: flex; gap: 6px; padding: 0 6px; }
 .rd-sel-inks button { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 0; background: var(--c); box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), 0 2px 6px -2px rgba(0, 0, 0, .4); transition: transform .25s var(--ease-back); }
-.rd-sel-inks button:hover { transform: scale(1.18); }
+@media (hover: hover) { .rd-sel-inks button:hover { transform: scale(1.18); } }
 .rd-sel-inks button.on { box-shadow: 0 0 0 2px var(--rd-page), 0 0 0 3.5px var(--c); }
 .rd-sel-sep { width: 1px; height: 22px; background: var(--line2); margin: 0 4px; }
 .rd-sel .rd-btn.sm { padding: 0 9px; gap: 4px; }
@@ -260,7 +261,7 @@
   display: inline-flex; align-items: center; gap: 6px; max-width: min(46vw, 320px); height: 32px; padding: 0 10px; border: 0; border-radius: 999px;
   background: none; color: var(--ink3); font-size: 12.5px; white-space: nowrap;
 }
-.rd-srnav-q:hover { background: rgba(255, 255, 255, .06); }
+@media (hover: hover) { .rd-srnav-q:hover { background: rgba(255, 255, 255, .06); } }
 .rd-srnav-q span { min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--gold); font-family: var(--serif); font-size: 13.5px; }
 .rd-srnav-q b { font-weight: 500; }
 .rd-srnav-float {

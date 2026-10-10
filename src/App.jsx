@@ -16,6 +16,7 @@ import { onBackButton } from './lib/native.js';
 import { loadLibrary, libraryBooks, classics, WORLDS, worldScore } from './lib/library.js';
 import { prefetchCovers } from './lib/covers.js';
 import { trackPointerGlow } from './lib/motion.js';
+import './lib/press.js';   // 触屏按下反馈
 import { lazyOptional } from './lib/optional.jsx';
 import Home from './pages/Home.jsx';
 import Explore from './pages/Explore.jsx';

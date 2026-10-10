@@ -14,7 +14,7 @@
 .mw-tile { content-visibility: auto; contain-intrinsic-size: auto 280px; }
 .mw-tile .cover, .mw-tile .cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .mw-tile .cover img { transition: transform .7s var(--ease), filter .5s; }
-.mw-tile:hover .cover img { transform: scale(1.04); }
+@media (hover: hover) { .mw-tile:hover .cover img { transform: scale(1.04); } }
 .mw-tile:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
 .mw-glitch { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
 .mw-badge {
@@ -26,7 +26,8 @@
   padding: 40px 14px 12px; background: linear-gradient(180deg, transparent, rgba(8, 7, 6, .92));
   transform: translate3d(0, 12px, 0); opacity: 0; transition: transform .5s var(--ease), opacity .4s;
 }
-.mw-tile:hover figcaption, .mw-tile figcaption.always { transform: none; opacity: 1; }
+.mw-tile figcaption.always { transform: none; opacity: 1; }
+@media (hover: hover) { .mw-tile:hover figcaption { transform: none; opacity: 1; } }
 .mw-tile figcaption strong { font-family: var(--serif); font-weight: 600; font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mw-tile figcaption span { font-size: 11.5px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

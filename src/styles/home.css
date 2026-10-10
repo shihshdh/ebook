@@ -51,7 +51,7 @@
   width: 100%; display: grid; grid-template-columns: 46px 38px minmax(0, 1fr) auto; align-items: center; gap: 14px;
   padding: 9px 8px; border: 0; background: none; text-align: left; border-radius: 14px; transition: background var(--d-state), transform var(--d-state) var(--ease);
 }
-.rank li button:hover { background: var(--soft-2); transform: translate3d(4px, 0, 0); }
+@media (hover: hover) { .rank li button:hover { background: var(--soft-2); transform: translate3d(4px, 0, 0); } }
 .rank-no { font-size: 23px; color: var(--ink3); text-align: center; }
 .rank-no.top { color: var(--gold); font-size: 27px; }
 .rank .cover { display: block; aspect-ratio: 5 / 7; border-radius: 4px; overflow: hidden; box-shadow: 0 6px 12px -6px rgba(0, 0, 0, .5); }
@@ -65,7 +65,7 @@
 .illus-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
 .illus-card { position: relative; padding: 0; border: 0; background: none; text-align: left; animation: reveal .6s var(--ease) backwards; animation-delay: calc(var(--i) * 50ms); }
 .illus-card .cover { display: block; aspect-ratio: 5 / 7; border-radius: 10px; overflow: hidden; box-shadow: 0 18px 30px -18px rgba(0, 0, 0, .6), 0 0 0 1px var(--line); transition: transform .5s var(--ease); }
-.illus-card:hover .cover { transform: translate3d(0, -5px, 0) rotate(-1deg); }
+@media (hover: hover) { .illus-card:hover .cover { transform: translate3d(0, -5px, 0) rotate(-1deg); } }
 .illus-card img { width: 100%; height: 100%; object-fit: cover; }
 /* 卷数角标：一小块金色玻璃 */
 .illus-badge {
@@ -85,7 +85,7 @@
 .fresh-shelf { display: none; }
 .fresh-card { display: flex; flex-direction: column; gap: 6px; padding: 0; border: 0; background: none; text-align: left; scroll-snap-align: start; color: inherit; text-decoration: none; }
 .fresh-card .cover { display: block; aspect-ratio: 5 / 7; border-radius: 8px; overflow: hidden; box-shadow: 0 14px 24px -16px rgba(0, 0, 0, .55), 0 0 0 1px var(--line); transition: transform .45s var(--ease); }
-.fresh-card:hover .cover { transform: translate3d(0, -4px, 0); }
+@media (hover: hover) { .fresh-card:hover .cover { transform: translate3d(0, -4px, 0); } }
 .fresh-card img { width: 100%; height: 100%; object-fit: cover; }
 .fresh-card strong { font-size: 13.5px; font-weight: 600; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .fresh-card small { font-size: 11.5px; color: var(--ink3); }
@@ -123,7 +123,7 @@
 .starter-list { list-style: none; margin: 0; padding: clamp(16px, 2vw, 22px); border-radius: 28px; }
 .starter-list li + li { border-top: 1px solid var(--line); }
 .starter-list button { width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 12px 8px; border: 0; background: none; text-align: left; border-radius: 14px; transition: background var(--d-state); }
-.starter-list button:hover { background: var(--soft-2); }
+@media (hover: hover) { .starter-list button:hover { background: var(--soft-2); } }
 .starter-no { font-family: var(--serif); font-weight: 700; font-size: 20px; color: var(--gold); line-height: 1.3; }
 .starter-list strong { display: block; font-family: var(--serif); font-size: 16px; font-weight: 600; }
 .starter-list small { display: block; margin-top: 2px; font-size: 13px; color: var(--ink2); line-height: 1.6; }

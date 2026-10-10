@@ -44,8 +44,10 @@
   box-shadow: 0 4px 10px -4px #0008;
 }
 .ff-stage[data-open] .ff-card { transform: translate3d(var(--open-x), var(--open-y), 0) rotate(var(--open-r)) scale(1.12); }
-.ff-card:hover, .ff-card:focus-visible { z-index: 20 !important; }
-.ff-card:hover .ff-face, .ff-card:focus-visible .ff-face { transform: translate3d(0, -32px, 0) scale(1.08); border-color: #fff; box-shadow: 0 26px 40px -16px var(--f-shadow); }
+.ff-card:focus-visible { z-index: 20 !important; }
+@media (hover: hover) { .ff-card:hover { z-index: 20 !important; } }
+.ff-card:focus-visible .ff-face { transform: translate3d(0, -32px, 0) scale(1.08); border-color: #fff; box-shadow: 0 26px 40px -16px var(--f-shadow); }
+@media (hover: hover) { .ff-card:hover .ff-face { transform: translate3d(0, -32px, 0) scale(1.08); border-color: #fff; box-shadow: 0 26px 40px -16px var(--f-shadow); } }
 
 /* 前袋：磨砂玻璃 */
 .ff-pocket {

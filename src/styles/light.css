@@ -65,7 +65,7 @@ html.theme-fade, html.theme-fade * { transition: background-color .45s ease, col
 [data-theme="light"] .page-river { background: var(--bg) !important; }
 [data-theme="light"] .page-river-still { background: radial-gradient(ellipse at 70% 48%, rgba(216, 180, 108, .3), transparent 45%) !important; }
 [data-theme="light"] .continue-card, [data-theme="light"] .result { background: rgba(255, 255, 255, .55); }
-[data-theme="light"] .continue-card:hover, [data-theme="light"] .result:hover { background: rgba(255, 255, 255, .85); border-color: rgba(165, 118, 42, .35); }
+@media (hover: hover) { [data-theme="light"] .continue-card:hover, [data-theme="light"] .result:hover { background: rgba(255, 255, 255, .85); border-color: rgba(165, 118, 42, .35); } }
 [data-theme="light"] .world-card { background: linear-gradient(170deg, rgba(255, 255, 255, .7), rgba(255, 255, 255, .25)); }
 [data-theme="light"] .world-glyph { filter: none; }
 [data-theme="light"] .skeleton-disc { background: linear-gradient(100deg, rgba(0, 0, 0, .03) 30%, rgba(0, 0, 0, .06) 50%, rgba(0, 0, 0, .03) 70%); background-size: 300% 100%; }
@@ -128,7 +128,7 @@ html.theme-fade, html.theme-fade * { transition: background-color .45s ease, col
 [data-theme="light"] .switch.on i { background: #b8862f; }
 
 /* ---------- 阅读器：浅色纸张时的工具栏 ---------- */
-.reader2[data-theme="light"] .rd-btn:hover { background: rgba(60, 44, 20, .06); }
+@media (hover: hover) { .reader2[data-theme="light"] .rd-btn:hover { background: rgba(60, 44, 20, .06); } }
 .reader2[data-theme="light"] .liquid-tabs { background: rgba(60, 44, 20, .07); box-shadow: inset 0 1px 2px rgba(60, 44, 20, .12); }
 .reader2[data-theme="light"] .liquid-tabs-thumb { background: linear-gradient(180deg, #fff, rgba(255, 249, 235, .85)); box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(165, 118, 42, .3), 0 6px 14px -8px rgba(90, 66, 30, .45); }
 .reader2[data-theme="light"] .rd-track { background: rgba(60, 44, 20, .12); }
@@ -136,7 +136,7 @@ html.theme-fade, html.theme-fade * { transition: background-color .45s ease, col
 .reader2[data-theme="light"] .rd-ribbon svg { fill: rgba(60, 44, 20, .1); stroke: rgba(60, 44, 20, .2); }
 .reader2[data-theme="light"] .rd-ribbon.on svg { fill: #c99b46; stroke: #fff4d6; }
 .reader2[data-theme="light"] .rd-scrim { background: rgba(60, 44, 20, .14); }
-.reader2[data-theme="light"] .rd-toc li button:hover { background: rgba(60, 44, 20, .05); }
+@media (hover: hover) { .reader2[data-theme="light"] .rd-toc li button:hover { background: rgba(60, 44, 20, .05); } }
 .reader2[data-theme="light"] .rd-toc li.is-current button { background: linear-gradient(90deg, rgba(165, 118, 42, .14), transparent); }
 .reader2[data-theme="light"] .rd-row .rd-btn { background: rgba(60, 44, 20, .05); }
 .reader2[data-theme="light"] .rd-papers button { border-color: rgba(60, 44, 20, .15); }

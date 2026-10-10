@@ -57,7 +57,7 @@
 .ws-cap-glyph { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; font-size: 18px; font-weight: 900; background: var(--c); color: #120e0a; flex: none; }
 .ws-cap-label { max-width: 0; overflow: hidden; white-space: nowrap; font-size: 13px; transition: max-width .7s var(--ease), margin .5s var(--ease); }
 .ws-cap-label small { color: var(--ink2); font-size: 12px; }
-.ws-cap:hover .ws-cap-label { max-width: 4em; margin: 0 10px 0 8px; }
+@media (hover: hover) { .ws-cap:hover .ws-cap-label { max-width: 4em; margin: 0 10px 0 8px; } }
 .ws-cap.on { padding-right: 6px; background: color-mix(in srgb, var(--c) 32%, rgba(255, 255, 255, .06)); }
 .ws-cap.on .ws-cap-label { max-width: 26em; margin: 0 12px 0 10px; }
 .ws-caret { display: inline-block; width: 1px; height: 1em; margin-left: 2px; vertical-align: -.15em; background: currentColor; animation: caret 1s steps(1) infinite; }
