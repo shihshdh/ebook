@@ -57,7 +57,7 @@ html.theme-fade, html.theme-fade * { transition: background-color .45s ease, col
 [data-theme="light"] .topbar::before { background: linear-gradient(180deg, rgba(244, 239, 230, .9), rgba(244, 239, 230, .55) 60%, rgba(244, 239, 230, 0)); }
 [data-theme="light"] .splash { background: radial-gradient(60% 50% at 50% 46%, #fbf6ec, #efe7d8 70%); }
 [data-theme="light"] .splash.is-fly { background: transparent; }
-[data-theme="light"] .tabbar .liquid-thumb { background: linear-gradient(180deg, rgba(255, 255, 255, .9), rgba(246, 227, 180, .45)); box-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(165, 118, 42, .3), 0 6px 14px -8px rgba(165, 118, 42, .5); }
+[data-theme="light"] .tabbar .liquid-thumb { --lt-bg: linear-gradient(180deg, rgba(255, 255, 255, .9), rgba(246, 227, 180, .45)); --lt-shadow: inset 0 1px 0 #fff, inset 0 0 0 1px rgba(165, 118, 42, .3), 0 6px 14px -8px rgba(165, 118, 42, .5); }
 
 /* ---------- 首页 ---------- */
 [data-theme="light"] .hero-title { text-shadow: 0 10px 40px rgba(244, 239, 230, .9); }

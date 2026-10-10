@@ -23,12 +23,19 @@
 }
 @media (hover: hover) { .topnav-item:hover { color: var(--ink); } }
 .topnav-item.active { color: #1a140a; }
+/* 选中的那滴玻璃：左右两半各是一个整条导航那么长的胶囊（--lt-big），套在只露出一截的框里，在中段拼起来（为什么见 NavBar.jsx）。
+   颜色、阴影写成变量交给两个胶囊；框上下多留出地方，外阴影不被裁 */
 .liquid-thumb {
-  position: absolute; left: 0; top: 5px; bottom: 5px; z-index: 0; border-radius: 999px; transform-origin: 0 50%;
-  background: linear-gradient(180deg, #f6e3b4, #d8b56f);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 -2px 6px rgba(120, 80, 20, .25), 0 6px 18px -6px rgba(233, 203, 139, .7);
-  will-change: transform;
+  position: absolute; left: 0; top: 5px; bottom: 5px; z-index: 0; pointer-events: none;
+  --lt-bg: linear-gradient(180deg, #f6e3b4, #d8b56f);
+  --lt-shadow: inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 -2px 6px rgba(120, 80, 20, .25), 0 6px 18px -6px rgba(233, 203, 139, .7);
 }
+.lt-clip { position: absolute; left: 0; top: -24px; bottom: -32px; width: var(--lt-big, 0px); overflow: hidden; }
+.lt-cap {
+  position: absolute; left: 0; top: 24px; bottom: 32px; width: var(--lt-big, 0px); border-radius: 999px; transform-origin: 0 50%;
+  background: var(--lt-bg); box-shadow: var(--lt-shadow);
+}
+.lt-r .lt-cap { transform-origin: 100% 50%; }
 
 .tabbar { display: none; }
 
@@ -36,11 +43,12 @@
   .topbar { display: none; }
   .tabbar {
     position: fixed; left: 12px; right: 12px; bottom: calc(10px + var(--safe-b)); z-index: 50; height: var(--tab-h);
-    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 6px; border-radius: 26px;   /* 导入订阅源后多一格「订阅」：几格都平分 */
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 6px; border-radius: calc(var(--tab-h) / 2);   /* 导入订阅源后多一格「订阅」：几格都平分 */
     transition: transform var(--d-layout) var(--ease), opacity var(--d-layout);
   }
   .tabbar.is-hidden { transform: translate3d(0, 130%, 0); opacity: 0; }
-  .tabbar .liquid-thumb { top: 6px; bottom: 6px; border-radius: 20px; background: linear-gradient(180deg, rgba(246, 227, 180, .2), rgba(216, 181, 111, .12)); box-shadow: inset 0 1px 0 rgba(255, 249, 232, .4), inset 0 0 0 1px rgba(233, 203, 139, .35); }
+  /* 外框是全胶囊（半径 = 高度一半），滑块上下各让 6px、也是全胶囊，两条圆弧同心（iOS 标签栏的做法） */
+  .tabbar .liquid-thumb { top: 6px; bottom: 6px; --lt-bg: linear-gradient(180deg, rgba(246, 227, 180, .2), rgba(216, 181, 111, .12)); --lt-shadow: inset 0 1px 0 rgba(255, 249, 232, .4), inset 0 0 0 1px rgba(233, 203, 139, .35); }
   .tabbar-item {
     position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
     text-decoration: none; color: var(--ink3); font-size: 10.5px; letter-spacing: .04em; border-radius: 20px;
