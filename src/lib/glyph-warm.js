@@ -37,24 +37,57 @@ const SLOTS = [
   ['p', 'sheet-source muted', false, b => `来源：${(b.poolSources || []).join('、')}`],
 ];
 
-let slots = null;
+let slots = null, host = null;
+// 屏幕外盒子里建一个槽位：tag 写成 'div.dl-head>h3' 这样（外层带类名、最里层用 cls）
+function makeSlot(tag, cls) {
+  let parent = host, el;
+  for (const part of tag.split('>')) {
+    const [name, pcls] = part.split('.');
+    el = document.createElement(name);
+    if (pcls) el.className = pcls;
+    parent.appendChild(el);
+    parent = el;
+  }
+  if (cls) el.className = cls;
+  return el;
+}
 function build() {
-  const host = document.createElement('div');
+  host = document.createElement('div');
   host.className = 'glyph-warm';
   host.setAttribute('aria-hidden', 'true');
-  slots = SLOTS.map(([tag, cls, serif, text]) => {
-    let parent = host, el;
-    for (const part of tag.split('>')) {
-      const [name, pcls] = part.split('.');
-      el = document.createElement(name);
-      if (pcls) el.className = pcls;
-      parent.appendChild(el);
-      parent = el;
-    }
-    if (cls) el.className = cls;
-    return { el, serif, text, done: new Set() };
-  });
+  slots = SLOTS.map(([tag, cls, serif, text]) => ({ el: makeSlot(tag, cls), serif, text, done: new Set() }));
   document.body.appendChild(host);
+}
+
+// 空闲预热：一批到处都会用到的字（比如搜索结果行的标签、出版社、状态）按指定样式先排一遍。
+// 和按下时的预热共用屏幕外那个盒子；只在 requestIdleCallback 里一小段一小段地排（这一段空闲用完就停、下次空闲接着排），
+// 不和滚动、动画、按下时的预热抢主线程。只排无衬线（系统字体）的槽位：衬线字没下好的分片会被排字触发下载（见开头）
+const idleJobs = [];
+let idleScheduled = false;
+const whenIdle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn) : setTimeout(() => fn({ timeRemaining: () => 4 }), 200));
+function idlePump(deadline) {
+  idleScheduled = false;
+  while (idleJobs.length && deadline.timeRemaining() > 2) {
+    const job = idleJobs[0];
+    job.el.textContent = job.chars.splice(0, CHUNK).join('');
+    void job.el.offsetWidth;   // 当场排掉：字形数据就是这时候算的
+    if (!job.chars.length) { idleJobs.shift(); job.top.remove(); }   // 排完就拿掉，盒子里不留东西
+  }
+  if (idleJobs.length && !idleScheduled) { idleScheduled = true; whenIdle(idlePump); }
+}
+/** spec：[[标签, 类名], ...]（写法同 SLOTS）；texts：每个槽位要排的字 */
+export function warmIdle(spec, texts) {
+  if (typeof document === 'undefined') return;
+  if (!slots) build();
+  spec.forEach(([tag, cls], k) => {
+    const chars = [...new Set(texts[k] || '')].filter(c => c.trim());
+    if (!chars.length) return;
+    const el = makeSlot(tag, cls);
+    let top = el;
+    while (top.parentElement !== host) top = top.parentElement;
+    idleJobs.push({ el, top, chars });
+  });
+  if (idleJobs.length && !idleScheduled) { idleScheduled = true; whenIdle(idlePump); }
 }
 
 let queue = [], token = 0;
