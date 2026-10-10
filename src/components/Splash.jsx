@@ -55,7 +55,9 @@ export default function Splash({ onDone }) {
   }, []);
 
   return (
-    <div ref={root} className={`splash is-${phase}`} onClick={fly} role="presentation">
+    // out 阶段要带着 is-fly：以前类名只剩 is-out，is-fly 的样式（背景透明、标志副标题淡出）一去掉，
+    // 整个开屏又盖回已经露出来的首页，再淡出——首页闪一下（手机上 fly 拖得久，闪半秒）
+    <div ref={root} className={`splash is-${phase}${phase === 'out' ? ' is-fly' : ''}`} onClick={fly} role="presentation">
       <div className="splash-stage">
         <svg className="splash-glyph" viewBox="0 0 120 80" aria-hidden="true">
           <path className="g1" d="M60 18 C46 10 28 9 10 14 V68 C28 63 46 64 60 72" />
