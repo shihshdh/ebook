@@ -15,9 +15,12 @@ let snapshot = { ...state };
 const subs = new Set();
 const emit = () => { snapshot = { ...state }; subs.forEach(fn => fn()); };
 
+// 按更新日期从新到旧。日期都是 2026-10-09 这种写法（或者空），直接比字符串和 localeCompare 排出来一样（4798 本逐本核对过）；
+// localeCompare 第一次用要先把语言排序规则建起来，开屏时这一排 4 倍降速将近 100ms
+const byUpdated = (a, b) => { const x = a.updated || '', y = b.updated || ''; return x < y ? 1 : x > y ? -1 : 0; };
 function ingest(results) {
   const books = results.flatMap(r => r.books);
-  books.sort((a, b) => (b.updated || '').localeCompare(a.updated || ''));
+  books.sort(byUpdated);
   const byId = new Map(books.map(b => [b.id, b]));
   const counts = new Map();
   for (const b of books) for (const t of b.tags) counts.set(t, (counts.get(t) || 0) + 1);
@@ -200,7 +203,10 @@ const ranked = new WeakMap();
 export function classics(books, n = Infinity) {
   let all = ranked.get(books);
   if (!all) {
-    all = books.filter(b => b.source !== 'mojimoon' || b.downloads.length).sort((a, b) => classicScore(b) - classicScore(a));
+    // 每本的分数先取出来再排：比较函数里每次查两回 WeakMap，四千多本要比五万多次，书库到了首页第一次渲染时 4 倍降速 60ms。
+    // 排序是稳定的，同分的先后和原来一样
+    all = books.filter(b => b.source !== 'mojimoon' || b.downloads.length).map(b => [classicScore(b), b])
+      .sort((x, y) => y[0] - x[0]).map(x => x[1]);
     ranked.set(books, all);
   }
   return all.slice(0, n);
