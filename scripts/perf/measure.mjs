@@ -23,6 +23,8 @@ try {
     p.on('Fetch.requestPaused', e => p.send('Fetch.continueRequest', { requestId: e.requestId, url: e.request.url.replace('//fonts.loli.net/', '//fonts.googleapis.com/') }).catch(() => {}));
     await p.send('Fetch.enable', { patterns: [{ urlPattern: '*fonts.loli.net*', requestStage: 'Request' }] });
   }
+  // INJECT_CSS='选择器 { … }'：页面加载时多挂一段样式（不改代码先试改法）
+  if (process.env.INJECT_CSS) await p.send('Page.addScriptToEvaluateOnNewDocument', { source: `document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = ${JSON.stringify(process.env.INJECT_CSS)}; document.head.appendChild(s); });` });
   if (process.env.HIDEGEN) await p.send('Page.addScriptToEvaluateOnNewDocument', { source: `document.addEventListener('DOMContentLoaded', () => { const s = document.createElement('style'); s.textContent = '.cover.is-gen img { display: none !important; }'; document.head.appendChild(s); });` });
   await p.send('Page.navigate', { url: base + '#/' });
   // 等书库和首页就绪、开屏播完

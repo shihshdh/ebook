@@ -1,8 +1,12 @@
 // ② A24 式弧形光盘轮播（移植自 Pixel Reconstruction 的 DiscShelf，参数沿用调好的那一套）。
 // 每本书印成一张光盘，沿左下→右上的弧排开；只有一个进度 p 驱动全部光盘：
 // 第 i 张的偏移 d = i - p 决定它在弧上的位置、大小、倾角和自转，rAF 里用弹簧把 p 推向目标，直接写 style。
+// 停稳以后只剩匀速自转（9°/秒）：每张盘挂一个无限循环的 transform 动画，起止两帧只差最后的 rotateZ 多转 360°，
+// 合成线程播，rAF 停下。以前唱片架只要在屏幕附近，每帧都要重写几张盘的 transform——主线程每帧算样式、更新属性树、提交
+// （4 倍降速下静置 4 秒主线程忙 1.6 秒），滚首页时也一直在做。一有拖动、换盘，先撤下这些动画，按同一个钟接着用 rAF 写。
+// 动画就挂在盘本身上（不另包一层）：另包一层的话每张盘多两个渲染面（投影滤镜一个、3D 压平一个），合成线程翻倍
 // 左上角是"片名表"：衬线大标题 + 细线资料行，换书时淡入上移；盘下方两行"评语"取自简介和标签。
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Cover from '../components/Cover.jsx';
 import Icon from '../components/Icon.jsx';
 import { prefersReduced } from '../lib/motion.js';
@@ -22,7 +26,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
   const n = books.length;
   const stageRef = useRef(null);
   const discRefs = useRef(new Map());
-  const motion = useRef({ p: 0, v: 0, target: 0, spin: 0, last: 0, felt: 0 });   // felt：上次震过的那一张
+  const motion = useRef({ p: 0, v: 0, target: 0, spin: 0, last: 0, felt: 0, settled: false });   // spin：换盘时速度带出来的那份自转；felt：上次震过的那一张
   const [current, setCurrent] = useState(0);
   const [visible, setVisible] = useState([0, Math.min(n - 1, WINDOW)]);
   const reduced = useRef(false);
@@ -31,10 +35,44 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
   // 而上一帧刚写过光盘的宽高——一读就逼浏览器当场重排，手机上每帧多出十几到几十毫秒
   const stageSize = useRef(null);
   const discSize = useRef(new Map());
-  // 换盘、拖动时跟屏幕刷新率；只剩唱片慢慢自转（9°/秒）时 60 帧；滚出视口完全停（帧率见 lib/frame.js）
+  // 换盘、拖动时跟屏幕刷新率，停稳了就停（匀速自转交给下面的循环动画）；滚出视口完全停（帧率见 lib/frame.js）
   const fr = useRef(null);
   if (!fr.current) fr.current = cappedRaf(FPS_IDLE);
-  const wake = () => { fr.current.fps = FPS_ACTIVE; };
+  const tickRef = useRef(null);
+  const wake = () => { const f = fr.current; f.fps = FPS_ACTIVE; if (!f.pending && inView.current && !document.hidden) f.request(tickRef.current); };
+  // 匀速自转转了多久（毫秒）：只在看得见时走（滚出视口、切到后台都停，和以前 rAF 停转一样）
+  const spinT = useRef({ ms: 0, since: null });
+  const clock = () => { const c = spinT.current; return c.ms + (c.since === null ? 0 : performance.now() - c.since); };
+  // 停稳时每张盘的循环动画：{ anims: Map(序号 → 动画), at: 开始时钟的读数 }
+  const idle = useRef(null);
+  const pose = useRef(new Map());   // 盘 → 这一刻的 { pre: rotateZ 之前那串, spin }
+  const spinRunning = (run) => {
+    const c = spinT.current;
+    if (run !== (c.since !== null)) { if (run) c.since = performance.now(); else { c.ms = clock(); c.since = null; } }
+    idle.current?.anims.forEach(a => { if (run) a.play(); else a.pause(); });
+  };
+  const enterIdle = () => {
+    if (idle.current || reduced.current || typeof Element.prototype.animate !== 'function') return;
+    const anims = new Map(), running = spinT.current.since !== null;
+    discRefs.current.forEach((el, i) => {
+      const at = pose.current.get(el);
+      if (!at) return;
+      const a = el.animate([{ transform: `${at.pre} rotateZ(${at.spin}deg)` }, { transform: `${at.pre} rotateZ(${at.spin + 360}deg)` }],
+        { duration: 40000 / (1 + i % 3 * .15), iterations: Infinity, easing: 'linear' });   // 9°/秒，第 i 张快 i % 3 × 15%
+      if (!running) a.pause();
+      anims.set(i, a);
+    });
+    idle.current = { anims, at: clock() };
+  };
+  // 撤下循环动画、把钟拨到动画实际转到的地方（动画开播晚那一两帧也算上），rAF 接着写不跳
+  const exitIdle = () => {
+    const it = idle.current;
+    if (!it) return;
+    idle.current = null;
+    const first = it.anims.values().next().value;
+    if (first) { const c = spinT.current; c.ms = it.at + (first.currentTime || 0); if (c.since !== null) c.since = performance.now(); }
+    it.anims.forEach(a => a.cancel());
+  };
 
   const go = useCallback((index) => {
     const target = Math.max(0, Math.min(n - 1, index));
@@ -55,7 +93,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
     if (!stage) return;
     const ro = new ResizeObserver(([e]) => {
       stageSize.current = { w: e.contentRect.width, h: e.contentRect.height };
-      draw.current();   // 这时还没画：马上按新尺寸摆好，不会先画一帧没摆位置的光盘
+      redraw();   // 这时还没画：马上按新尺寸摆好，不会先画一帧没摆位置的光盘
     });
     ro.observe(stage);
     return () => ro.disconnect();
@@ -63,7 +101,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
 
   // 只在可见时转（滚出视口就停 rAF）
   useEffect(() => {
-    const io = new IntersectionObserver(([e]) => { inView.current = e.isIntersecting; window.dispatchEvent(new Event('librarium:disc-view')); }, { rootMargin: '80px' });
+    const io = new IntersectionObserver(([e]) => { inView.current = e.isIntersecting; spinRunning(e.isIntersecting && !document.hidden); window.dispatchEvent(new Event('librarium:disc-view')); }, { rootMargin: '80px' });
     if (stageRef.current) io.observe(stageRef.current);
     return () => io.disconnect();
   }, []);
@@ -83,9 +121,11 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
       const y = h * .5 - d * 54 * unit + d * d * 5 * unit;
       const scale = Math.max(.42, Math.min(1.5, 1 + d * .15 - a * .03));
       const tilt = 34 + Math.min(a, 1.6) * 12;
-      const spin = reduced.current ? -d * 40 : m.spin * (1 + i % 3 * .15) - d * 40;
+      const spin = reduced.current ? -d * 40 : (clock() * .009 + m.spin) * (1 + i % 3 * .15) - d * 40;   // 匀速那份按钟算
       const fade = a > 3.2 ? Math.max(0, 1 - (a - 3.2) / .8) : 1;
-      el.style.transform = `translate3d(${x - size / 2}px,${y - size / 2}px,0) scale(${scale}) perspective(${900 * unit}px) rotateZ(-24deg) rotateX(${tilt}deg) rotateZ(${spin}deg)`;
+      const pre = `translate3d(${x - size / 2}px,${y - size / 2}px,0) scale(${scale}) perspective(${900 * unit}px) rotateZ(-24deg) rotateX(${tilt}deg)`;
+      el.style.transform = `${pre} rotateZ(${spin}deg)`;
+      pose.current.set(el, { pre, spin });
       // 其余几样只在变了时写：唱片静静自转时只有 transform 在变（交给合成器），
       // 以前每帧都重写宽高 / 透明度 / 层级 / --lift，逼浏览器每帧重算样式、重画投影滤镜
       const last = discSize.current.get(el) || {}, lift = Math.round(Math.max(0, 1 - a) * 1000) / 1000;
@@ -98,34 +138,52 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
     });
   };
 
+  // 停着的时候要重新摆盘（尺寸变了、新挂上了盘）：撤下循环动画、摆好、再挂上
+  const redraw = () => { const was = !!idle.current; exitIdle(); draw.current(); if (was) enterIdle(); };
+  useLayoutEffect(() => {
+    const it = idle.current;
+    if (it && [...discRefs.current.keys()].some(i => !it.anims.has(i))) redraw();
+  }, [visible]);
+
   useEffect(() => {
     const f = fr.current;
     const tick = (now) => {
       const m = motion.current;
       if (!inView.current || document.hidden) { m.last = 0; return; }   // 停：等视口 / 可见性事件再拉起
-      f.request(tick);
+      exitIdle();
       const dt = Math.min(.08, m.last ? (now - m.last) / 1000 : 1 / f.fps); m.last = now;
       if (reduced.current) { m.p = m.target; m.v = 0; }
       else {
         const k = 70, c = 15;
         m.v += ((m.target - m.p) * k - m.v * c) * dt;
         m.p += m.v * dt;
-        m.spin += dt * 9 + m.v * dt * 60;
+        m.spin += m.v * dt * 60;
       }
+      // 停稳了（离目标不到 0.002 张、几乎不动）：落到目标上，画完这一帧挂上循环动画，不再要下一帧；拖、点、滚轮时 wake() 再拉起
+      m.settled = Math.abs(m.target - m.p) + Math.abs(m.v) <= .002;
+      if (m.settled) { m.p = m.target; m.v = 0; m.last = 0; } else f.request(tick);
       draw.current();
       // 换到新的一张、盘停到位（离目标不到 0.04 张）那一下轻震（安卓；拖动中目标不是整数，不震）
       const at = Math.round(m.target);
       if (at === m.target && at !== m.felt && Math.abs(m.target - m.p) < .04) { m.felt = at; haptic('light'); }
       const lo = Math.max(0, Math.floor(m.p) - WINDOW), hi = Math.min(n - 1, Math.ceil(m.p) + WINDOW);
       setVisible(prev => prev[0] === lo && prev[1] === hi ? prev : [lo, hi]);
-      f.fps = Math.abs(m.target - m.p) + Math.abs(m.v) > .002 ? FPS_ACTIVE : FPS_IDLE;
+      f.fps = m.settled ? FPS_IDLE : FPS_ACTIVE;
+      if (m.settled) enterIdle();
     };
-    const resume = () => { if (inView.current && !document.hidden && !f.pending) f.request(tick); };
+    tickRef.current = tick;
+    // 回到视口 / 前台：钟和循环动画接着走；还没停稳的（或还没挂上循环动画的）接着跑 rAF
+    const resume = () => {
+      const on = inView.current && !document.hidden;
+      spinRunning(on);
+      if (on && !f.pending && !(motion.current.settled && idle.current)) f.request(tick);
+    };
     resume();
     window.addEventListener('librarium:disc-view', resume);
     document.addEventListener('visibilitychange', resume);
     return () => { f.cancel(); window.removeEventListener('librarium:disc-view', resume); document.removeEventListener('visibilitychange', resume); };
   }, [n]);
+  useEffect(() => () => idle.current?.anims.forEach(a => a.cancel()), []);
 
   // 滚轮：跟手，停 140ms 吸附；到头把滚动还给页面
   useEffect(() => {

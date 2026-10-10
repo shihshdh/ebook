@@ -152,15 +152,21 @@ function Shell() {
       return null;
     };
     // 一步做完、这期间没人操作，隔几帧就接着下一步（以前每步都等 1.2 秒，十几步排完要将近二十秒，
-    // 打开 App 没多久就切页时，后台页还没排好）；一有操作才重新等停手 1.2 秒
-    const go = () => {
+    // 打开 App 没多久就切页时，后台页还没排好）；一有操作才重新等停手 1.2 秒。
+    // 操作事件里只记一下时间、停掉正在排的：滚动、指针移动每帧都来，以前每来一次都清掉计时器重设、再把下一步找一遍
+    // （querySelectorAll 之类），滚首页时主线程白白多出一截。计时器到点时自己看停手够不够 1.2 秒
+    let lastInput = 0;
+    const tick = () => {
+      timer = 0;
+      const wait = 1200 - (performance.now() - lastInput);
+      if (wait > 0) { timer = setTimeout(tick, wait); return; }
       const step = nextStep();
-      if (step) running = step(() => { running = null; clearTimeout(timer); if (nextStep()) timer = setTimeout(go, 120); }) || running;
+      if (step) running = step(() => { running = null; clearTimeout(timer); timer = nextStep() ? setTimeout(tick, 120) : 0; }) || running;
     };
     function later() {
+      lastInput = performance.now();
       if (running) { running.stop(); running = null; }
-      clearTimeout(timer);
-      if (nextStep()) timer = setTimeout(go, 1200);
+      if (!timer) timer = setTimeout(tick, 1200);
     }
     const events = ['pointerdown', 'pointermove', 'wheel', 'keydown', 'touchstart', 'scroll', 'input', 'compositionupdate'];
     events.forEach(t => addEventListener(t, later, { passive: true, capture: true }));
