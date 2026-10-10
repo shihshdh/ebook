@@ -61,6 +61,9 @@
 /* ================= 路由切换 ================= */
 /* 切页：去过的页面留在后台（App.jsx），content-visibility: hidden 保留它的排版和渲染状态、不画也不占位置，切回来几乎不花时间。
    进场只淡入 + 轻微上移：以前带 blur(6px)，整页连同底下几十块毛玻璃每帧重画，是切页掉帧的大头 */
+/* 页面横向一律不超出屏幕：哪块内容不小心比屏幕宽（比如上面书架那种），超出的部分裁掉，不让整页在手机上被横着推偏。
+   .pages 本来就和屏幕一样宽，裁掉的只是屏幕外看不见的部分；clip 不是滚动容器，吸顶（sticky）照常 */
+.pages { overflow-x: clip; }
 .route.is-kept { content-visibility: hidden; }
 /* 分块预排版（App.jsx 空闲预渲染，lib/warm.js）：正在排的（data-warming）临时解除 content-visibility，
    里面还没排的块各自 content-visibility: hidden，一块块放开（打上 data-warm），每段只排几毫秒。排完收回，排版结果留着。
@@ -562,7 +565,9 @@ html:has(.shelf-managebar) .toasts { bottom: calc(92px + var(--safe-b)); }
 .sp-why { color: var(--gold); }
 
 @media (max-width: 900px) {
-  .shelf-top, .shelf-bottom { grid-template-columns: 1fr; }
+  /* minmax(0, 1fr)，不能写 1fr：1fr 的最小宽度是内容的最小宽度，「继续阅读」里不换行的章节名一长（比如「第一卷 第一话 雨天，磨脚，雷鸣声——秋月孝雄」），
+     整栏被撑得比屏幕还宽、省略号也出不来，整页能被横着推偏 */
+  .shelf-top, .shelf-bottom { grid-template-columns: minmax(0, 1fr); }
   .shelf-top .ff-stage { height: 400px; }
   .shelf-search { margin-left: 0; flex: 1; }
   .shelf-search input { width: 100%; }
