@@ -90,6 +90,8 @@ export async function listRss() {
   return cache;
 }
 async function save(list) { cache = list; await idbSet('kv', KEY, list); emit(); }
+/** 订阅源有几个（还没读出来是 0）：导航栏有没有「订阅」一格、空闲时预不预渲染订阅页，都看它 */
+export const rssCount = () => cache?.length || 0;
 export function useRss() {
   const [list, setList] = useState(cache);
   useEffect(() => {

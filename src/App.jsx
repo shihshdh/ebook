@@ -25,6 +25,7 @@ import Search from './pages/Search.jsx';
 import Shelf from './pages/Shelf.jsx';
 import Plugins from './pages/Plugins.jsx';
 import { warmer } from './lib/warm.js';
+import { rssCount } from './lib/rss.js';
 const Rss = lazy(() => import('./pages/Rss.jsx'));   // 订阅页按需加载
 
 function ReaderMissing() {
@@ -130,8 +131,16 @@ function Shell() {
     const nextStep = () => {
       const lazy = [...document.querySelectorAll('.route.is-active .home-lazy')].find(el => !warmedEls.has(el));
       if (lazy) return (done) => { if (skipped(lazy)) return warmSection(lazy, done); warmedEls.add(lazy); done(); };
-      for (const [k, path] of PREWARM) {
-        if (!keptRef.current[k]) return (done) => { startTransition(() => setKept(prev => prev[k] ? prev : { ...prev, [k]: { pathname: path, search: '', hash: '', state: null, key: 'prewarm-' + k } })); done(); };
+      // 订阅页只在导航栏有「订阅」这一格（导入过订阅源）时才预渲染，排在最后。它是按需加载的：先把代码块下好再挂，
+      // 不然挂上的是 Suspense 的占位，预排版排了个空壳，第一次点进去照样现排（4 倍降速一帧五十多毫秒）
+      for (const [k, path] of rssCount() ? [...PREWARM, ['rss', '/rss']] : PREWARM) {
+        if (!keptRef.current[k]) return (done) => {
+          let stopped = false;
+          const mount = () => { if (stopped) return; startTransition(() => setKept(prev => prev[k] ? prev : { ...prev, [k]: { pathname: path, search: '', hash: '', state: null, key: 'prewarm-' + k } })); done(); };
+          if (k !== 'rss') return mount();
+          import('./pages/Rss.jsx').then(mount, mount);
+          return { stop: () => { stopped = true; } };
+        };
         // 换世界要用的字体（见 Explore.jsx 的 prepareWorlds）放在预排探索页之前、等它下好才往下走
         // （中途有人操作被叫停的话撤回标记，停手以后重来）
         if (k === 'explore' && !worldsReady.current) return (done) => {
