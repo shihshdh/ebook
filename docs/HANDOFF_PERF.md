@@ -103,24 +103,32 @@
     要看状态的（BookSheet、Toasts、OpenTransition）照旧 `useUI()`。点书、关书、弹提示不再牵连后台页。
     A/B（4 次交替，sheet-open）：卡顿 64 / 59 / 58 / 43（均 56）→ 40 / 20 / 18 / 8（**均 22**）；长帧里的脚本从 19–30ms 降到 5–6ms。
 
-16. **字形预热（做了，但没合进来）**：分支 `perf/glyph-warm-wip`（f27215f，基于 a8ee479）。`src/lib/glyph-warm.js`：手指按下一本书（pointerdown）时，
-    在屏幕外一个 `contain: strict`、`visibility: hidden` 的盒子里，用和书详情一样的类名（字重字号全靠类名）把这本书还没排过的字一段段排一遍
-    （每段 ≤6ms 让出主线程；pointercancel / 光盘拖起来就停）；瀑布流、搜索结果、首页各卡片、书架推荐、光盘、文件夹扇都接了 `{...pressBook(book)}`。
-    - 点书：新场景 `sheet-tap`（真触摸：按下、停 80ms、抬起；`sheet-open` 用 el.click() 没有 pointerdown，测不到预热）A/B 4 次交替：
-      卡顿 36 / 37 / 44 / 31（均 37）→ **0 / 0 / 0 / 0**，最长帧 77–90 → 40–50ms。sheet-open（不触发预热）两边 16 vs 24，区间重叠，噪声。
-    - **但滚动可能变差**：回归检查只跑了一半就停了（用户要睡了）：探索页滚动 >33ms 的帧 基线 5（1 次）→ 预热 23、22（2 次），卡顿都还是 0–2；
-      搜索打字 98 vs 106（各 1 次）。样本太少，但 5 对 22 差得太多，不能当噪声。
-    - **怀疑**（没验证）：每次滚动手指都是按在卡片上开始的 → pointerdown → `loadSerif(简介…)` 去下简介里的字所在的新分片；pointercancel 停得了排字，
-      停不了已经发出去的下载；分片在滚动当中到达 → 屏幕附近所有衬线字重排（第二轮查过：每片 17–28ms）。
+16. **字形预热（已合，`98104c6`）**：`src/lib/glyph-warm.js`：手指按下一本书（pointerdown）时，
+    在屏幕外一个 `contain: strict`、`visibility: hidden` 的盒子里，用和书详情一样的类名（字重字号全靠类名）把这本书还没排过的字排一遍；
+    瀑布流、搜索结果、首页各卡片、书架推荐、光盘、文件夹扇都接了 `{...pressBook(book)}`。
+    - 第一版（`perf/glyph-warm-wip` 的 f27215f）点书卡顿 37 → 0，但探索页滚动 >33ms 的帧 4 → 13–15（A/B 4 次，卡顿都是 0）。查清是两处：
+      1. **按下就下新分片**：`TRACE=explore-scroll` + `fontev.mjs` 看到滚动中有 4 次 `EventDispatch > FunctionCall` 发起的 BeginRemoteFontLoad，
+         到达后各一次整片字体失效——就是按下时 `loadSerif(简介…)`。改成只排分片已下好的字。
+         **坑**：不能用 `document.fonts.check`：本机装了同名字体（Noto Serif SC）时 Chrome 一律说「好了」，页面里照样用网络分片、排的时候照样去下（实测）。
+         现在按 unicode-range 查这个字归哪个 FontFace、看它的 `status`（各字重同一片状态一起变，只看 400）；码位表一口气建要 19ms（4 倍降速），改成空闲时一片片填。
+      2. **`scheduler.postTask` 一段接一段地排，按下后五六十到一百毫秒一帧都没画**（`gaps.mjs` 看到的：rAF 间隔 50–104ms，里面全是 3–12ms 的预热任务）。
+         Chrome 把触摸移动、pointercancel 对齐到帧才派发，帧画不出来，停下的信号也送不到，预热排到完才停。改成 rAF 里每帧排一段（≤5ms、每次 4 个字），
+         手指移动超过 8px、抬手、pointercancel 都停。**以后凡是「分段让出主线程」的活，在有触摸的场景里别用 postTask / setTimeout 连着排。**
+    - A/B（4 次交替，对照 `0dfca95`）：
+
+      | 场景 | 对照 | 预热 |
+      |---|---|---|
+      | sheet-tap 卡顿 | 35 / 34 / 28 / 17（均 29） | 5 / 0 / 0 / 0（**均 1**） |
+      | sheet-tap 最长帧 | 73 / 73 / 77 / 67 | 60 / 43 / 50 / 43 |
+      | explore-scroll >33ms 帧 | 6 / 2 / 5 / 3 | 4 / 6 / 3 / 5 |
+      | explore-scroll 最长帧 | 127 / 43 / 127 / 40 | 50 / 43 / 70 / 43 |
+      | search-type 卡顿 | 49 / 62 / 52 / 59（均 56） | 45 / 46 / 45 / 58（均 49） |
+      | search-type >33ms 帧 | 6 / 7 / 9 / 7 | 7 / 8 / 6 / 7 |
 
 ## 下一步（按优先级）
 
 0. ~~先在本机复测第二轮~~：做完了，见上面「本机复测」。
-1. **打开书详情**：原因见「第三轮」。15 已合；16 在 `perf/glyph-warm-wip`，先查滚动变差：
-   - 先验证怀疑：`TRACE=explore-scroll` 跑预热版，`fontev.mjs` 看滚动中有没有 FunctionCall 触发的 BeginRemoteFontLoad、有没有字体失效重排。
-   - 如果是：按下时**不下新分片**，只热已经下好的字（排之前用 `document.fonts.check` 筛；或者干脆不调 loadSerif，没下的字留给点开时），再 A/B。
-     另一条路是按下后等 ~30ms 没有 pointercancel 再开始——真点一下七八十毫秒，滚动一般 10–30ms 内就 cancel；但留给预热的时间少了，要测。
-   - 合进来之前三组都要过：`sheet-tap`、`explore-scroll`、`search-type`（搜索结果行也接了预热，滚结果列表也是按在行上开始的），各 4 次交替。
+1. ~~**打开书详情**~~：做完了，15、16 都已合（见「第三轮」）。`perf/glyph-warm-wip` 分支留着当记录，可以删。
 2. **搜索打字剩下的**：结果第一次出来那帧样式 + 排版（云端 34 + 40ms）。结果行是 content-visibility: auto，但 1.5 屏范围内的十来行照样当帧全排。
    可以考虑先挂一屏的行、其余下一帧再挂（注意 `reveal` 动画按 `--i` 错开 30ms，晚挂的行要补偿延迟，否则错开节奏会变）。
    书源现搜第一次构造 GBK 请求要建表（云端带采样 60ms，本机约 7ms），一次性，没动。
@@ -139,7 +147,9 @@ BLOCK=1 IDLE=12000 node measure.mjs <临时目录> http://127.0.0.1:5181/ <临�
 #   场景：home-scroll disc-flip page-switch world-switch explore-scroll sheet-open sheet-tap search-type
 #     （sheet-tap 和 sheet-open 点同样三本书，但用真触摸按下 80ms 再抬起，有 pointerdown；测按下时做的事要用它）
 #   DETAIL=1 打印长帧组成；TRACE=场景 存追踪到 <临时目录>/perf/<场景>.trace.json，再用 tasks.mjs / tree.mjs 看
-#     （第二轮加的：taskdump.mjs <trace> <@时间> 看某个长任务的完整事件树；fontev.mjs <trace> 看字体加载 / 失效）
+#     （第二轮加的：taskdump.mjs <trace> <时间> 看某个长任务的完整事件树；fontev.mjs <trace> 看字体加载 / 失效）
+#     （第三轮加的：gaps.mjs <trace> [33] 列出 rAF 间隔超过 N ms 的地方、间隔里每个任务在干什么——「卡顿 0 但 >33ms 帧变多」用它查，
+#       一串几毫秒的小任务连着跑、中间不画帧，tasks.mjs 是看不出来的）
 #   PROFILE=场景 存 cpuprofile，cpuruns.mjs 按「连续忙的片段」汇总业务函数
 #   BLOCK=1 挡掉网络封面（结果稳定）；IDLE= 进场景前空闲多久（预排版要 ~6s 做完）
 IDLEMS=15000 RUNS=2 node idleab.mjs <临时目录> http://127.0.0.1:5185/ http://127.0.0.1:5181/   # 首页静置
