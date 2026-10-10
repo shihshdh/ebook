@@ -8,6 +8,7 @@
 import { memo, startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import Cover from '../components/Cover.jsx';
 import { useCover } from '../lib/covers.js';
+import { jacketScale } from '../lib/jacket.js';
 import { isTouch, prefersReduced } from '../lib/motion.js';
 import { usePixelGlitch } from './usePixelGlitch.js';
 import { atMost, loadSerif } from '../lib/fonts.js';
@@ -44,14 +45,30 @@ const QuoteTile = memo(function QuoteTile({ book, line, h, onOpen }) {
   );
 });
 
-function FlipFrame({ book, active }) {
-  const { url, onError } = useCover(book, true);
-  return <img src={url} alt="" className={active ? 'on' : ''} decoding="async" draggable="false" onError={onError} />;
+// 生成封面要知道显示多大才画（jacket.js 的三档，Cover.jsx 用 ResizeObserver 量）。这里以前没给尺寸，真封面没到、拿不到时
+// 一直没有生成封面，<img src=""> 显示成破图（对照 0.3.13 的截图发现的）。现在卡片量一次宽度传下来；画好之前给透明小图，和 Cover 一样
+const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+// 只有正在显示的这一帧和下一帧挂上图（load）：封面地址照样提前找好、生成封面照样提前画好，但同一时刻只解码两张——
+// 以前十二帧全挂着，十二张六百多像素宽的图一直解码在内存里（只看得见一张），垃圾回收更容易落在滑动当中。
+// 下一帧提前 0.26 秒就挂上、解码好，快切照样不闪白
+function FlipFrame({ book, active, load, scale }) {
+  const { url, onError } = useCover(book, true, undefined, scale);
+  return <img src={(load && url) || BLANK} alt="" className={active ? 'on' : ''} decoding="async" draggable="false" onError={onError} />;
 }
 
 function FlipbookTile({ books, onOpen }) {
   const ref = useRef(null);
   const [frame, setFrame] = useState(0);
+  const [scale, setScale] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (typeof ResizeObserver === 'undefined') { setScale(jacketScale(180)); return; }
+    // 只往大里换（和 Cover 一样）：排版完顺手给的尺寸，不额外逼排版
+    const ro = new ResizeObserver(([e]) => { if (e.contentRect.width > 0) setScale(prev => Math.max(prev, jacketScale(e.contentRect.width))); });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   useEffect(() => {
     const el = ref.current;
     if (!el || prefersReduced() || books.length < 2) return;
@@ -67,8 +84,8 @@ function FlipbookTile({ books, onOpen }) {
   return (
     <figure ref={ref} className="mw-tile mw-flip" role="button" tabIndex={0} onClick={() => onOpen(cur, ref.current)} {...pressBook(cur)}
       aria-label="插图重制版轮播，点击打开当前这本">
-      {/* 所有帧叠在一起只切 opacity：提前解码，快切不闪白 */}
-      {books.map((b, i) => <FlipFrame key={b.id} book={b} active={i === frame} />)}
+      {/* 所有帧叠在一起只切 opacity；下一帧提前挂图解码好，快切不闪白 */}
+      {books.map((b, i) => <FlipFrame key={b.id} book={b} active={i === frame} load={i === frame || i === (frame + 1) % books.length} scale={scale} />)}
       <figcaption className="always">
         <strong>插图重制 · {cur?.title}</strong>
         <span className="num">{String(frame + 1).padStart(2, '0')} / {String(books.length).padStart(2, '0')}</span>
