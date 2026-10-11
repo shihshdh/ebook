@@ -1,0 +1,95 @@
+# iOS 安装包：在 GitHub 的云端 Mac 上编出不签名的 IPA。用户在 Windows 上用 SideStore / AltStore 拿自己的 Apple 账号签名装到 iPhone（见 docs/IOS.md）。
+#   推代码：编一次，IPA 放在这次运行的「Artifacts」里（拿来试装）
+#   发 Release（发版.bat / release.mjs 建的）：编好后自动传到同一个 Release，文件名 EBOOK_<版本>.ipa（iOS 上的检查更新就下它）
+# 用 Xcode 27（iOS 27 SDK）编：iOS 27 起要求的场景生命周期、液态玻璃都按新 SDK 走；万一机器上还没有 27，用最新的那个并在日志里提醒
+name: iOS 安装包
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+  push:
+    branches: [main, perf/mobile-smoothness]
+    paths:
+      - 'ios/**'
+      - 'src/**'
+      - 'public/**'
+      - 'index.html'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'capacitor.config.json'
+      - 'vite.config.js'
+      - '.github/workflows/ios.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ipa:
+    runs-on: macos-26
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 选 Xcode（优先 27）
+        run: |
+          ls -d /Applications/Xcode*.app
+          X=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$X" ]; then
+            X=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+            echo "::warning::这台机器上没有 Xcode 27，先用 $X 编"
+          fi
+          sudo xcode-select -s "$X"
+          xcodebuild -version
+          xcodebuild -showsdks | grep -i iphoneos
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 装依赖
+        # package-lock 指向国内镜像，云端换回官方源
+        run: npm ci --replace-registry-host=always --registry=https://registry.npmjs.org/
+
+      - name: 构建前端、同步到 iOS 工程
+        run: |
+          npm run build
+          npx cap sync ios
+
+      - name: 编译（不签名）
+        run: |
+          VER=$(node -p "require('./package.json').version")
+          CODE=$(grep -oE 'versionCode [0-9]+' android/app/build.gradle | grep -oE '[0-9]+')
+          echo "VER=$VER" >> "$GITHUB_ENV"
+          xcodebuild -quiet \
+            -workspace ios/App/App.xcworkspace -scheme App -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' -derivedDataPath build \
+            MARKETING_VERSION="$VER" CURRENT_PROJECT_VERSION="$CODE" \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: 打包 IPA
+        run: |
+          rm -rf out && mkdir -p out/Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app out/Payload/
+          plutil -p out/Payload/App.app/Info.plist | grep -E 'CFBundleShortVersionString|CFBundleVersion|DTSDKName|DTXcode|MinimumOSVersion'
+          (cd out && zip -qry "../EBOOK_${VER}.ipa" Payload)
+          ls -l "EBOOK_${VER}.ipa"
+          shasum -a 256 "EBOOK_${VER}.ipa"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EBOOK_${{ env.VER }}_ipa
+          path: EBOOK_*.ipa
+          retention-days: 30
+
+      - name: 传到 Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "EBOOK_${VER}.ipa" --clobber --repo "${{ github.repository }}"

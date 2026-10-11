@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { browserDownloadUrl, checkUpdate, current, installUpdate, skipUpdate } from '../lib/update.js';
+import { isIOS } from '../lib/native.js';
 import { useUIActions } from '../lib/ui.jsx';
 
 export default function UpdateCard({ hidden }) {
@@ -99,7 +100,7 @@ export default function UpdateCard({ hidden }) {
         </div>
         {(state === 'loading' && slow) || (state === 'idle' && failed)
           ? <p className="upd-foot muted">{failed ? '没下成？' : '下得慢？'}可以<a href={browserDownloadUrl(upd)} target="_blank" rel="noreferrer">用浏览器下载</a>，下好后手动安装</p>
-          : <p className="upd-foot muted">经国内加速线路下载，下完自动校验安装包</p>}
+          : <p className="upd-foot muted">{isIOS ? '在 Safari 里下载安装包，用 SideStore 安装' : '经国内加速线路下载，下完自动校验安装包'}</p>}
       </section>
     </div>
   );

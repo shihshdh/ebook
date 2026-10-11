@@ -9,7 +9,7 @@ import { useSources } from '../lib/legado.js';
 import { PLUGINS, enabledPlugins, setPluginEnabled } from '../plugins/registry.js';
 import { loadLibrary, useLibrary } from '../lib/library.js';
 import { useShelf } from '../lib/useShelf.js';
-import { platform } from '../lib/native.js';
+import { isIOS, platform } from '../lib/native.js';
 import { useUIActions } from '../lib/ui.jsx';
 import { useTheme } from '../lib/theme.js';
 
@@ -113,7 +113,7 @@ export default function Plugins() {
         <h2 className="serif">网络</h2>
         <NetDiag books={lib.books} />
         <dl className="plugin-facts about">
-          <div><dt>运行环境</dt><dd>{{ web: '网页', tauri: 'Windows 客户端', capacitor: 'Android 客户端' }[platform]}</dd></div>
+          <div><dt>运行环境</dt><dd>{{ web: '网页', tauri: 'Windows 客户端', capacitor: isIOS ? 'iOS 客户端' : 'Android 客户端' }[platform]}</dd></div>
           <div><dt>书架</dt><dd className="num">{items.length} 本（存在本机）</dd></div>
           <div><dt>版本</dt><dd className="num">EBOOK {__APP_VERSION__}{platform !== 'web' && <CheckUpdate />}</dd></div>
         </dl>

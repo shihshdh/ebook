@@ -15,6 +15,9 @@ export const platform =
   : 'web';
 
 export const isNative = platform !== 'web';
+/** 手机客户端是哪个系统：'ios' | 'android'；别的平台和 platform 一样 */
+export const os = platform === 'capacitor' ? window.Capacitor.getPlatform() : platform;
+export const isIOS = os === 'ios';
 
 /** 书源需要保留错误页正文，且必须按原始字节而不是桥接默认 UTF-8 解码。 */
 export async function nativeRequest({ url, method = 'GET', headers = {}, body, charset, signal, timeout = 20000 }) {
@@ -209,8 +212,9 @@ export const win = {
   },
 };
 
-// ---------- 安卓（其它平台全是空操作，前端可以无条件调用） ----------
-// EbookNative 是 android/app/src/main/java/app/librarium/reader/EbookNative.java 里的本地插件
+// ---------- 手机（其它平台全是空操作，前端可以无条件调用） ----------
+// EbookNative 是本地插件：安卓 android/app/src/main/java/app/librarium/reader/EbookNative.java，
+// iOS ios/App/App/EbookNativePlugin.swift（同名同参数）
 let ebookNative = null;
 const nativePlugin = async () => {
   if (platform !== 'capacitor') return null;
@@ -218,7 +222,7 @@ const nativePlugin = async () => {
   return ebookNative;
 };
 
-/** 页面第一帧画好了：Windows 亮出窗口，安卓撤掉启动页 */
+/** 页面第一帧画好了：Windows 亮出窗口，安卓撤掉启动页（iOS 的启动页系统自己撤） */
 export async function appReady() {
   if (platform === 'tauri') return win.show();
   (await nativePlugin())?.ready().catch(() => {});
@@ -299,7 +303,13 @@ export function onOpenedFile(cb) {
   return () => { dead = true; handle?.remove(); };
 }
 
-// ---------- 网页（订阅源）：Windows 开一个网页窗口，安卓开 EBOOK 自带的网页页面，网页版开新标签 ----------
+/** 交给系统浏览器打开（iOS 是 Safari）。iOS 上检查更新用它下安装包 */
+export async function openExternal(url) {
+  if (isIOS) return (await nativePlugin()).openExternal({ url });
+  window.open(url, '_blank', 'noopener');
+}
+
+// ---------- 网页（订阅源）：Windows 开一个网页窗口，手机开 EBOOK 自带的网页页面，网页版开新标签 ----------
 // 远程网页拿不到 EBOOK 的任何本地能力；页面里下载到的 EPUB / TXT / ZIP 走蓝奏云同一条路进书架
 export const browser = {
   async open({ url, title = '' }) {

@@ -12,5 +12,11 @@
     "CapacitorHttp": {
       "enabled": true
     }
+  },
+  "ios": {
+    "backgroundColor": "#f4efe6",
+    "contentInset": "never",
+    "allowsLinkPreview": false,
+    "preferredContentMode": "mobile"
   }
 }

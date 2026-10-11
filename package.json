@@ -31,6 +31,7 @@
   "devDependencies": {
     "@capacitor/android": "^6.2.2",
     "@capacitor/cli": "^6.2.2",
+    "@capacitor/ios": "^6.2.2",
     "@tauri-apps/cli": "^2.12.1",
     "@vitejs/plugin-react": "^4.7.0",
     "linkedom": "^0.18.13",

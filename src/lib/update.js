@@ -2,8 +2,10 @@
 // 只在客户端里查（网页版本来就是最新的）；走 GitHub 加速代理，国内不开代理也能查。
 //   安卓：在 EBOOK 里下好 APK，直接拉起系统安装器（系统会核对签名，别人改过的包装不上）
 //   Windows：下好安装包放进「下载」文件夹并在资源管理器里选中，双击安装
+//   iOS：应用里装不了（系统不允许），在 Safari 里下 IPA，用户在 SideStore / AltStore 里装（签名、续签都在那边，见 docs/IOS.md）。
+//        IPA 是发 Release 时云端编好传上去的（.github/workflows/ios.yml），文件名 EBOOK_<版本>.ipa，latest.json 里不用写
 import { getBinary, getJSON, releaseAssetUrls, repoFileUrls } from './net.js';
-import { platform, saveExport } from './native.js';
+import { isIOS, openExternal, platform, saveExport } from './native.js';
 
 const OWNER = 'shihshdh', REPO = 'ebook';
 // 「以后再说」只管这一次打开（sessionStorage）：下次打开还提示。以前存在 localStorage 里是永久跳过这个版本，读到就清掉
@@ -31,7 +33,7 @@ export async function checkUpdate({ force = false } = {}) {
   const info = await getJSON(repoFileUrls(OWNER, REPO, 'main', 'latest.json', { big: true }));
   if (!info?.version || !newer(info.version, current)) return null;
   if (!force) { try { if (sessionStorage.getItem(SKIP_KEY) === info.version) return null; } catch {} }
-  const asset = platform === 'capacitor' ? info.android : info.windows;
+  const asset = isIOS ? { file: `EBOOK_${info.version}.ipa` } : platform === 'capacitor' ? info.android : info.windows;
   if (!asset?.file) return null;
   return { version: info.version, notes: info.notes || '', file: asset.file, sha256: asset.sha256 || '' };
 }
@@ -52,6 +54,11 @@ export const browserDownloadUrl = (u) => assetUrls(u)[0];
  * 返回给用户看的提示
  */
 export async function installUpdate(u, onProgress, { onPhase, signal } = {}) {
+  if (isIOS) {
+    onPhase?.('install');
+    await openExternal(browserDownloadUrl(u));
+    return '安装包在 Safari 里下载，下好后打开 SideStore，点「+」选它安装（书和设置都在）';
+  }
   onPhase?.('download');
   const blob = await getBinary(assetUrls(u),
     (loaded, total) => onProgress?.(total ? loaded / total : 0), { expectZip: platform === 'capacitor', signal });
