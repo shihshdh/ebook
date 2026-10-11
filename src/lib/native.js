@@ -15,6 +15,8 @@ export const platform =
   : 'web';
 
 export const isNative = platform !== 'web';
+export const mobileOS = platform === 'capacitor' ? window.Capacitor.getPlatform() : null;
+export const supportsPackageUpdate = platform === 'tauri' || mobileOS === 'android';
 
 /** 书源需要保留错误页正文，且必须按原始字节而不是桥接默认 UTF-8 解码。 */
 export async function nativeRequest({ url, method = 'GET', headers = {}, body, charset, signal, timeout = 20000 }) {
@@ -228,7 +230,7 @@ export async function appReady() {
 const backHandlers = [];
 let backHooked = false;
 export function onBackButton(handler) {
-  if (platform !== 'capacitor') return () => {};
+  if (mobileOS !== 'android') return () => {};
   backHandlers.push(handler);
   if (!backHooked) {
     backHooked = true;
@@ -346,6 +348,7 @@ const b64 = (bytes) => {
 };
 /** 安卓：把下好的新版 APK 交给系统安装器（分块传给原生，存在应用缓存里） */
 export async function installApk(name, bytes) {
+  if (mobileOS !== 'android') throw new Error('此平台不支持安装 APK');
   const p = await nativePlugin();
   const { token } = await p.beginSave({ name });
   const CHUNK = 3 * 1024 * 1024;

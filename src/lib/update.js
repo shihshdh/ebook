@@ -3,7 +3,7 @@
 //   安卓：在 EBOOK 里下好 APK，直接拉起系统安装器（系统会核对签名，别人改过的包装不上）
 //   Windows：下好安装包放进「下载」文件夹并在资源管理器里选中，双击安装
 import { getBinary, getJSON, releaseAssetUrls, repoFileUrls } from './net.js';
-import { platform, saveExport } from './native.js';
+import { platform, saveExport, supportsPackageUpdate } from './native.js';
 
 const OWNER = 'shihshdh', REPO = 'ebook';
 // 「以后再说」只管这一次打开（sessionStorage）：下次打开还提示。以前存在 localStorage 里是永久跳过这个版本，读到就清掉
@@ -26,7 +26,7 @@ export function newer(a, b) {
  * @returns {Promise<null | {version, notes, file, sha256}>} 有新版且适用于本平台时返回
  */
 export async function checkUpdate({ force = false } = {}) {
-  if (platform === 'web') return null;
+  if (!supportsPackageUpdate) return null;
   // 不走 jsDelivr 的分支缓存（会晚 12 小时），代理 / raw 优先
   const info = await getJSON(repoFileUrls(OWNER, REPO, 'main', 'latest.json', { big: true }));
   if (!info?.version || !newer(info.version, current)) return null;
@@ -52,6 +52,7 @@ export const browserDownloadUrl = (u) => assetUrls(u)[0];
  * 返回给用户看的提示
  */
 export async function installUpdate(u, onProgress, { onPhase, signal } = {}) {
+  if (!supportsPackageUpdate) throw new Error('iOS 请通过 SideStore 导入新版 IPA 更新');
   onPhase?.('download');
   const blob = await getBinary(assetUrls(u),
     (loaded, total) => onProgress?.(total ? loaded / total : 0), { expectZip: platform === 'capacitor', signal });

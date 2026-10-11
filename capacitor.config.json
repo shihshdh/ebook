@@ -8,6 +8,10 @@
   "android": {
     "backgroundColor": "#f4efe6"
   },
+  "ios": {
+    "backgroundColor": "#f4efe6",
+    "contentInset": "never"
+  },
   "plugins": {
     "CapacitorHttp": {
       "enabled": true

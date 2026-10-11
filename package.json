@@ -12,6 +12,8 @@
     "android:sync": "npm run build && cap sync android",
     "android:build": "npm run android:sync && cd android && gradlew.bat assembleDebug",
     "android:release": "npm run android:sync && cd android && gradlew.bat assembleRelease",
+    "ios:sync": "npm run build && node scripts/ios-assets.mjs && cap sync ios",
+    "ios:build": "bash scripts/build-ios.sh",
     "icons": "node scripts/make-icons.mjs && tauri icon src-tauri/app-icon.png"
   },
   "dependencies": {
@@ -31,6 +33,7 @@
   "devDependencies": {
     "@capacitor/android": "^6.2.2",
     "@capacitor/cli": "^6.2.2",
+    "@capacitor/ios": "^6.2.2",
     "@tauri-apps/cli": "^2.12.1",
     "@vitejs/plugin-react": "^4.7.0",
     "linkedom": "^0.18.13",

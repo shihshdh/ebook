@@ -1,0 +1,42 @@
+name: iOS personal build
+on:
+  push:
+    branches: [codex/ios-personal]
+    paths:
+      - 'ios/**'
+      - 'src/**'
+      - 'public/**'
+      - 'package*.json'
+      - 'capacitor.config.json'
+      - 'scripts/*ios*'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Verify iOS platform routing
+        run: node --test scripts/ios-platform-test.mjs
+      - name: Build unsigned iPhone package
+        run: npm run ios:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EBOOK-iOS-unsigned
+          path: |
+            release/*_ios-unsigned.ipa
+            release/*_ios-unsigned.ipa.sha256
+          if-no-files-found: error
+          retention-days: 30
