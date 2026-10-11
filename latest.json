@@ -1,12 +1,12 @@
 {
-  "version": "0.3.15",
-  "notes": "手机端全面提速：切页、滚动、搜索、打开书详情、换世界更顺，开屏不再闪；底栏滑块更圆润；修复插图重制版下载",
+  "version": "0.3.16",
+  "notes": "修复书架页被章节名撑宽、整页横向偏移；检查更新可以取消，下载慢或失败时可改用浏览器下载",
   "windows": {
-    "file": "EBOOK_0.3.15_x64-setup.exe",
-    "sha256": "be036b6ba8371595a10ca369f00248856ebb4b6702ddacccda3c6f83b68ef792"
+    "file": "EBOOK_0.3.16_x64-setup.exe",
+    "sha256": "1bf521fd2462a75be444bf48fc36b2ca285fa10848b89f59d6198af0bdff8426"
   },
   "android": {
-    "file": "EBOOK_0.3.15.apk",
-    "sha256": "f916feaa93733d8fe98179418acfdb06962b0d4cb1a0234c540e510730cac3a8"
+    "file": "EBOOK_0.3.16.apk",
+    "sha256": "1259f41d9d48bb7f08c48197890eecb3e277e934fc25768adb28b0f7d2d4057f"
   }
 }

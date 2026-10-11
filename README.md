@@ -14,8 +14,8 @@
 
 | 平台 | 文件 |
 |---|---|
-| Windows 10 / 11 | [EBOOK_0.3.15_x64-setup.exe](https://github.com/shihshdh/ebook/releases/download/v0.3.15/EBOOK_0.3.15_x64-setup.exe) |
-| 安卓 | [EBOOK_0.3.15.apk](https://github.com/shihshdh/ebook/releases/download/v0.3.15/EBOOK_0.3.15.apk) |
+| Windows 10 / 11 | [EBOOK_0.3.16_x64-setup.exe](https://github.com/shihshdh/ebook/releases/download/v0.3.16/EBOOK_0.3.16_x64-setup.exe) |
+| 安卓 | [EBOOK_0.3.16.apk](https://github.com/shihshdh/ebook/releases/download/v0.3.16/EBOOK_0.3.16.apk) |
 
 > Windows 第一次运行如果提示「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」。
 
