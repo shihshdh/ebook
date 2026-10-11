@@ -51,6 +51,7 @@ iOS 工程位于 `ios/App`，最低 iOS 15。与 Windows、Android 共用前端�
 - 有 Mac 时：`npm ci`，然后 `npm run ios:build`。需要 Xcode、命令行工具和 CocoaPods。
 - `ios:sync` 会编译前端、同步 `package.json` 的版本及图标、运行 Capacitor sync。云端 Xcode 构建真机 arm64 Release，并检查应用、前端入口及 Capacitor framework 均存在。
 - 产物：`release/EBOOK_<版本>_ios-unsigned.ipa` 和对应 `.sha256`，也会上传为 Actions 附件 `EBOOK-iOS-unsigned`（保留 30 天）。这是**未签名包**，不能直接点击安装，也不是 App Store/TestFlight 包。
+- 工作流还会编译模拟器版本，在 iPhone 16 Pro 模拟器上冷启动，检查进程存活并保存界面截图；截图位于 `EBOOK-iOS-smoke` 附件。
 - 本工作流不修改 Windows/Android 发布渠道的 `latest.json`，不创建或覆盖正式 Release。
 
 ### 安装及续签（在用户设备上完成）

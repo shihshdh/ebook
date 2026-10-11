@@ -40,3 +40,13 @@ jobs:
             release/*_ios-unsigned.ipa.sha256
           if-no-files-found: error
           retention-days: 30
+      - name: Launch on an iPhone simulator
+        run: bash scripts/smoke-ios.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: EBOOK-iOS-smoke
+          path: |
+            release/ios-first-launch.png
+            release/ios-processes.txt
+          if-no-files-found: warn

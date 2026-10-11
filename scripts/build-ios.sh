@@ -22,6 +22,7 @@ test "$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$APP/Info
 mkdir -p "$BUILD_DIR/Payload" release
 cp -R "$APP" "$BUILD_DIR/Payload/App.app"
 IPA="$PWD/release/EBOOK_${VERSION}_ios-unsigned.ipa"
-(cd "$BUILD_DIR" && /usr/bin/zip -qry "$IPA" Payload)
-shasum -a 256 "$IPA" > "$IPA.sha256"
+(cd "$BUILD_DIR" && /usr/bin/zip -qry package.ipa Payload)
+mv "$BUILD_DIR/package.ipa" "$IPA"
+(cd release && shasum -a 256 "$(basename "$IPA")" > "$(basename "$IPA").sha256")
 echo "已生成未签名 IPA：$IPA（需使用 SideStore 签名安装）"
