@@ -1,4 +1,5 @@
 import UIKit
+import WebKit
 import Capacitor
 
 // 场景：窗口和根视图由 Info.plist 的 UISceneStoryboardFile（Main.storyboard → MainViewController）建好，

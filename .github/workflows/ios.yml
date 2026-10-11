@@ -1,7 +1,8 @@
 # iOS 安装包：在 GitHub 的云端 Mac 上编出不签名的 IPA。用户在 Windows 上用 SideStore / AltStore 拿自己的 Apple 账号签名装到 iPhone（见 docs/IOS.md）。
 #   推代码：编一次，IPA 放在这次运行的「Artifacts」里（拿来试装）
 #   发 Release（发版.bat / release.mjs 建的）：编好后自动传到同一个 Release，文件名 EBOOK_<版本>.ipa（iOS 上的检查更新就下它）
-# 用 Xcode 27（iOS 27 SDK）编：iOS 27 起要求的场景生命周期、液态玻璃都按新 SDK 走；万一机器上还没有 27，用最新的那个并在日志里提醒
+# 用 Xcode 27（iOS 27 SDK）编：iOS 27 起要求的场景生命周期、液态玻璃都按新 SDK 走。
+# 机器用 GitHub 的 xcode-27 镜像（预览，macOS 27 + Xcode 27，arm64）：macos-26 镜像最高只有 Xcode 26.6（2026-10 实测）
 name: iOS 安装包
 
 on:
@@ -30,21 +31,18 @@ concurrency:
 
 jobs:
   ipa:
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
 
       - name: 选 Xcode（优先 27）
         run: |
-          ls -d /Applications/Xcode*.app
+          ls -d /Applications/Xcode*.app || true
           X=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
-          if [ -z "$X" ]; then
-            X=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
-            echo "::warning::这台机器上没有 Xcode 27，先用 $X 编"
-          fi
-          sudo xcode-select -s "$X"
+          if [ -n "$X" ]; then sudo xcode-select -s "$X"; fi
           xcodebuild -version
+          xcodebuild -version | grep -q '^Xcode 27' || echo "::warning::用的不是 Xcode 27：$(xcodebuild -version | head -1)"
           xcodebuild -showsdks | grep -i iphoneos
 
       - uses: actions/setup-node@v4

@@ -33,6 +33,12 @@ npm run dev        # http://localhost:5180
 
 两份 bat 使用 UTF-8 内容和 Windows CRLF 换行；编辑时保留 CRLF，避免 CMD 在切换 UTF-8 代码页后误读命令。首次构建需要联网下载 Rust / Gradle 依赖。
 
+## iOS
+
+不在本机打：GitHub 的云端 Mac 用 Xcode 27 编出不签名的 IPA（`.github/workflows/ios.yml`），用户用 SideStore / AltStore 拿自己的 Apple 账号签名安装。
+推代码时编一次（IPA 在那次运行的 Artifacts 里）；发 Release 时编好自动传 `EBOOK_<版本>.ipa` 到同一个 Release。版本号跟 `package.json`，构建号跟安卓 versionCode，iOS 工程里不用改。
+安装和续签见 `docs/IOS.md`。
+
 ## 发版（客户端「检查更新」靠它）
 
 1. 两端打好包，`release/` 里有 `EBOOK_<版本>_x64-setup.exe` 和 `EBOOK_<版本>.apk`。

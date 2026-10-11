@@ -12,6 +12,8 @@ body {
 }
 button { font: inherit; color: inherit; cursor: pointer; }
 a { color: inherit; }
+/* iOS：长按链接、封面、按钮不弹系统菜单（存储图像 / 拷贝链接）——长按有自己的按下反馈。只有 iOS 认这个属性 */
+a, img, button { -webkit-touch-callout: none; }
 img { display: block; max-width: 100%; }
 :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 10px; }
 input:focus-visible, textarea:focus-visible { outline: none; }

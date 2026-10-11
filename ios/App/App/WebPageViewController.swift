@@ -194,8 +194,8 @@ final class WebPageViewController: UIViewController, WKNavigationDelegate, WKUID
             try? handle.close()
             let start = String(decoding: head, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             if start.hasPrefix("<") { throw Failure("拿到的是网页") }
-            let final = WebPageViewController.fixExtension(file, head: head)
-            EbookNativePlugin.offer(file: final, move: true)
+            let book = WebPageViewController.fixExtension(file, head: head)
+            EbookNativePlugin.offer(file: book, move: true)
             try? FileManager.default.removeItem(at: dir)
             downloading = false
             progress.isHidden = true
@@ -204,7 +204,7 @@ final class WebPageViewController: UIViewController, WKNavigationDelegate, WKUID
                 dismiss(animated: true)
             } else {
                 // 网页模式留在页面上，可以接着看
-                say("\(final.lastPathComponent) 已放进书架", color: .systemGreen)
+                say("\(book.lastPathComponent) 已放进书架", color: .systemGreen)
             }
         } catch {
             fail(error)
