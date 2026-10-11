@@ -24,11 +24,14 @@ cleanup() {
   rm -rf "$SMOKE_DIR"
 }
 trap cleanup EXIT
+export EBOOK_SIM_SDK="$(xcrun --sdk iphonesimulator --show-sdk-version)"
 RUNTIME="$(xcrun simctl list runtimes -j | node -e '
 let s=""; process.stdin.on("data", c=>s+=c); process.stdin.on("end",()=>{
-const r=JSON.parse(s).runtimes.filter(r=>r.isAvailable && r.identifier.includes(".iOS-"))
+const sdk=process.env.EBOOK_SIM_SDK.split(".").slice(0,2).join(".");
+const r=JSON.parse(s).runtimes.filter(r=>r.isAvailable && r.identifier.includes(".iOS-") && r.version.split(".").slice(0,2).join(".")===sdk)
 .sort((a,b)=>b.version.localeCompare(a.version,undefined,{numeric:true}))[0];
-if(!r) process.exit(1); console.log(r.identifier);
+if(!r) {console.error("No installed simulator matches Xcode SDK " + sdk); process.exit(1);}
+console.error("Using " + r.name + " with SDK " + sdk); console.log(r.identifier);
 });')"
 DEVICE="$(xcrun simctl create EBOOK-Smoke com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro "$RUNTIME")"
 xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
