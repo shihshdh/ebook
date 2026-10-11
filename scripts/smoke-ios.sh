@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+timed() {
+  python3 - "$@" <<'PY'
+import subprocess, sys
+seconds = int(sys.argv[1])
+command = sys.argv[2:]
+print('+ ' + ' '.join(command), flush=True)
+try:
+    sys.exit(subprocess.run(command, timeout=seconds).returncode)
+except subprocess.TimeoutExpired:
+    print('Timed out after %s seconds: %s' % (seconds, ' '.join(command)), file=sys.stderr)
+    sys.exit(124)
+PY
+}
 SMOKE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ebook-ios-smoke.XXXXXX")"
 DEVICE=''
 cleanup() {
   if [[ -n "$DEVICE" ]]; then
-    xcrun simctl shutdown "$DEVICE" || true
-    xcrun simctl delete "$DEVICE" || true
+    timed 30 xcrun simctl shutdown "$DEVICE" || true
+    timed 30 xcrun simctl delete "$DEVICE" || true
   fi
   rm -rf "$SMOKE_DIR"
 }
@@ -20,15 +33,14 @@ if(!r) process.exit(1); console.log(r.identifier);
 DEVICE="$(xcrun simctl create EBOOK-Smoke com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro "$RUNTIME")"
 xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
   -sdk iphonesimulator -destination "id=$DEVICE" -derivedDataPath "$SMOKE_DIR/DerivedData" \
-  CODE_SIGNING_ALLOWED=NO build > "$SMOKE_DIR/build.log" 2>&1 || { cat "$SMOKE_DIR/build.log"; exit 1; }
-xcrun simctl boot "$DEVICE"
-xcrun simctl bootstatus "$DEVICE" -b
-xcrun simctl status_bar "$DEVICE" override --time '9:41' --batteryState charged --batteryLevel 100
-xcrun simctl install "$DEVICE" "$SMOKE_DIR/DerivedData/Build/Products/Debug-iphonesimulator/App.app"
-xcrun simctl launch "$DEVICE" app.librarium.reader
+  -destination-timeout 60 build > "$SMOKE_DIR/build.log" 2>&1 || { cat "$SMOKE_DIR/build.log"; exit 1; }
+timed 60 xcrun simctl boot "$DEVICE"
+timed 180 xcrun simctl bootstatus "$DEVICE" -b
+timed 120 xcrun simctl install "$DEVICE" "$SMOKE_DIR/DerivedData/Build/Products/Debug-iphonesimulator/App.app"
+timed 60 xcrun simctl launch "$DEVICE" app.librarium.reader
 sleep 15
 mkdir -p release
-xcrun simctl io "$DEVICE" screenshot release/ios-first-launch.png
+timed 30 xcrun simctl io "$DEVICE" screenshot release/ios-first-launch.png
 xcrun simctl spawn "$DEVICE" launchctl list > release/ios-processes.txt
 node --input-type=module -e '
 import {readFileSync} from "node:fs";
