@@ -17,7 +17,7 @@ import { txtToEpub } from '../reader/txt';
 import { searchBook } from '../reader/search';
 import { useReadingClock } from '../lib/readstats';
 import Icon from '../components/Icon.jsx';
-import { haptic, onBackButton, setImmersive } from '../lib/native';
+import { haptic, onBackButton, setImmersive, isIOS } from '../lib/native';
 import { acctKey } from '../lib/accounts';
 import '../styles/reader.css';
 
@@ -54,8 +54,9 @@ const NO_FOUND = { q: '', hits: [], done: true, more: false, scanned: 0, of: 0 }
 
 function applyTheme(rendition, prefs) {
   const theme = READER_THEMES[prefs.readerTheme] || READER_THEMES.night;
+  const family = (READER_FONTS[prefs.readerFont] || READER_FONTS.serif).stack;
   rendition.themes.default({
-    body: { color: `${theme.text} !important`, background: `${theme.page} !important`, 'font-family': `${(READER_FONTS[prefs.readerFont] || READER_FONTS.serif).stack} !important`, 'font-size': `${prefs.fontSize}% !important`, 'line-height': `${prefs.lineHeight} !important`, 'text-align': 'justify' },
+    body: { color: `${theme.text} !important`, background: `${theme.page} !important`, 'font-family': `${isIOS ? family.replace('"Noto Serif SC", ', '') : family} !important`, 'font-size': `${prefs.fontSize}% !important`, 'line-height': `${prefs.lineHeight} !important`, 'text-align': 'justify' },
     'p, li': { 'line-height': `${prefs.lineHeight} !important` },
     a: { color: `${theme.link} !important` },
     // 插图不能比一页还高：分页模式下超高的图会被整个挤到下一栏，留下一页空白
@@ -119,6 +120,10 @@ export default function Reader() {
   const [prefs, setPrefs] = usePrefs();
   const theme = READER_THEMES[prefs.readerTheme] || READER_THEMES.night;
   const touch = useMemo(() => isTouch(), []);
+  // WebKit suppresses document event callbacks inside script-disabled EPUB frames.
+  // Keep that sandbox intact and handle paginated touch input outside the frame.
+  const iosTouch = touch && isIOS;
+  const touchSurface = useRef(null);
 
   const host = useRef(null), stage = useRef(null), engine = useRef(null), prefsRef = useRef(prefs), act = useRef({});
   const position = useRef(null), saveTimer = useRef(0), hideTimer = useRef(0), toastTimer = useRef(0), turnDir = useRef(0), history = useRef([]);
@@ -418,6 +423,7 @@ export default function Reader() {
   useEffect(() => {
     let cancelled = false, book, rendition, resize;
     const disposers = [];
+    let disposeSurface;
     setReady(false); setError('');
     const restore = position.current?.cfi;
     (async () => {
@@ -439,9 +445,13 @@ export default function Reader() {
       applyTheme(rendition, prefsRef.current);
       rendition.hooks.content.register(contents => {
         const doc = contents.document;
+        const surface = touchSurface.current;
+        const eventTarget = surface || doc;
+        if (surface) disposeSurface?.();
         let t0 = null, suppress = 0;
         // 分栏 EPUB 的 iframe 比可见页宽很多，坐标要换算回阅读窗口
         const viewX = (x) => {
+          if (surface) { const vr = host.current.getBoundingClientRect(); return (x - vr.left) / vr.width; }
           const fr = contents.window.frameElement.getBoundingClientRect(), vr = host.current.getBoundingClientRect();
           return (x + fr.left - vr.left) / vr.width;
         };
@@ -454,7 +464,7 @@ export default function Reader() {
         // 触点换算成外层页面的坐标。iframe 里的 clientX 是相对 iframe 的，而书页拖动时 iframe 跟着平移（下拉书签时跟着下移）：
         // 手指走 180px、书页跟到 90px，手指在 iframe 里就只「走了」90px——自己把自己抵消一半。旧版整页挪 35% 也一样被抵消，
         // 40px 的门槛实际要划 54px，下拉书签实际要拉 230 多像素
-        const at = (p) => { const fr = contents.window.frameElement.getBoundingClientRect(); return [p.clientX + fr.left, p.clientY + fr.top]; };
+        const at = (p) => { if (surface) return [p.clientX, p.clientY]; const fr = contents.window.frameElement.getBoundingClientRect(); return [p.clientX + fr.left, p.clientY + fr.top]; };
         const start = e => {
           if (e.touches.length !== 1) { cancel(); return; }   // 第二根手指（缩放之类）：这一下不算
           // 先换算再收尾：这个触点的 iframe 坐标是按收尾动画走到一半时的位置算的，收尾（清平移、滚一屏）以后 iframe 就挪了
@@ -481,6 +491,10 @@ export default function Reader() {
           const [x, y] = at(e.changedTouches[0]);
           if (g.axis === 'x') { suppress = Date.now() + 500; act.current.swipeEnd(swipeDir(x - g.x, g.track, x, e.timeStamp)); }
           else if (g.axis === 'y') { suppress = Date.now() + 500; act.current.pull(y - g.y, 'end'); }
+          else if (surface && !g.axis && Math.abs(x - g.x) < SLOP && Math.abs(y - g.y) < SLOP) {
+            suppress = Date.now() + 500;
+            act.current.tap(viewX(e.changedTouches[0].clientX));
+          }
         };
         // 被系统打断（来电、手势导航、第二根手指）：书页回原位，不翻
         function cancel() {
@@ -488,9 +502,11 @@ export default function Reader() {
           if (g?.axis === 'x') act.current.swipeEnd(0);
           else if (g?.axis === 'y') act.current.pull(0, 'cancel');
         }
-        doc.addEventListener('click', click); doc.addEventListener('keydown', key);
-        doc.addEventListener('touchstart', start, { passive: true }); doc.addEventListener('touchmove', move, { passive: true }); doc.addEventListener('touchend', end, { passive: true }); doc.addEventListener('touchcancel', cancel, { passive: true });
-        disposers.push(() => { doc.removeEventListener('click', click); doc.removeEventListener('keydown', key); doc.removeEventListener('touchstart', start); doc.removeEventListener('touchmove', move); doc.removeEventListener('touchend', end); doc.removeEventListener('touchcancel', cancel); });
+        eventTarget.addEventListener('click', click); eventTarget.addEventListener('keydown', key);
+        eventTarget.addEventListener('touchstart', start, { passive: true }); eventTarget.addEventListener('touchmove', move, { passive: true }); eventTarget.addEventListener('touchend', end, { passive: true }); eventTarget.addEventListener('touchcancel', cancel, { passive: true });
+        const dispose = () => { eventTarget.removeEventListener('click', click); eventTarget.removeEventListener('keydown', key); eventTarget.removeEventListener('touchstart', start); eventTarget.removeEventListener('touchmove', move); eventTarget.removeEventListener('touchend', end); eventTarget.removeEventListener('touchcancel', cancel); };
+        if (surface) disposeSurface = dispose;
+        disposers.push(dispose);
       });
       rendition.on('selected', (cfiRange, contents) => {
         const text = contents.window.getSelection()?.toString().trim();
@@ -553,8 +569,9 @@ export default function Reader() {
     })().catch(e => { if (!cancelled) setError(e.message || '无法打开这本书。'); });
     const key = e => act.current.key(e);
     const pagehide = () => flush();
-    addEventListener('keydown', key); addEventListener('pagehide', pagehide);
-    return () => { cancelled = true; flush(); resize?.disconnect(); disposers.forEach(fn => fn()); removeEventListener('keydown', key); removeEventListener('pagehide', pagehide); engine.current = null; rendition?.destroy(); book?.destroy(); };
+    const background = () => { if (document.hidden) flush(); };
+    addEventListener('keydown', key); addEventListener('pagehide', pagehide); document.addEventListener('visibilitychange', background);
+    return () => { cancelled = true; flush(); resize?.disconnect(); disposers.forEach(fn => fn()); removeEventListener('keydown', key); removeEventListener('pagehide', pagehide); document.removeEventListener('visibilitychange', background); engine.current = null; rendition?.destroy(); book?.destroy(); };
   }, [id, prefs.readerMode]);
   useEffect(() => { if (engine.current) applyTheme(engine.current.rendition, prefs); }, [prefs]);
   useEffect(() => { if (engine.current && ready) { notesRef.current.forEach(paintHL); repaintSR(); } }, [prefs.readerTheme]);
@@ -643,6 +660,7 @@ export default function Reader() {
       <div ref={stage} className="rd-stage" style={{ transform: pull ? `translate3d(0,${pull}px,0)` : undefined }}>
         <div className="rd-ambient rd-ambient-top">{loc.chapter || item?.title}</div>
         <div ref={host} className={`rd-content ${ready ? 'is-ready' : ''}`} aria-label="书籍正文" />
+        {iosTouch && prefs.readerMode === 'paginated' && <div ref={touchSurface} className="rd-touch-surface" aria-label="阅读手势区域" />}
         <div className="rd-ambient rd-ambient-bottom">
           <span className="num">{prefs.readerMode === 'paginated' && loc.pages ? (leftInChapter ? `本章 ${loc.page} / ${loc.pages} · 还剩 ${leftInChapter} 页` : `本章 ${loc.page} / ${loc.pages} · 最后一页`) : ''}</span>
           <span className="num">{ticks.length ? toPercent(loc.percent) : ''}{ticks.length ? ' · ' : ''}<Clock /></span>
@@ -650,6 +668,7 @@ export default function Reader() {
       </div>
 
       {/* 书签丝带 */}
+      {iosTouch && !open && <button className="rd-menu-trigger" onClick={e => { e.stopPropagation(); showBars(0); }} aria-label="打开阅读菜单">菜单</button>}
       <button className={`rd-ribbon ${bookmarked ? 'on' : ''}`} onClick={(e) => { e.stopPropagation(); toggleBookmark(); }} aria-label={bookmarked ? '移除本页书签' : '为本页加书签'} aria-pressed={bookmarked}>
         <svg viewBox="0 0 22 40" aria-hidden="true"><path d="M1 0h20v38l-10-8-10 8z" /></svg>
       </button>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { prefersReduced } from "../lib/motion";
 import { tier, canWebGL2, watchFps } from "../lib/perf";
 import { isLight } from "../lib/theme";
+import { isIOS } from "../lib/native";
 import { FPS_ACTIVE, cappedRaf } from "../lib/frame";
 import "./PrismGlass.css";
 const P = {
@@ -401,5 +402,5 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
     };
   // lead、caption 是 HTML 字（不画进纹理）：它们变了不用重建 WebGL——以前书库一加载完、书源数一变，就整套拆掉重建一遍
   }, [mode, title.join("\n")]);
-  return <section ref={rootRef} className={`prism-glass ${mode === "glass" ? "has-webgl" : "is-static"}`} style={{ height, "--prism-lines": title.length }}><canvas ref={canvasRef} className="prism-canvas" aria-hidden="true" /><div className="prism-copy"><h2>{title.map((line, i) => <span key={i}>{line}</span>)}</h2></div>{lead && <p className="prism-lead">{lead}</p>}<div className="prism-children">{children}</div><small className="prism-caption">{caption}</small></section>;
+  return <section ref={rootRef} className={`prism-glass ${mode === "glass" ? "has-webgl" : "is-static"}`} style={{ height: isIOS ? "clamp(360px, 52svh, 460px)" : height, "--prism-lines": title.length }}><canvas ref={canvasRef} className="prism-canvas" aria-hidden="true" /><div className="prism-copy"><h2>{title.map((line, i) => <span key={i}>{line}</span>)}</h2></div>{lead && <p className="prism-lead">{lead}</p>}<div className="prism-children">{children}</div><small className="prism-caption">{caption}</small></section>;
 }

@@ -12,7 +12,7 @@ import { needsUnlock } from './lib/accounts.js';
 import OpenTransition from './effects/OpenTransition.jsx';
 import { UIProvider, useUIActions } from './lib/ui.jsx';
 import { startDownloadWatch } from './lib/downloads.js';
-import { onBackButton } from './lib/native.js';
+import { onBackButton, isIOS } from './lib/native.js';
 import { loadLibrary, libraryBooks, classics, WORLDS, worldScore } from './lib/library.js';
 import { prefetchCovers } from './lib/covers.js';
 import { trackPointerGlow } from './lib/motion.js';
@@ -90,7 +90,7 @@ function Shell() {
   const warmed = useRef(new Set()), warmers = useRef({}), engineReady = useRef(false), worldsReady = useRef(false);
   const [warmedEls, sectionWarmers] = useState(() => [new WeakSet(), new WeakMap()])[0];
   useEffect(() => {
-    if (splash || locked || reading || !libReady) return;
+    if (isIOS || splash || locked || reading || !libReady) return;
     let timer = 0, running = null;   // running：正在分块排版的那一页 { stop }
     // 分块排一页：先让 React 挂上 data-warming，再一段段排；done() 时这页排完了
     const warmPage = (k, done) => {
@@ -206,7 +206,9 @@ function Shell() {
   useEffect(() => {
     const on = (e) => toast(`已导入账户「${e.detail.account.name}」，到「插件 · 账户」里切换过去`, { tone: 'ok', ms: 5200 });
     window.addEventListener('librarium:account-imported', on);
-    return () => window.removeEventListener('librarium:account-imported', on);
+    const failed = e => toast(e.detail, { tone: 'error', ms: 6000 });
+    window.addEventListener('librarium:import-error', failed);
+    return () => { window.removeEventListener('librarium:account-imported', on); window.removeEventListener('librarium:import-error', failed); };
   }, [toast]);
   // 切页：记下离开那一页滚到哪了；回到去过的页面接着原来的位置，同一页里换地址（换个世界、换个订阅源）回顶部。阅读器自己管滚动
   const lastPath = useRef(pathname);

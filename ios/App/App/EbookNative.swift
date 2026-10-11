@@ -7,8 +7,11 @@ class EbookViewController: CAPBridgeViewController {
     var immersive = false
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(EbookNative())
+        webView?.scrollView.alwaysBounceHorizontal = false
+        webView?.scrollView.keyboardDismissMode = .interactive
     }
     override var prefersHomeIndicatorAutoHidden: Bool { immersive }
+    override var prefersStatusBarHidden: Bool { immersive }
 }
 
 enum EbookFiles {
@@ -83,6 +86,7 @@ public class EbookNative: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDelegate 
                 view.immersive = call.getBool("on") ?? false
                 view.setStatusBarVisible(!view.immersive)
                 view.setNeedsUpdateOfHomeIndicatorAutoHidden()
+                UIApplication.shared.isIdleTimerDisabled = view.immersive
             }
             call.resolve()
         }
@@ -183,6 +187,9 @@ final class EbookBrowser: UIViewController, WKNavigationDelegate, WKUIDelegate, 
     private var download: WKDownload?
     private var destination: URL?
     private var progress: NSKeyValueObservation?
+    private var pageProgress: NSKeyValueObservation?
+    private let loadingBar = UIProgressView(progressViewStyle: .bar)
+    private var lastPageURL: URL?
 
     init(url: URL, title: String, password: String?) {
         initialURL = url; self.password = password
@@ -194,16 +201,27 @@ final class EbookBrowser: UIViewController, WKNavigationDelegate, WKUIDelegate, 
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         navigationItem.leftBarButtonItem = UIBarButtonItem(title: "完成", style: .done, target: self, action: #selector(close))
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "后退", style: .plain, target: self, action: #selector(goBack))
+        navigationItem.rightBarButtonItems = [
+            UIBarButtonItem(title: "更多", style: .plain, target: self, action: #selector(more)),
+            UIBarButtonItem(title: "后退", style: .plain, target: self, action: #selector(goBack))
+        ]
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
+        config.defaultWebpagePreferences.preferredContentMode = .mobile
+        // Some download sites reject the WKWebView UA when the Safari token is absent.
+        config.applicationNameForUserAgent = "Version/\(UIDevice.current.systemVersion) Safari/604.1"
+        let sameWindow = """
+        (()=>{window.open=(url)=>{if(url){try{const u=new URL(url,location.href);if(/^https?:$/.test(u.protocol))location.href=u.href;}catch{}}return window;};
+        document.addEventListener('click',e=>{const a=e.target.closest?.('a[target]');if(a)a.target='_self';},true);})();
+        """
+        config.userContentController.addUserScript(WKUserScript(source: sameWindow, injectionTime: .atDocumentStart, forMainFrameOnly: false))
         // No message handlers or Capacitor objects are registered on this view.
         if let password = password, !password.isEmpty,
            let data = try? JSONSerialization.data(withJSONObject: [password]), let json = String(data: data, encoding: .utf8) {
             let script = """
             (()=>{if(!/(^|\\.)[a-z0-9-]*lanz[a-z0-9-]*\\.(com|net|cn)$/i.test(location.hostname))return;
             const p=\(json)[0];let n=0;const t=setInterval(()=>{const i=document.querySelector('#pwd,input[name="pwd"]');
-            if(i){i.value=p;i.dispatchEvent(new Event('input',{bubbles:true}));clearInterval(t);}if(++n>40)clearInterval(t);},250);})();
+            if(i){i.value=p;i.dispatchEvent(new Event('input',{bubbles:true}));clearInterval(t);document.querySelector('#sub,.passwddiv-btn,#passwddiv .btn,input[type="submit"]')?.click();}if(++n>40)clearInterval(t);},250);})();
             """
             config.userContentController.addUserScript(WKUserScript(source: script, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         }
@@ -212,13 +230,66 @@ final class EbookBrowser: UIViewController, WKNavigationDelegate, WKUIDelegate, 
         web.allowsBackForwardNavigationGestures = true
         web.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(web)
+        loadingBar.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(loadingBar)
         NSLayoutConstraint.activate([
             web.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            web.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            web.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
             web.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            web.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+            web.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            loadingBar.topAnchor.constraint(equalTo: web.topAnchor),
+            loadingBar.leadingAnchor.constraint(equalTo: web.leadingAnchor),
+            loadingBar.trailingAnchor.constraint(equalTo: web.trailingAnchor)
         ])
-        web.load(URLRequest(url: initialURL))
+        pageProgress = web.observe(\.estimatedProgress, options: [.new]) { [weak self] web, _ in
+            self?.loadingBar.progress = Float(web.estimatedProgress)
+            self?.loadingBar.isHidden = web.estimatedProgress >= 1
+        }
+        web.load(URLRequest(url: initialURL, timeoutInterval: 30))
+    }
+    @objc private func more() {
+        let menu = UIAlertController(title: "网页操作", message: password.map { "提取码：\($0)" }, preferredStyle: .actionSheet)
+        menu.addAction(UIAlertAction(title: "重新加载", style: .default) { [weak self] _ in self?.reloadPage() })
+        menu.addAction(UIAlertAction(title: "用 Safari 打开", style: .default) { [weak self] _ in
+            guard let self = self else { return }
+            UIApplication.shared.open(self.lastPageURL ?? self.initialURL)
+        })
+        menu.addAction(UIAlertAction(title: "复制链接", style: .default) { [weak self] _ in
+            guard let self = self else { return }; UIPasteboard.general.url = self.lastPageURL ?? self.initialURL
+        })
+        if let password = password, !password.isEmpty {
+            menu.addAction(UIAlertAction(title: "复制提取码", style: .default) { _ in UIPasteboard.general.string = password })
+        }
+        menu.addAction(UIAlertAction(title: "取消", style: .cancel))
+        menu.popoverPresentationController?.barButtonItem = navigationItem.rightBarButtonItems?.first
+        present(menu, animated: true)
+    }
+    private func reloadPage() {
+        web.load(URLRequest(url: lastPageURL ?? initialURL, timeoutInterval: 30))
+    }
+    private func pageFailed(_ error: Error) {
+        guard (error as NSError).code != NSURLErrorCancelled, download == nil else { return }
+        loadingBar.isHidden = true
+        navigationItem.prompt = "页面加载失败，可在「更多」中重试或用 Safari 打开"
+        guard presentedViewController == nil else { return }
+        let alert = UIAlertController(title: "无法打开网页", message: error.localizedDescription, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "重试", style: .default) { [weak self] _ in self?.reloadPage() })
+        alert.addAction(UIAlertAction(title: "关闭提示", style: .cancel))
+        present(alert, animated: true)
+    }
+    func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        loadingBar.isHidden = false
+        navigationItem.prompt = "正在加载 \(webView.url?.host ?? initialURL.host ?? "网页")…"
+    }
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        lastPageURL = webView.url
+        if download == nil { navigationItem.prompt = webView.url?.host }
+        loadingBar.isHidden = true
+    }
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) { pageFailed(error) }
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) { pageFailed(error) }
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        pageFailed(NSError(domain: "EBOOK", code: 4, userInfo: [NSLocalizedDescriptionKey: "网页进程已退出，请重新加载"]))
     }
     @objc private func goBack() { if web.canGoBack { web.goBack() } }
     @objc private func close() {
@@ -243,6 +314,11 @@ final class EbookBrowser: UIViewController, WKNavigationDelegate, WKUIDelegate, 
     }
     func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
         let response = navigationResponse.response
+        if let response = response as? HTTPURLResponse, response.statusCode >= 400 {
+            decisionHandler(.cancel)
+            pageFailed(NSError(domain: "EBOOK.HTTP", code: response.statusCode, userInfo: [NSLocalizedDescriptionKey: "服务器返回 HTTP \(response.statusCode)，请重试或用 Safari 打开"]))
+            return
+        }
         let ext = response.url?.pathExtension.lowercased() ?? ""
         let mime = response.mimeType ?? ""
         let attachment = (response as? HTTPURLResponse)?.value(forHTTPHeaderField: "Content-Disposition")?.lowercased().contains("attachment") == true

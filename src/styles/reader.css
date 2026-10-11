@@ -20,6 +20,11 @@
   will-change: transform; background: var(--rd-page);
 }
 .rd-content.is-ready { opacity: 1; }
+.rd-touch-surface {
+  position: absolute; left: 0; right: 0;
+  top: calc(34px + var(--safe-t)); bottom: calc(30px + var(--safe-b));
+  z-index: 2; touch-action: none;
+}
 /* 宽屏翻页：一张居中的纸，两侧暗色留白 */
 .is-desk.mode-paginated .rd-content { max-width: 760px; box-shadow: 0 0 0 1px rgba(255, 246, 225, .04), 0 40px 120px -40px rgba(0, 0, 0, .8); }
 .is-desk.mode-paginated .rd-stage { padding: 0 0; }
@@ -71,15 +76,15 @@
 .rd-top, .rd-bottom { position: absolute; z-index: 32; left: calc(var(--side) + 14px); right: 14px; transition: transform .5s var(--ease), opacity .35s, left .45s var(--ease); }
 .rd-top {
   top: calc(10px + var(--safe-t)); display: flex; align-items: center; gap: 6px; height: 54px; padding: 0 8px; border-radius: 20px;
-  transform: translate3d(0, -140%, 0); opacity: 0;
+  transform: translate3d(0, -140%, 0); opacity: 0; pointer-events: none;
 }
-.rd-top.show, .rd-bottom.show { transform: none; opacity: 1; }
+.rd-top.show, .rd-bottom.show { transform: none; opacity: 1; pointer-events: auto; }
 .rd-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; line-height: 1.3; }
 .rd-title strong { max-width: 100%; font-family: var(--serif); font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rd-title small { max-width: 100%; font-size: 11px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rd-bottom { bottom: calc(12px + var(--safe-b)); display: flex; flex-direction: column; align-items: center; gap: 10px; transform: translate3d(0, 140%, 0); opacity: 0; pointer-events: none; }
 .rd-bottom.show { pointer-events: auto; }
-.rd-bottom > * { pointer-events: auto; }
+.rd-bottom.show > * { pointer-events: auto; }
 
 .rd-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 40px; height: 40px; padding: 0 12px; border: 0; border-radius: 13px;
@@ -182,6 +187,9 @@
 
 /* ---------- 手机 ---------- */
 .is-touch .rd-stage { grid-template-rows: calc(34px + var(--safe-t)) 1fr calc(30px + var(--safe-b)); }
+.is-touch .rd-stage { left: env(safe-area-inset-left, 0px); right: env(safe-area-inset-right, 0px); }
+.is-touch .rd-top, .is-touch .rd-bottom { left: max(14px, env(safe-area-inset-left, 0px)); right: max(14px, env(safe-area-inset-right, 0px)); }
+.rd-menu-trigger { position: absolute; z-index: 6; right: max(48px, env(safe-area-inset-right, 0px)); top: var(--safe-t); height: 34px; min-width: 48px; border: 0; border-radius: 12px; background: var(--rd-page); color: var(--rd-text); font-size: 12px; }
 .is-touch .rd-ambient-top { align-self: end; padding-bottom: 6px; }
 .is-touch .rd-ambient-bottom { align-self: start; }
 .is-touch .rd-panel.as-pop { left: 10px; right: 10px; width: auto; bottom: calc(86px + var(--safe-b)); max-height: 66vh; transform-origin: 50% 100%; }

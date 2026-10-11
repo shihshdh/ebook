@@ -1,0 +1,69 @@
+/* iPhone layout and rendering budget; desktop/Android retain their own styles. */
+.platform-ios {
+  --serif: 'Songti SC', 'STSong', 'PingFang SC', serif;
+  --display: Georgia, 'Songti SC', serif;
+  --gutter: clamp(16px, 4vw, 24px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+}
+.platform-ios body { overscroll-behavior-y: none; }
+.platform-ios ::-webkit-scrollbar { width: 0; height: 0; }
+.platform-ios .page {
+  padding-left: max(var(--gutter), var(--safe-l));
+  padding-right: max(var(--gutter), var(--safe-r));
+}
+/* Scrolling cards need no live blur of every pixel moving underneath them. */
+.platform-ios .glass {
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: linear-gradient(145deg, var(--surface-tint), transparent), var(--glass-dense);
+  box-shadow: inset 0 1px 0 var(--surface-rim), 0 8px 24px -18px var(--surface-shadow);
+}
+.platform-ios .glass::after { display: none; }
+.platform-ios .sheet-scrim { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.platform-ios .disc { filter: none; }
+.platform-ios .disc-face { box-shadow: inset 0 0 0 1px var(--line2); }
+.platform-ios .pick { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.platform-ios .pick, .platform-ios .rank, .platform-ios .illus, .platform-ios .stats { contain: paint; }
+.platform-ios body::before, .platform-ios .ws-collage, .platform-ios .ws-caret { animation: none; }
+.platform-ios .hero {
+  height: auto; min-height: calc(100svh - var(--tab-h) - var(--safe-b) - 20px);
+  padding: calc(var(--safe-t) + 28px) 0 28px;
+  align-content: center;
+}
+.platform-ios .hero-grid { gap: 24px; }
+.platform-ios .hero-title { font-size: clamp(40px, 11vw, 62px); }
+.platform-ios .home-body { padding-top: 24px; }
+.platform-ios .disc-stage { height: clamp(240px, 34svh, 320px); }
+.platform-ios .ws { height: clamp(350px, 50svh, 460px); }
+.platform-ios .ws-glyph { font-size: clamp(120px, 34vw, 150px); top: 64%; right: 14px; }
+.platform-ios .prism-glass { min-height: 360px; }
+.platform-ios .search-page { padding-left: var(--safe-l); padding-right: var(--safe-r); }
+.platform-ios .sheet-layer, .platform-ios .acct-modal, .platform-ios .upd-layer {
+  top: var(--visual-top, 0px); bottom: auto; height: var(--visual-height, 100dvh);
+}
+.platform-ios .sheet { max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - 12px); }
+.platform-ios .sheet-body { min-height: 0; -webkit-overflow-scrolling: touch; }
+.platform-ios input:not([type='range']):not([type='checkbox']):not([type='radio']),
+.platform-ios textarea, .platform-ios select { font-size: 16px; }
+.platform-ios.keyboard-open .tabbar { visibility: hidden; pointer-events: none; }
+.platform-ios.keyboard-open .sheet-body { padding-bottom: 20px; }
+.platform-ios.keyboard-open .reader2 { top: var(--visual-top, 0px); bottom: auto; height: var(--visual-height, 100dvh); }
+.platform-ios .reader2 .rd-panel.as-pop { max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - var(--safe-b) - 160px); }
+.platform-ios .rd-search input { font-size: 16px; }
+/* Landscape iPhones remain touch layouts instead of gaining a desktop title bar. */
+@media (pointer: coarse) and (max-height: 500px) and (min-width: 761px) {
+  .platform-ios { --tab-h: 54px; }
+  .platform-ios .topbar { display: none; }
+  .platform-ios .tabbar {
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+    position: fixed; z-index: 50; left: max(12px, var(--safe-l)); right: max(12px, var(--safe-r));
+    bottom: calc(6px + var(--safe-b)); height: var(--tab-h); padding: 4px; border-radius: 28px;
+  }
+  .platform-ios .tabbar.is-hidden { visibility: hidden; pointer-events: none; }
+  .platform-ios .tabbar-item { display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; color: var(--ink2); }
+  .platform-ios .page { padding-top: calc(var(--safe-t) + 16px); padding-bottom: calc(var(--tab-h) + var(--safe-b) + 24px); }
+  .platform-ios .hero-grid { grid-template-columns: 1fr 1fr; }
+  .platform-ios .hero-title { font-size: 38px; }
+  .platform-ios .sheet { top: 8px; bottom: 8px; }
+  .platform-ios .reader2 .rd-panel.as-pop { bottom: calc(64px + var(--safe-b)); max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - var(--safe-b) - 100px); }
+}

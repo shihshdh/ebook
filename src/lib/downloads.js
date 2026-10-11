@@ -87,10 +87,13 @@ export function startDownloadWatch(cb) {
         }
       }
       const files = await expandFile(name, bytes);
-      if (!files.length) return;
+      if (!files.length) throw new Error('压缩包中没有 EPUB 或 TXT 书籍');
       const { importFiles } = await import('../plugins/local/index.js');
       cb(await importFiles(files), files.map(f => f.name));
-    } catch (e) { console.warn('[import]', e); }
+    } catch (e) {
+      console.warn('[import]', e);
+      window.dispatchEvent(new CustomEvent('librarium:import-error', { detail: e.message || '文件导入失败，请从书架重新导入' }));
+    }
   };
   const offLanzou = lanzou.onFile(take);
   const offOpen0 = onOpenedFile(take);

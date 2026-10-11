@@ -16,6 +16,7 @@ export const platform =
 
 export const isNative = platform !== 'web';
 export const mobileOS = platform === 'capacitor' ? window.Capacitor.getPlatform() : null;
+export const isIOS = mobileOS === 'ios' || (typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent));
 export const supportsPackageUpdate = platform === 'tauri' || mobileOS === 'android';
 
 /** 书源需要保留错误页正文，且必须按原始字节而不是桥接默认 UTF-8 解码。 */

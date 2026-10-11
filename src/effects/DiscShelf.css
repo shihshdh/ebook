@@ -1,4 +1,5 @@
-.discshelf { position: relative; padding: 8px 0 0; }
+/* Keep the disc depth order below navigation, reader and book-detail overlays. */
+.discshelf { position: relative; isolation: isolate; padding: 8px 0 0; }
 
 /* 片名表：衬线大标题 + 细线资料行（唱片封底的编辑感） */
 .disc-sheet { position: relative; z-index: 300; max-width: 460px; pointer-events: none; animation: sheet-in .62s var(--ease) backwards; }

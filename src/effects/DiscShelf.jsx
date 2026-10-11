@@ -12,7 +12,7 @@ import Icon from '../components/Icon.jsx';
 import { prefersReduced } from '../lib/motion.js';
 import { FPS_ACTIVE, FPS_IDLE, cappedRaf } from '../lib/frame.js';
 import { pressBook, stopWarm, warmBook } from '../lib/glyph-warm.js';
-import { haptic } from '../lib/native.js';
+import { haptic, isIOS } from '../lib/native.js';
 import './DiscShelf.css';
 
 const WINDOW = 4;
@@ -52,7 +52,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
     idle.current?.anims.forEach(a => { if (run) a.play(); else a.pause(); });
   };
   const enterIdle = () => {
-    if (idle.current || reduced.current || typeof Element.prototype.animate !== 'function') return;
+    if (isIOS || idle.current || reduced.current || typeof Element.prototype.animate !== 'function') return;
     const anims = new Map(), running = spinT.current.since !== null;
     discRefs.current.forEach((el, i) => {
       const at = pose.current.get(el);
@@ -121,7 +121,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
       const y = h * .5 - d * 54 * unit + d * d * 5 * unit;
       const scale = Math.max(.42, Math.min(1.5, 1 + d * .15 - a * .03));
       const tilt = 34 + Math.min(a, 1.6) * 12;
-      const spin = reduced.current ? -d * 40 : (clock() * .009 + m.spin) * (1 + i % 3 * .15) - d * 40;   // 匀速那份按钟算
+      const spin = reduced.current || isIOS ? -d * 40 : (clock() * .009 + m.spin) * (1 + i % 3 * .15) - d * 40;   // 匀速那份按钟算
       const fade = a > 3.2 ? Math.max(0, 1 - (a - 3.2) / .8) : 1;
       const pre = `translate3d(${x - size / 2}px,${y - size / 2}px,0) scale(${scale}) perspective(${900 * unit}px) rotateZ(-24deg) rotateX(${tilt}deg)`;
       el.style.transform = `${pre} rotateZ(${spin}deg)`;

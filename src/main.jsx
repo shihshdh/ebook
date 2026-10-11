@@ -1,7 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
-import { appReady, platform } from './lib/native.js';
+import { appReady, platform, isIOS } from './lib/native.js';
+import { setupIOSViewport } from './lib/ios-viewport.js';
 import { applyTheme } from './lib/theme.js';
 import './styles/tokens.css';
 import './styles/base.css';
@@ -9,9 +10,11 @@ import './styles/app.css';
 import './styles/home.css';
 import './styles/accounts.css';
 import './styles/light.css';
+import './styles/ios.css';
 
 // 平台写在 <html> 上，CSS 按端微调（客户端的标题栏留位、安全区等）
 document.documentElement.classList.add(`platform-${platform}`);
+if (isIOS) { document.documentElement.classList.add('platform-ios'); setupIOSViewport(); }
 applyTheme();
 
 ReactDOM.createRoot(document.getElementById('root')).render(

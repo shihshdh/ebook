@@ -83,6 +83,7 @@ export class LiquidSpring {
 
 /** 玻璃面板的指针高光：把指针位置写成 --pointer-x / --pointer-y */
 export function trackPointerGlow(root = document) {
+  if (!matchMedia('(hover: hover) and (pointer: fine)').matches) return () => {};
   // 每改一次变量，整块玻璃（连同 backdrop-filter）都要重画；300Hz 屏上指针事件每秒 300 次，合并到 60 次足够跟手
   // 高光位置是继承的 CSS 变量：一改，整块玻璃里所有子元素都要重算样式。书源列表这种几百行的大面板，指针一动每秒重算几万个元素——
   // 子元素多的面板不跟指针（高光停在默认位置），小卡片照旧
