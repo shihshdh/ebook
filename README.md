@@ -16,6 +16,7 @@
 |---|---|
 | Windows 10 / 11 | [EBOOK_0.3.16_x64-setup.exe](https://github.com/shihshdh/ebook/releases/download/v0.3.16/EBOOK_0.3.16_x64-setup.exe) |
 | 安卓 | [EBOOK_0.3.16.apk](https://github.com/shihshdh/ebook/releases/download/v0.3.16/EBOOK_0.3.16.apk) |
+| iPhone（iOS 16.4 及以上，侧载） | 见 [iOS 安装说明](docs/IOS.md)：每次发版自动编好 `EBOOK_<版本>.ipa`，用 SideStore / AltStore 装 |
 
 > Windows 第一次运行如果提示「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」。
 
