@@ -7,6 +7,7 @@
 // 前景大字不动是关键：视觉锚点稳住，变化才读得出是"镜头在动"。一个进度 p 驱动全部，弹簧推动，逐帧写 style。
 import { useEffect, useRef, useState } from 'react';
 import Cover from '../components/Cover.jsx';
+import { isIOS } from '../lib/native.js';
 import { Spring, prefersReduced } from '../lib/motion.js';
 import './WorldSwitch.css';
 
@@ -26,7 +27,28 @@ function Typed({ text, run }) {
   return <span>{text.slice(0, n)}<i className="ws-caret" aria-hidden="true" /></span>;
 }
 
-export default function WorldSwitch({ worlds, active, onChange, collage, total, onSettle }) {
+export default function WorldSwitch(props) {
+  return isIOS ? <PhoneWorldSwitch {...props} /> : <AnimatedWorldSwitch {...props} />;
+}
+
+// iPhone: no spring-driven clipping, per-capsule measurement or hidden image grid.
+function PhoneWorldSwitch({ worlds, active, onChange, collage, total, onSettle }) {
+  const world = worlds.find(w => w.id === active);
+  useEffect(() => { onSettle?.(); }, [active, onSettle]);
+  return <section className="ws ws-phone" style={{ '--w': world?.color, '--wg': world?.glow }} aria-label="题材世界">
+    {world ? <div className="ws-phone-scene" key={world.id}>
+      <div className="ws-collage" aria-hidden="true">{(collage[world.id] || []).slice(0, 6).map(b => <Cover key={b.id} book={b} alt="" className="ws-c" />)}</div>
+      <div className="ws-shade" />
+      <div className="ws-headline"><p className="eyebrow">WORLD · {world.id.toUpperCase()}</p><h2 className="serif">{world.tag}<em>之境</em></h2><p className="ws-tagline">{world.tagline}</p></div>
+    </div> : <div className="ws-back"><p className="ws-back-title serif">选一个世界，<br />走进去。</p><p className="ws-back-sub muted">{total.toLocaleString()} 本轻小说，五个题材入口</p></div>}
+    <div className="ws-dock" role="tablist" aria-label="题材">
+      <button role="tab" aria-selected={!active} className={`ws-all ${!active ? 'on' : ''}`} onClick={() => onChange(null)}>全部</button>
+      {worlds.map(w => <button key={w.id} role="tab" aria-label={w.tag} aria-selected={active === w.id} className={`ws-cap ${active === w.id ? 'on' : ''}`} style={{ '--c': w.color }} onClick={() => onChange(active === w.id ? null : w.id)}><span className="ws-cap-glyph serif">{w.glyph}</span></button>)}
+    </div>
+  </section>;
+}
+
+function AnimatedWorldSwitch({ worlds, active, onChange, collage, total, onSettle }) {
   const hero = useRef(null), scene = useRef(null), veil = useRef(null), back = useRef(null), headline = useRef(null);
   const capsRef = useRef({});
   const [shown, setShown] = useState(active || worlds[0].id); // 场景层当前显示的世界

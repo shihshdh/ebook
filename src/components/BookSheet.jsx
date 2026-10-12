@@ -1,7 +1,7 @@
 // 书籍详情：桌面从右侧滑出的玻璃侧板，手机是能往下拖关闭的底部抽屉。
 // 下载在这里完成：插图版按卷、纯文本版整本、蓝奏云（客户端里开下载页自动填码，下完自动入架）。下完直接"阅读"。
 import { armDownloadWatch } from '../lib/downloads.js';
-import { lanzou, onBackButton, platform } from '../lib/native.js';
+import { lanzou, onBackButton, platform, isIOS } from '../lib/native.js';
 import { useEffect, useRef, useState } from 'react';
 import Cover from './Cover.jsx';
 import Icon from './Icon.jsx';
@@ -283,7 +283,10 @@ export default function BookSheet() {
                       await lanzou.open({ url: d.url, pwd: d.pwd || '', title: book.title });
                       if (platform === 'tauri') toast('提取码已自动填好。在小窗里点下载，下完会自动放进书架', { ms: 5200 });
                       return;
-                    } catch (e) { console.warn('[lanzou]', e); }   // 小窗开不了就退回外部浏览器
+                    } catch (e) {
+                      console.warn('[lanzou]', e);
+                      if (isIOS) { toast(`无法打开下载页：${e?.message || String(e)}`, { ms: 6000 }); return; }
+                    }   // 小窗开不了就退回外部浏览器
                   }
                   let copied = false;
                   if (d.pwd) { try { await navigator.clipboard.writeText(d.pwd); copied = true; } catch {} }

@@ -6,8 +6,9 @@
 //   4. 生成封面：按书名哈希挑一套"精装书衣"配色，竖排书名 + 金箔线框（画法见 jacket-art.js，后台线程里画，见 jacket.js）
 // 生成封面不是兜底的灰块，而是整站视觉的一部分——光盘、瀑布流、文件夹里大部分书会用它。
 import { useEffect, useState } from 'react';
-import { idbGet, idbSet } from './idb.js';
+import { idbGet, idbSet, idbDel } from './idb.js';
 import { raceImage } from './net.js';
+import { isIOS, nativeRequest } from './native.js';
 import { useCatalogBook } from './library.js';
 import { cleanTitle } from './jacket-art.js';
 import { jacketNow, jacketReady, requestJacket } from './jacket.js';
@@ -31,15 +32,16 @@ function pump() {
 async function lookup(book) {
   const key = 'bgm:' + norm(book.title);
   const cached = await idbGet('kv', key).catch(() => undefined);
-  if (cached !== undefined && Date.now() - cached.at < 30 * 864e5) return cached.url;
+  if (cached?.url && Date.now() - cached.at < 30 * 864e5) return cached.url;
   let url = null;
   try {
-    const res = await fetch('https://api.bgm.tv/v0/search/subjects?limit=6', {
+    const res = await nativeRequest({ url: 'https://api.bgm.tv/v0/search/subjects?limit=6', timeout: 10000,
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword: cleanTitle(book.title), filter: { type: [1] } }),
     });
-    if (res.ok) {
-      const { data = [] } = await res.json();
+    if (res.status < 200 || res.status >= 300) return undefined;
+    {
+      const { data = [] } = JSON.parse(res.text);
       const want = [norm(book.title), norm(book.alt || '')].filter(Boolean);
       // 严格匹配：书名（或别名）规范化后相等，或互相包含且长度接近；小说优先于漫画/画集
       const score = (d) => {
@@ -66,7 +68,12 @@ async function lookup(book) {
 /** 查 Bangumi 封面；同一本书只查一次，排队限流 */
 export function bangumiCover(book) {
   const key = norm(book.title);
-  if (!mem.has(key)) mem.set(key, new Promise(resolve => { queue.push(() => lookup(book).then(resolve, () => resolve(undefined))); pump(); }));
+  if (!mem.has(key)) mem.set(key, new Promise(resolve => { queue.push(async () => {
+    let url;
+    try { url = await lookup(book); } catch { /* transient failure */ }
+    if (url === undefined) mem.delete(key);
+    resolve(url);
+  }); pump(); }));
   return mem.get(key);
 }
 
@@ -76,9 +83,10 @@ export function sourceCoverUrls(src) {
   if (!src) return [];
   const bare = src.replace(/^https?:\/\//, '');
   return [
-    `https://wsrv.nl/?url=${encodeURIComponent(bare)}&w=360&output=webp&q=82`,
+    `https://wsrv.nl/?url=${encodeURIComponent(src)}&w=360&output=webp&q=82`,
     `https://i0.wp.com/${bare}?w=360`,
     `https://${bare}`,
+    ...(src.startsWith('http://') ? [src] : []),
   ];
 }
 //
@@ -103,7 +111,7 @@ function remember(src, url) {
 // 实测（2026-10-09，开着 Clash）：两个代理冷图 2–4 秒、热图 1–2 秒，原站直连连不上。所以：
 //   超时放到 15 秒（一屏几十张排队时 8 秒常常没到就判失败，其实图在路上）；第二条线 2 秒后才补发（以前 0.9 秒，
 //   几乎每张都发两遍，代理更堵）；失败 5 秒后就能再试（以前 15 秒，期间一直是生成的书衣）
-const RACE_MAX = 12, LOW_MAX = 4, RETRY_MS = 5000;
+const RACE_MAX = isIOS ? 4 : 12, LOW_MAX = isIOS ? 1 : 4, RETRY_MS = 5000;
 let racing = 0, racingLow = 0;
 const waiting = [];   // { run, near }：near() 说这本此刻在不在屏幕附近
 function drain() {
@@ -136,8 +144,8 @@ function sourceCover(src, near) {
   const entry = { at: Date.now(), ok: undefined, nears: [near || (() => true)] };
   entry.p = (async () => {
     await loadKnown();
-    if (known[src]) return known[src];
-    const url = await schedule(() => raceImage(sourceCoverUrls(src), { stagger: 2000, timeout: 15000 }), () => entry.nears.some(f => f()));
+    const urls = [...new Set([known[src], ...sourceCoverUrls(src)].filter(Boolean))];
+    const url = await schedule(() => raceImage(urls, { stagger: 2000, timeout: 15000 }), () => entry.nears.some(f => f()));
     entry.ok = !!url;
     // 只记代理地址：原站直连通不通取决于当下的网络（开没开代理、换没换 Wi-Fi），记下来换个网络会卡很久才失败
     if (url && !/^https?:\/\/img\.wenku8\.com\//.test(url)) remember(src, url);
@@ -191,12 +199,13 @@ export function useCover(book, visible = true, near, scale = 0) {
     let alive = true, retry = 0;
     const later = () => { if (attempt < 3) retry = setTimeout(() => { if (alive) setAttempt(a => a + 1); }, 6000); };
     // 查 Bangumi 用书目里的书名和别名（书架条目的书名带「· 上卷」，搜不准）
-    const viaBangumi = () => bangumiCover(catalogBook || book).then(u => {
+    const viaBangumi = () => (book.source === 'pick' ? pickCover(book) : bangumiCover(catalogBook || book)).then(async u => {
       if (!alive) return;
-      if (!u) { if (src) later(); return; }
-      const im = new Image();
-      im.onload = () => { if (alive) setFound(u); };
-      im.src = u;
+      if (!u) { later(); return; }
+      const loaded = await sourceCover(u, near);
+      if (!alive) return;
+      if (loaded) setFound(loaded);
+      else { if (book.source === 'pick') forgetPick(book); later(); }
     });
     if (src) sourceCover(src, near).then(u => { if (!alive) return; if (u) setFound(u); else viaBangumi(); });
     else viaBangumi();
@@ -208,7 +217,65 @@ export function useCover(book, visible = true, near, scale = 0) {
     if (!found) return;
     setFound('');
     if (src) forgetCover(src);
+    if (book.source === 'pick') forgetPick(book);
     setAttempt(a => (a < 3 ? a + 1 : a));
   };
   return { url: own || found || jacket, real, onError };
+}
+
+// Chinese web novels are not reliably indexed by Bangumi. Reuse installed book
+// sources, matching BOTH title and author; never borrow a same-name book's art.
+const pickJobs = new Map();
+const pickKey = book => `pick-cover:${norm(book.title)}:${norm(book.author)}`;
+function forgetPick(book) {
+  const key = pickKey(book);
+  pickJobs.delete(key);
+  idbDel('kv', key).catch(() => {});
+}
+export function pickCover(book) {
+  const key = pickKey(book);
+  if (!pickJobs.has(key)) pickJobs.set(key, new Promise(resolve => {
+    queue.push(async () => {
+      let cover;
+      try {
+        const cached = await idbGet('kv', key);
+        if (cached?.url && Date.now() - cached.at < 6 * 3600e3) cover = cached.url;
+        else {
+          // Publisher CDN URLs may carry expiry signatures; discover them again,
+          // rather than baking an expiring link or the site's skeleton into the app.
+          if (book.coverPage && book.publisherBookUrl) {
+            try {
+              const response = await nativeRequest({ url: book.coverPage, timeout: 8000 });
+              if (response.status === 200) {
+                const doc = new DOMParser().parseFromString(response.text, 'text/html');
+                const anchor = [...doc.querySelectorAll('a[href]')].find(a => a.getAttribute('href') === book.publisherBookUrl && a.querySelector('img'));
+                const img = anchor?.querySelector('img');
+                if (norm(img?.alt) === norm(book.title) && /^https?:\/\//.test(img?.getAttribute('src') || '')) cover = img.getAttribute('src');
+              }
+            } catch { /* fall through to installed sources */ }
+          }
+          if (!cover) {
+            const { listSources } = await import('./legado.js');
+            const { search } = await import('../plugins/legado/index.js');
+            const sources = (await listSources()).filter(e => e.enabled).slice(0, 3);
+            for (const entry of sources) {
+              const controller = new AbortController();
+              const timer = setTimeout(() => controller.abort(), 8000);
+              try {
+                const items = await search(entry.source, book.title, { signal: controller.signal });
+                cover = items.find(i => norm(i.name) === norm(book.title) && norm(i.author) === norm(book.author) && /^https?:\/\//.test(i.coverUrl || ''))?.coverUrl;
+                if (cover) break;
+              } catch { /* try the next enabled source */ }
+              finally { clearTimeout(timer); }
+            }
+          }
+          if (cover) await idbSet('kv', key, { url: cover, at: Date.now() });
+        }
+      } catch { /* allow retry after temporary network failure */ }
+      if (!cover) pickJobs.delete(key);
+      resolve(cover);
+    });
+    pump();
+  }));
+  return pickJobs.get(key);
 }

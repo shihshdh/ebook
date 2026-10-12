@@ -211,8 +211,19 @@ final class EbookBrowser: UIViewController, WKNavigationDelegate, WKUIDelegate, 
         // Some download sites reject the WKWebView UA when the Safari token is absent.
         config.applicationNameForUserAgent = "Version/\(UIDevice.current.systemVersion) Safari/604.1"
         let sameWindow = """
-        (()=>{window.open=(url)=>{if(url){try{const u=new URL(url,location.href);if(/^https?:$/.test(u.protocol))location.href=u.href;}catch{}}return window;};
-        document.addEventListener('click',e=>{const a=e.target.closest?.('a[target]');if(a)a.target='_self';},true);})();
+        (()=>{
+        const prepare=e=>{
+          const a=e.target.closest?.('a');if(!a)return;
+          // Lanzou's mobile button starts at ## and resolves its URL only on
+          // mouse-down/focus. A touch or accessibility activation may skip both.
+          if(/(^|\\.)[a-z0-9-]*lanz[a-z0-9-]*\\.(com|net|cn)$/i.test(location.hostname)
+             && a.id==='submit' && /^#/.test(a.getAttribute('href')||'')
+             && typeof a.onmousedown==='function') a.onmousedown.call(a,e);
+          if(a.target)a.target='_self';
+        };
+        document.addEventListener('touchstart',prepare,{capture:true,passive:true});
+        document.addEventListener('click',prepare,true);
+        })();
         """
         config.userContentController.addUserScript(WKUserScript(source: sameWindow, injectionTime: .atDocumentStart, forMainFrameOnly: false))
         // No message handlers or Capacitor objects are registered on this view.

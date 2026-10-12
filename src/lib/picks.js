@@ -3,9 +3,10 @@
 export const SOURCE_PICKS = [
   { title: '诡秘之主', author: '爱潜水的乌贼', note: '蒸汽与神秘学' },
   { title: '宿命之环', author: '爱潜水的乌贼', note: '《诡秘之主》续作' },
-  { title: '深海余烬', author: '远瞳', note: '雾中航行的幽灵船长' },
-  { title: '道诡异仙', author: '狐尾的笔', note: '真假难辨的修仙' },
-  { title: '十日终焉', author: '杀虫队队员', note: '十天一次轮回' },
+  // IDs verified against the publishers' book pages; images stay on their CDN.
+  { title: '深海余烬', author: '远瞳', note: '雾中航行的幽灵船长', coverSrc: 'https://bookcover.yuewen.com/qdbimg/349573/1034360760/180' },
+  { title: '道诡异仙', author: '狐尾的笔', note: '真假难辨的修仙', coverSrc: 'https://bookcover.yuewen.com/qdbimg/349573/1031794030/180' },
+  { title: '十日终焉', author: '杀虫队队员', note: '十天一次轮回', coverPage: 'https://fanqienovel.com/keyword/7340750622465165348', publisherBookUrl: 'https://fanqienovel.com/page/7143038691944959011' },
   { title: '玄鉴仙族', author: '季越人', note: '一个家族的百年' },
   { title: '赤心巡天', author: '情何以甚', note: '文笔厚重的仙侠' },
   { title: '光阴之外', author: '耳根', note: '耳根新作' },

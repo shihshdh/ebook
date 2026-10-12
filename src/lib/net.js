@@ -303,6 +303,7 @@ export function probeImage(url, { timeout = 8000 } = {}) {
  */
 export function raceImage(urls, { stagger = 1200, timeout = 12000 } = {}) {
   const list = order(urls);
+  if (!list.length) return Promise.resolve(null);
   return new Promise(resolve => {
     const imgs = [];
     let next = 0, failed = 0, done = false, timer = 0;
@@ -317,8 +318,10 @@ export function raceImage(urls, { stagger = 1200, timeout = 12000 } = {}) {
       const url = list[next++];
       const im = new Image();
       const t0 = performance.now();
+      let ended = false;
       const fail = () => {
-        if (done) return;
+        if (done || ended) return;
+        ended = true; clearTimeout(t); im.onload = im.onerror = null; im.src = '';
         record(url, 0, false);
         if (++failed >= list.length) return finish(null);
         launch();
@@ -327,7 +330,7 @@ export function raceImage(urls, { stagger = 1200, timeout = 12000 } = {}) {
       imgs.push({ im, t });
       im.onload = () => {
         clearTimeout(t);
-        if (done) return;
+        if (done || ended) return;
         if (im.naturalWidth < 60) return fail();
         record(url, performance.now() - t0, true);
         finish(url);

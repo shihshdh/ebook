@@ -117,7 +117,7 @@ export default function Home() {
   const fresh = useMemo(() => lib.books.filter(b => b.updated && b.description).slice(0, 14), [lib.books]);
   const volumesOf = (b) => b.downloads.find(d => d.kind === 'illustrated')?.volumes.length || 0;
   // 书源里的好书：只有书名，封面按书名去 Bangumi 找（找不到用生成的书衣），点开进搜索池
-  const picks = useMemo(() => SOURCE_PICKS.map(p => ({ ...p, book: { id: `pick:${p.title}`, source: 'pick', title: p.title, alt: '', author: p.author, tags: [], downloads: [] } })), []);
+  const picks = useMemo(() => SOURCE_PICKS.map(p => ({ ...p, book: { ...p, id: `pick:${p.title}`, source: 'pick', alt: '', tags: [], downloads: [] } })), []);
 
   return (
     <div className="home">

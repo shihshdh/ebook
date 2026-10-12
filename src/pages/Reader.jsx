@@ -650,7 +650,7 @@ export default function Reader() {
   return (
     <main data-theme={['paper', 'sepia'].includes(prefs.readerTheme) ? 'light' : 'dark'} className={`reader2 ${touch ? 'is-touch' : 'is-desk'} ${open ? 'is-open' : ''} ${pinned ? 'has-sidebar' : ''} ${sidebar ? 'toc-open' : ''} ${srActive && !openBottom && !panel ? 'has-srnav' : ''} mode-${prefs.readerMode}`}
       onClick={marginTap} onPointerMove={onPointerMove} onPointerLeave={() => setEdge('')}
-      style={{ background: theme.chrome, '--rd-page': theme.page, '--rd-text': theme.text, '--rd-link': theme.link }}>
+      style={{ background: iosTouch ? theme.page : theme.chrome, '--rd-page': theme.page, '--rd-text': theme.text, '--rd-link': theme.link }}>
 
       {/* 下拉书签：顶部露出的提示带 */}
       <div className="rd-pull" aria-hidden="true" style={{ height: pull, opacity: pull ? 1 : 0 }}>

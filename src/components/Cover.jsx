@@ -3,6 +3,7 @@ import { forwardRef, memo, useEffect, useRef, useState } from 'react';
 import { useCover } from '../lib/covers.js';
 import { jacketPalette } from '../lib/jacket-art.js';
 import { jacketScale } from '../lib/jacket.js';
+import { isIOS } from '../lib/native.js';
 
 // 生成封面还没画好、真封面也没到时：图片给一张透明小图（不显示替代文字、不触发出错），底下垫这本书书衣的底色渐变
 const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
@@ -15,7 +16,7 @@ const BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAA
 const watch = new Map();   // 元素 → { start(), near }
 const startIO = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver((entries) => {
   for (const e of entries) if (e.isIntersecting) { const w = watch.get(e.target); if (w) { w.start(); startIO.unobserve(e.target); } }
-}, { rootMargin: '800px 600px' });
+}, { rootMargin: isIOS ? '300px 100px' : '800px 600px' });
 const nearIO = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver((entries) => {
   for (const e of entries) { const w = watch.get(e.target); if (w) w.near = e.isIntersecting; }
 }, { rootMargin: '25% 0px' });

@@ -84,6 +84,14 @@ with sync_playwright() as p:
     expect(page.locator('.rd-ambient-top')).to_have_text('第二章 正文')
     page.touchscreen.tap(200,400)
     expect(page.locator('.reader2')).to_have_class(__import__('re').compile('.*is-open.*'))
+    page.evaluate("import('/src/lib/prefs.js').then(m=>m.setPrefs({readerTheme:'paper'}))")
+    page.get_by_role('tab',name='纸张',exact=True).click()
+    page.wait_for_timeout(500)
+    panel_bounds=page.get_by_role('dialog',name='纸张',exact=True).bounding_box()
+    dock_bounds=page.locator('.rd-dock').bounding_box()
+    assert panel_bounds['y']+panel_bounds['height'] <= dock_bounds['y'], 'paper panel overlaps dock'
+    assert page.locator('.reader2').evaluate('e=>getComputedStyle(e).backgroundColor') == page.locator('.rd-content').evaluate('e=>getComputedStyle(e).backgroundColor')
+    page.screenshot(path=str(out/'reader-paper-menu.png'))
     page.get_by_role('tab',name='目录',exact=True).click()
     page.get_by_role('button',name='第三章 结尾',exact=True).click()
     expect(page.locator('.rd-ambient-top')).to_have_text('第三章 结尾')
@@ -116,6 +124,19 @@ with sync_playwright() as p:
             if width == 402:
                 page.screenshot(path=str(out/('screen-'+(route.strip('/') or 'home')+'.png')))
         page.screenshot(path=str(out/f'layout-{width}.png'))
+    page.set_viewport_size({'width':402,'height':874})
+    page.evaluate("location.hash='/explore'")
+    page.wait_for_selector('.ws-phone')
+    tabs=page.locator('.ws-phone .ws-cap')
+    for index in [0,3,1,4,2]:
+        tabs.nth(index).click()
+        expect(tabs.nth(index)).to_have_attribute('aria-selected','true')
+        expect(page.locator('.ws-phone .ws-headline h2')).to_contain_text(tabs.nth(index).get_attribute('aria-label'))
+        assert page.locator('.ws-scene').count() == 0
+        assert page.locator('.ws-phone .cover').count() <= 6
+    page.screenshot(path=str(out/'world-selected.png'))
+    page.get_by_role('tab',name='全部',exact=True).click()
+    assert page.locator('.ws-phone .cover').count() == 0
     page.evaluate("location.hash='/'")
     page.wait_for_timeout(800)
     assert page.locator('.page-river canvas.is-live').count() == 0

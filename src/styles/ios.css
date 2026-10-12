@@ -50,6 +50,23 @@
 .platform-ios.keyboard-open .reader2 { top: var(--visual-top, 0px); bottom: auto; height: var(--visual-height, 100dvh); }
 .platform-ios .reader2 .rd-panel.as-pop { max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - var(--safe-b) - 160px); }
 .platform-ios .rd-search input { font-size: 16px; }
+.ws-phone .ws-phone-scene { position: absolute; inset: 0; }
+.ws-phone .ws-headline { opacity: 1; top: 38px; bottom: auto; }
+.ws-phone .ws-collage { grid-template-columns: repeat(3, 1fr); opacity: .6; }
+.ws-phone .ws-dock { backdrop-filter: none; -webkit-backdrop-filter: none; background: #211c17; justify-content: space-between; gap: 4px; }
+.ws-phone .ws-cap { flex: none; transition: none; padding: 4px; }
+.ws-phone .ws-cap.on { outline: 2px solid var(--c); outline-offset: 2px; }
+.ws-phone .ws-all { color: #eee6d7; }
+.ws-phone .ws-all.on { color: #1a140a; }
+.platform-ios .reader2 .rd-ambient-top { padding-left: 56px; padding-right: 108px; justify-content: flex-start; }
+.platform-ios .rd-menu-trigger { right: max(48px, var(--safe-r)); background: transparent; border-radius: 0; font-size: 12px; opacity: .65; }
+.platform-ios .reader2 .rd-top,
+.platform-ios .reader2 .rd-dock,
+.platform-ios .reader2 .rd-panel { background: var(--rd-page); border: 1px solid var(--line2); border-radius: 18px; box-shadow: 0 6px 24px #00000018; }
+.platform-ios .reader2 .rd-top { left: max(12px, var(--safe-l)); right: max(12px, var(--safe-r)); top: calc(var(--safe-t) + 4px); }
+.platform-ios .reader2 .rd-bottom { left: max(12px, var(--safe-l)); right: max(12px, var(--safe-r)); bottom: calc(var(--safe-b) + 8px); }
+.platform-ios .reader2 .rd-ribbon { top: var(--safe-t); }
+.platform-ios .reader2 .rd-ribbon:not(.on), .platform-ios .reader2.is-open .rd-ribbon { display: none; }
 /* Landscape iPhones remain touch layouts instead of gaining a desktop title bar. */
 @media (pointer: coarse) and (max-height: 500px) and (min-width: 761px) {
   .platform-ios { --tab-h: 54px; }
