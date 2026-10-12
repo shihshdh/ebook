@@ -1,0 +1,392 @@
+{
+  "purpose": "Low-resolution book identification thumbnails for curated recommendations. Artwork belongs to the respective authors, illustrators and publishers.",
+  "retrieved": "2026-10-13",
+  "featured": [
+    {
+      "aid": "1779",
+      "source": "http://img.wenku8.com/image/1/1779/1779s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F1%2F1779%2F1779s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 510,
+      "asset": "/covers/featured/1779.webp"
+    },
+    {
+      "aid": "3027",
+      "source": "http://img.wenku8.com/image/3/3027/3027s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F3%2F3027%2F3027s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 539,
+      "asset": "/covers/featured/3027.webp"
+    },
+    {
+      "aid": "2353",
+      "source": "http://img.wenku8.com/image/2/2353/2353s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2353%2F2353s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 503,
+      "asset": "/covers/featured/2353.webp"
+    },
+    {
+      "aid": "2607",
+      "source": "http://img.wenku8.com/image/2/2607/2607s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2607%2F2607s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 519,
+      "asset": "/covers/featured/2607.webp"
+    },
+    {
+      "aid": "3111",
+      "source": "http://img.wenku8.com/image/3/3111/3111s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F3%2F3111%2F3111s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 512,
+      "asset": "/covers/featured/3111.webp"
+    },
+    {
+      "aid": "2032",
+      "source": "http://img.wenku8.com/image/2/2032/2032s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2032%2F2032s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 535,
+      "asset": "/covers/featured/2032.webp"
+    },
+    {
+      "aid": "2177",
+      "source": "http://img.wenku8.com/image/2/2177/2177s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2177%2F2177s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 520,
+      "asset": "/covers/featured/2177.webp"
+    },
+    {
+      "aid": "3110",
+      "source": "http://img.wenku8.com/image/3/3110/3110s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F3%2F3110%2F3110s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 509,
+      "asset": "/covers/featured/3110.webp"
+    },
+    {
+      "aid": "2922",
+      "source": "http://img.wenku8.com/image/2/2922/2922s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2922%2F2922s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 514,
+      "asset": "/covers/featured/2922.webp"
+    },
+    {
+      "aid": "4099",
+      "source": "http://img.wenku8.com/image/4/4099/4099s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F4%2F4099%2F4099s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 511,
+      "asset": "/covers/featured/4099.webp"
+    },
+    {
+      "aid": "2214",
+      "source": "http://img.wenku8.com/image/2/2214/2214s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2214%2F2214s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 512,
+      "asset": "/covers/featured/2214.webp"
+    },
+    {
+      "aid": "2102",
+      "source": "http://img.wenku8.com/image/2/2102/2102s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2102%2F2102s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 512,
+      "asset": "/covers/featured/2102.webp"
+    },
+    {
+      "aid": "4218",
+      "source": "http://img.wenku8.com/image/4/4218/4218s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F4%2F4218%2F4218s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 542,
+      "asset": "/covers/featured/4218.webp"
+    },
+    {
+      "aid": "3646",
+      "source": "http://img.wenku8.com/image/3/3646/3646s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F3%2F3646%2F3646s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 514,
+      "asset": "/covers/featured/3646.webp"
+    },
+    {
+      "aid": "2906",
+      "source": "http://img.wenku8.com/image/2/2906/2906s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2906%2F2906s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 542,
+      "asset": "/covers/featured/2906.webp"
+    },
+    {
+      "aid": "3414",
+      "source": "http://img.wenku8.com/image/3/3414/3414s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F3%2F3414%2F3414s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 509,
+      "asset": "/covers/featured/3414.webp"
+    },
+    {
+      "aid": "2255",
+      "source": "http://img.wenku8.com/image/2/2255/2255s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2255%2F2255s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 531,
+      "asset": "/covers/featured/2255.webp"
+    },
+    {
+      "aid": "3394",
+      "source": "http://img.wenku8.com/image/3/3394/3394s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F3%2F3394%2F3394s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 512,
+      "asset": "/covers/featured/3394.webp"
+    },
+    {
+      "aid": "2015",
+      "source": "http://img.wenku8.com/image/2/2015/2015s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2015%2F2015s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 511,
+      "asset": "/covers/featured/2015.webp"
+    },
+    {
+      "aid": "3384",
+      "source": "http://img.wenku8.com/image/3/3384/3384s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F3%2F3384%2F3384s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 514,
+      "asset": "/covers/featured/3384.webp"
+    },
+    {
+      "aid": "2907",
+      "source": "http://img.wenku8.com/image/2/2907/2907s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2907%2F2907s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 514,
+      "asset": "/covers/featured/2907.webp"
+    },
+    {
+      "aid": "3203",
+      "source": "http://img.wenku8.com/image/3/3203/3203s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F3%2F3203%2F3203s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 513,
+      "asset": "/covers/featured/3203.webp"
+    },
+    {
+      "aid": "3740",
+      "source": "http://img.wenku8.com/image/3/3740/3740s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F3%2F3740%2F3740s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 511,
+      "asset": "/covers/featured/3740.webp"
+    },
+    {
+      "aid": "2554",
+      "source": "http://img.wenku8.com/image/2/2554/2554s.jpg",
+      "url": "https://wsrv.nl/?url=http%3A%2F%2Fimg.wenku8.com%2Fimage%2F2%2F2554%2F2554s.jpg&w=360&output=webp&q=82",
+      "width": 360,
+      "height": 535,
+      "asset": "/covers/featured/2554.webp"
+    }
+  ],
+  "picks": [
+    {
+      "title": "诡秘之主",
+      "id": "1010868264",
+      "page": "https://book.qidian.com/info/1010868264/",
+      "url": "https://bookcover.yuewen.com/qdbimg/349573/1010868264/180",
+      "asset": "/covers/picks/1010868264.webp",
+      "size": [
+        180,
+        240
+      ],
+      "author": "爱潜水的乌贼"
+    },
+    {
+      "title": "宿命之环",
+      "id": "1036370336",
+      "page": "https://book.qidian.com/info/1036370336/",
+      "url": "https://bookcover.yuewen.com/qdbimg/349573/1036370336/180",
+      "asset": "/covers/picks/1036370336.webp",
+      "size": [
+        180,
+        240
+      ],
+      "author": "爱潜水的乌贼"
+    },
+    {
+      "title": "深海余烬",
+      "id": "1034360760",
+      "page": "https://book.qidian.com/info/1034360760/",
+      "url": "https://bookcover.yuewen.com/qdbimg/349573/1034360760/180",
+      "asset": "/covers/picks/1034360760.webp",
+      "size": [
+        180,
+        240
+      ],
+      "author": "远瞳"
+    },
+    {
+      "title": "道诡异仙",
+      "id": "1031794030",
+      "page": "https://book.qidian.com/info/1031794030/",
+      "url": "https://bookcover.yuewen.com/qdbimg/349573/1031794030/180",
+      "asset": "/covers/picks/1031794030.webp",
+      "size": [
+        180,
+        240
+      ],
+      "author": "狐尾的笔"
+    },
+    {
+      "title": "玄鉴仙族",
+      "id": "1035420986",
+      "page": "https://book.qidian.com/info/1035420986/",
+      "url": "https://bookcover.yuewen.com/qdbimg/349573/1035420986/180",
+      "asset": "/covers/picks/1035420986.webp",
+      "size": [
+        180,
+        240
+      ],
+      "author": "季越人"
+    },
+    {
+      "title": "赤心巡天",
+      "id": "1016530091",
+      "page": "https://book.qidian.com/info/1016530091/",
+      "url": "https://bookcover.yuewen.com/qdbimg/349573/1016530091/180",
+      "asset": "/covers/picks/1016530091.webp",
+      "size": [
+        180,
+        240
+      ],
+      "author": "情何以甚"
+    },
+    {
+      "title": "光阴之外",
+      "id": "1031777108",
+      "page": "https://book.qidian.com/info/1031777108/",
+      "url": "https://bookcover.yuewen.com/qdbimg/349573/1031777108/180",
+      "asset": "/covers/picks/1031777108.webp",
+      "size": [
+        180,
+        240
+      ],
+      "author": "耳根"
+    },
+    {
+      "title": "夜的命名术",
+      "id": "1021617576",
+      "page": "https://book.qidian.com/info/1021617576/",
+      "url": "https://bookcover.yuewen.com/qdbimg/349573/1021617576/180",
+      "asset": "/covers/picks/1021617576.webp",
+      "size": [
+        180,
+        240
+      ],
+      "author": "会说话的肘子"
+    },
+    {
+      "title": "大奉打更人",
+      "id": "1019664125",
+      "page": "https://book.qidian.com/info/1019664125/",
+      "url": "https://bookcover.yuewen.com/qdbimg/349573/1019664125/180",
+      "asset": "/covers/picks/1019664125.webp",
+      "size": [
+        180,
+        240
+      ],
+      "author": "卖报小郎君"
+    },
+    {
+      "title": "将进酒",
+      "id": "3373718",
+      "page": "https://www.jjwxc.net/onebook.php?novelid=3373718",
+      "url": "https://s8-static.jjwxc.net/tmp/guanli/frontcover/003/373/3373718.jpg",
+      "asset": "/covers/picks/3373718.webp",
+      "size": [
+        200,
+        280
+      ],
+      "author": "唐酒卿"
+    },
+    {
+      "title": "有匪",
+      "id": "2595385",
+      "page": "https://www.jjwxc.net/onebook.php?novelid=2595385",
+      "url": "https://i9-static.jjwxc.net/novelimage.php?novelid=2595385&coverid=7&ver=d6bc2de61dfb21389ee786c9b1bd0512",
+      "asset": "/covers/picks/2595385.webp",
+      "size": [
+        360,
+        504
+      ],
+      "author": "priest"
+    },
+    {
+      "title": "默读",
+      "id": "2771073",
+      "page": "https://www.jjwxc.net/onebook.php?novelid=2771073",
+      "url": "https://i9-static.jjwxc.net/novelimage.php?novelid=2771073&coverid=23&ver=6c19ce948d99ef2bb061ee0864945c0d",
+      "asset": "/covers/picks/2771073.webp",
+      "size": [
+        200,
+        280
+      ],
+      "author": "priest"
+    },
+    {
+      "title": "一级律师",
+      "id": "2674286",
+      "page": "https://www.jjwxc.net/onebook.php?novelid=2674286",
+      "url": "https://i0-static.jjwxc.net/tmp/backend/authorspace/s1/10/9668/966799/20210708025515_300_420.jpg",
+      "asset": "/covers/picks/2674286.webp",
+      "size": [
+        300,
+        420
+      ],
+      "author": "木苏里"
+    },
+    {
+      "title": "小蘑菇",
+      "id": "4105840",
+      "page": "https://www.jjwxc.net/onebook.php?novelid=4105840",
+      "url": "https://i1-static.jjwxc.net/tmp/backend/authorspace/s1/20/19051/1905031/20231116122119_300_420.jpeg",
+      "asset": "/covers/picks/4105840.webp",
+      "size": [
+        292,
+        420
+      ],
+      "author": "一十四洲"
+    },
+    {
+      "title": "十日终焉",
+      "id": "7143038691944959011",
+      "page": "https://fanqienovel.com/page/7143038691944959011",
+      "url": "http://p3-reading-sign.fqnovelpic.com/novel-pic/4900f950c7af7f82fdc14cf528e0e288~tplv-resize:225:0.image?lk3s=5b7047ff&x-expires=1792426885&x-signature=Qp1cX%2F5Toq%2FB6ZfyOTpF6cDU8eg%3D",
+      "asset": "/covers/picks/7143038691944959011.webp",
+      "size": [
+        225,
+        300
+      ],
+      "author": "杀虫队队员"
+    },
+    {
+      "title": "我在精神病院学斩神",
+      "id": "6982529841564224526",
+      "page": "https://fanqienovel.com/page/6982529841564224526",
+      "url": "http://p3-reading-sign.fqnovelpic.com/novel-pic/c5397e4a514736bb1c6754663dbee3db~tplv-resize:225:0.image?lk3s=5b7047ff&x-expires=1792426886&x-signature=%2F4f%2FqDnpnENCdImqqJzgJR6yVQU%3D",
+      "asset": "/covers/picks/6982529841564224526.webp",
+      "size": [
+        225,
+        300
+      ],
+      "author": "三九音域"
+    }
+  ]
+}

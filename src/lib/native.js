@@ -216,15 +216,17 @@ export const win = {
 // EbookNative 是 android/app/src/main/java/app/librarium/reader/EbookNative.java 里的本地插件
 let ebookNative = null;
 const nativePlugin = async () => {
-  if (platform !== 'capacitor') return null;
+  if (platform !== 'capacitor') return { plugin: null };
   if (!ebookNative) ebookNative = (await import('@capacitor/core')).registerPlugin('EbookNative');
-  return ebookNative;
+  // Capacitor 6 proxies expose a callable `then`; returning the proxy from an
+  // async function assimilates it and hangs forever. Box it in a plain object.
+  return { plugin: ebookNative };
 };
 
 /** 页面第一帧画好了：Windows 亮出窗口，安卓撤掉启动页 */
 export async function appReady() {
   if (platform === 'tauri') return win.show();
-  (await nativePlugin())?.ready().catch(() => {});
+  (await nativePlugin()).plugin?.ready().catch(() => {});
 }
 
 // 返回键：后注册的先处理（最上层的面板），返回 true 表示处理了；都不处理就退到后台（安卓惯例，不杀进程）
@@ -254,12 +256,12 @@ export function haptic(kind = 'light') {
 
 /** 系统栏图标颜色跟主题：dark=true（深色主题）用浅色图标 */
 export function setSystemBars({ dark } = {}) {
-  nativePlugin().then(p => p?.setBars({ dark: !!dark })).catch(() => {});
+  nativePlugin().then(({ plugin: p }) => p?.setBars({ dark: !!dark })).catch(() => {});
 }
 
 /** 阅读时藏起状态栏和导航栏（从边缘划一下临时呼出），离开阅读器恢复 */
 export function setImmersive(on) {
-  nativePlugin().then(p => p?.setImmersive({ on: !!on })).catch(() => {});
+  nativePlugin().then(({ plugin: p }) => p?.setImmersive({ on: !!on })).catch(() => {});
 }
 
 // ---------- 下载文件夹（只在 Windows 客户端；蓝奏云这类只能在浏览器里下的书，下好后自动入架） ----------
@@ -287,18 +289,18 @@ export function onOpenedFile(cb) {
   if (platform !== 'capacitor') return () => {};
   let handle = null, dead = false;
   const take = async () => {
-    const p = await nativePlugin();
+    const { plugin: p } = await nativePlugin();
     const r = await p.consumeFile().catch(e => { console.warn('[open-with]', e); return {}; });
     if (!r?.data || dead) return;
     const bin = atob(r.data), bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     cb({ name: r.name || 'book.epub', bytes });
   };
-  nativePlugin().then(async p => {
+  nativePlugin().then(async ({ plugin: p }) => {
     handle = await p.addListener('fileOpened', take);
-    if (dead) handle.remove();
-    take();
-  });
+    if (dead) { handle.remove(); return; }
+    await take();
+  }).catch(e => console.warn('[open-with]', e));
   return () => { dead = true; handle?.remove(); };
 }
 
@@ -306,7 +308,7 @@ export function onOpenedFile(cb) {
 // 远程网页拿不到 EBOOK 的任何本地能力；页面里下载到的 EPUB / TXT / ZIP 走蓝奏云同一条路进书架
 export const browser = {
   async open({ url, title = '' }) {
-    if (platform === 'capacitor') return (await nativePlugin()).openWeb({ url, title });
+    if (platform === 'capacitor') return (await nativePlugin()).plugin.openWeb({ url, title });
     if (platform === 'tauri') {
       const { invoke } = await import('@tauri-apps/api/core');
       return invoke('open_web', { url, title });
@@ -319,7 +321,7 @@ export const browser = {
 export const lanzou = {
   available: platform !== 'web',
   async open({ url, pwd = '', title = '' }) {
-    if (platform === 'capacitor') return (await nativePlugin()).openLanzou({ url, pwd, title });
+    if (platform === 'capacitor') return (await nativePlugin()).plugin.openLanzou({ url, pwd, title });
     const { invoke } = await import('@tauri-apps/api/core');
     return invoke('open_lanzou', { url, pwd, title });
   },
@@ -350,7 +352,7 @@ const b64 = (bytes) => {
 /** 安卓：把下好的新版 APK 交给系统安装器（分块传给原生，存在应用缓存里） */
 export async function installApk(name, bytes) {
   if (mobileOS !== 'android') throw new Error('此平台不支持安装 APK');
-  const p = await nativePlugin();
+  const { plugin: p } = await nativePlugin();
   const { token } = await p.beginSave({ name });
   const CHUNK = 3 * 1024 * 1024;
   for (let i = 0; i < bytes.length; i += CHUNK) await p.appendSave({ token, data: b64(bytes.subarray(i, i + CHUNK)) });
@@ -370,7 +372,7 @@ export async function saveExport(name, bytes) {
     return invoke('save_export', bytes, { headers: { 'x-name': encodeURIComponent(name) } });
   }
   if (platform === 'capacitor') {
-    const p = await nativePlugin();
+    const { plugin: p } = await nativePlugin();
     const { token } = await p.beginSave({ name });
     const CHUNK = 3 * 1024 * 1024;
     for (let i = 0; i < bytes.length; i += CHUNK) await p.appendSave({ token, data: b64(bytes.subarray(i, i + CHUNK)) });

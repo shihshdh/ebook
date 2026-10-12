@@ -68,6 +68,7 @@ export default function BookSheet() {
   const { ids } = useShelf();
   const [progress, setProgress] = useProgressMap();
   const [closing, setClosing] = useState(false);
+  const [openingDownload, setOpeningDownload] = useState(null);
   const panel = useRef(null);
   const coverRef = useRef(null);
   const book = sheet?.book;
@@ -276,16 +277,24 @@ export default function BookSheet() {
                 <span className="vol-no"><Icon name="external" size={18} /></span>
                 <span className="vol-title">{d.label}<small className="muted">{d.note}{d.pwd ? ` · 提取码 ${d.pwd}` : ''}</small></span>
                 <span className="vol-meta" />
-                <button className="btn sm" onClick={async () => {
+                <button className="btn sm" disabled={openingDownload !== null} aria-busy={openingDownload === i} onClick={async () => {
                   // 客户端：在 EBOOK 里开蓝奏云（Windows 小窗 / 安卓下载页），提取码自动填好，点下载后直接进书架
                   if (lanzou.available) {
+                    setOpeningDownload(i);
+                    let timer;
                     try {
-                      await lanzou.open({ url: d.url, pwd: d.pwd || '', title: book.title });
+                      await Promise.race([
+                        lanzou.open({ url: d.url, pwd: d.pwd || '', title: book.title }),
+                        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('打开超时，请重试')), 10000); }),
+                      ]);
                       if (platform === 'tauri') toast('提取码已自动填好。在小窗里点下载，下完会自动放进书架', { ms: 5200 });
                       return;
                     } catch (e) {
                       console.warn('[lanzou]', e);
                       if (isIOS) { toast(`无法打开下载页：${e?.message || String(e)}`, { ms: 6000 }); return; }
+                    } finally {
+                      clearTimeout(timer);
+                      setOpeningDownload(null);
                     }   // 小窗开不了就退回外部浏览器
                   }
                   let copied = false;
@@ -294,7 +303,7 @@ export default function BookSheet() {
                   const watching = armDownloadWatch(book.title);
                   toast([copied && `提取码 ${d.pwd} 已复制`, watching ? '下好后回到 EBOOK，会自动放进书架' : '下好后在书架页点「导入本地书」'].filter(Boolean).join('。'), { ms: 5200 });
                   window.open(d.url, '_blank', 'noopener');
-                }}><Icon name={lanzou.available ? 'download' : 'copy'} size={16} />{lanzou.available ? '打开下载' : '复制并打开'}</button>
+                }}><Icon name={lanzou.available ? 'download' : 'copy'} size={16} />{openingDownload === i ? '打开中…' : lanzou.available ? '打开下载' : '复制并打开'}</button>
               </div>
             </section>
           ))}

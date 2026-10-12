@@ -10,6 +10,7 @@ import { idbGet, idbSet, idbDel } from './idb.js';
 import { raceImage } from './net.js';
 import { isIOS, nativeRequest } from './native.js';
 import { useCatalogBook } from './library.js';
+import { curatedCover } from './curated-covers.js';
 import { cleanTitle } from './jacket-art.js';
 import { jacketNow, jacketReady, requestJacket } from './jacket.js';
 export { cleanTitle };
@@ -160,7 +161,7 @@ function sourceCover(src, near) {
  */
 export function prefetchCovers(books) {
   if (navigator.connection?.saveData) return;
-  for (const b of books) if (b?.coverSrc) sourceCover(b.coverSrc, () => false);
+  for (const b of books) if (b?.coverSrc && !curatedCover(b)) sourceCover(b.coverSrc, () => false);
 }
 /** 记住的地址打不开了：忘掉它，下次重新竞速 */
 function forgetCover(src) {
@@ -178,8 +179,9 @@ function forgetCover(src) {
 export function useCover(book, visible = true, near, scale = 0) {
   // 书架条目（下载时从 EPUB 里取封面）：纯文本版 EPUB 里没有封面，以前只能拿「化物语(物语系列一) · 上卷」这种书名去 Bangumi 碰运气，
   // 网络一抖就时有时无。现在按 bookId 借书目里那本书的原站封面，和探索页走同一条（排队 + 记住地址）的路
-  const [ownBroken, setOwnBroken] = useState(false);   // EPUB 里取出的封面万一画不出来
-  const own = ownBroken ? '' : book?.cover || '';
+  const [brokenOwn, setBrokenOwn] = useState('');
+  const provided = book?.cover || curatedCover(book);
+  const own = provided === brokenOwn ? '' : provided;
   const catalogBook = useCatalogBook(book && !own && !book.coverSrc ? book.bookId : undefined);
   const src = book?.coverSrc || catalogBook?.coverSrc || '';
   const ident = own || (book ? `${book.title || ''}|${book.author || ''}` : '');
@@ -213,7 +215,7 @@ export function useCover(book, visible = true, near, scale = 0) {
   }, [book?.id, book?.title, visible, attempt, src, own]);
   const real = !!(own || found);
   const onError = () => {
-    if (own) { setOwnBroken(true); return; }
+    if (own) { setBrokenOwn(own); return; }
     if (!found) return;
     setFound('');
     if (src) forgetCover(src);
