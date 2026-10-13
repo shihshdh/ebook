@@ -7,6 +7,36 @@
   --safe-r: env(safe-area-inset-right, 0px);
 }
 .platform-ios body { overscroll-behavior-y: none; }
+/* Immediate contact feedback, reversible when a tap becomes a scroll. */
+.platform-ios :is(button, a[href], [role='button'], [role='tab']) { touch-action: manipulation; }
+.platform-ios [data-touch-feedback] {
+  transition: scale 180ms cubic-bezier(.2,.8,.2,1), opacity 140ms ease-out;
+}
+.platform-ios [data-touch-down] { scale: .97; opacity: .72; transition-duration: 55ms; }
+.platform-ios .btn:active, .platform-ios .tabbar-item:active, .platform-ios .rd-btn:active { transform: none; }
+.platform-ios :is(.btn, .chip, .ws-cap, .ws-all) { min-height: 44px; }
+.platform-ios .liquid-thumb {
+  right: auto; background: var(--lt-bg); box-shadow: var(--lt-shadow); border-radius: 999px;
+  transition: transform 220ms cubic-bezier(.2,.8,.2,1);
+}
+.platform-ios .liquid-thumb .lt-clip { display: none; }
+.platform-ios .liquid-tabs-thumb { transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
+.platform-ios .rd-top, .platform-ios .rd-bottom { transition-duration: 180ms; }
+/* One short transition for a page; avoid delayed animations on every row. */
+.platform-ios .route.is-active { animation: ios-route-in 160ms ease-out; }
+.platform-ios .route-reader.is-active { animation: none; }
+@keyframes ios-route-in { from { opacity: .7; } to { opacity: 1; } }
+.platform-ios :is(.result-list li, .shelf-item, .plugin, .vol, .world-card, .sheet-cover, .sp-continue, .sp-stats, .sp-rec-list button, .sp-note-list button) { animation: none; }
+.platform-ios .ws-phone-scene { animation: ios-route-in 140ms ease-out; }
+.platform-ios .sheet { animation-duration: 280ms; transition-duration: 240ms; }
+.platform-ios .sheet-scrim { animation-duration: 180ms; }
+.platform-ios .sheet-layer.is-closing .sheet,
+.platform-ios .sheet-layer.is-closing .sheet-scrim { animation-duration: 180ms; }
+@media (prefers-reduced-motion: reduce) {
+  .platform-ios [data-touch-down] { scale: none; }
+  .platform-ios .liquid-thumb, .platform-ios .liquid-tabs-thumb { transition: none; }
+  .platform-ios :is(.route.is-active, .ws-phone-scene, .sheet, .sheet-scrim) { animation: none; }
+}
 .platform-ios ::-webkit-scrollbar { width: 0; height: 0; }
 .platform-ios .page {
   padding-left: max(var(--gutter), var(--safe-l));
@@ -18,7 +48,25 @@
   background: linear-gradient(145deg, var(--surface-tint), transparent), var(--glass-dense);
   box-shadow: inset 0 1px 0 var(--surface-rim), 0 8px 24px -18px var(--surface-shadow);
 }
-.platform-ios .glass::after { display: none; }
+/* A thin optical rim: static gradients, only opacity changes during contact.
+   No animated blur or pointer-driven repaint across the scrolling page. */
+.platform-ios :is(.glass, .sheet, .btn:not(.btn-ghost), .liquid-thumb)::after {
+  content: ''; display: block; position: absolute; inset: 0; padding: 1.25px;
+  border-radius: inherit; pointer-events: none; z-index: 2;
+  background: linear-gradient(135deg, rgba(255,255,255,.95), rgba(255,255,255,.12) 24%, transparent 43%, rgba(157,184,216,.28) 62%, rgba(255,248,225,.8) 82%, rgba(255,255,255,.22));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: .75; transition: opacity 140ms ease-out;
+}
+.platform-ios .btn:not(.btn-ghost) { position: relative; isolation: isolate; }
+.platform-ios :is(.sheet, .btn:not(.btn-ghost), .liquid-thumb) {
+  box-shadow: inset 0 1px 1px #ffffff65, inset 0 -1px 1px #00000014, 0 5px 16px -12px var(--surface-shadow);
+}
+.platform-ios [data-touch-down]::after,
+.platform-ios .tabbar:has([data-touch-down])::after { opacity: 1; transition-duration: 55ms; }
+.platform-ios[data-theme='light'] .glass {
+  box-shadow: inset 0 1px 1px #fff, inset 0 -1px 1px #8d765329, 0 8px 24px -16px var(--surface-shadow);
+}
 .platform-ios .sheet-scrim { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .platform-ios .disc { filter: none; }
 .platform-ios .disc-face { box-shadow: inset 0 0 0 1px var(--line2); }

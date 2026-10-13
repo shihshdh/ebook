@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUI } from '../lib/ui.jsx';
 import { getPrefs, READER_THEMES } from '../lib/prefs.js';
 import { prefersReduced } from '../lib/motion.js';
+import { isIOS } from '../lib/native.js';
 
 export default function OpenTransition() {
   const { opening, endOpening } = useUI();
@@ -17,6 +18,13 @@ export default function OpenTransition() {
     const el = layer.current;
     const go = () => navigate(`/read/${encodeURIComponent(opening.item.id)}`);
     if (!el || prefersReduced()) { go(); endOpening(); return; }
+    if (isIOS) {
+      // Start loading the reader immediately instead of waiting 700ms for art.
+      go();
+      const animation = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: 'ease-out', fill: 'forwards' });
+      animation.onfinish = endOpening;
+      return () => animation.cancel();
+    }
     const W = innerWidth, H = innerHeight;
     const r = opening.rect || { left: W / 2 - 60, top: H / 2 - 84, width: 120, height: 168, right: W / 2 + 60, bottom: H / 2 + 84 };
     const from = `inset(${r.top}px ${W - r.right}px ${H - r.bottom}px ${r.left}px round 10px)`;

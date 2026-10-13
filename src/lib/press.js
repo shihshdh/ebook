@@ -8,6 +8,34 @@
 // 快速点一下（还没到 PRESS_DELAY 就抬手）补一个「压下—回弹」，照样有反馈；手指移动超过 SLOP、浏览器接管滚动（pointercancel）就松开。
 // 只在触屏上装；电脑有悬停效果，不变。
 import { isTouch, prefersReduced } from './motion.js';
+import { isIOS } from './native.js';
+
+// Feedback starts on contact; activation still belongs to the normal click.
+// CSS transitions can reverse mid-flight without reading computed styles.
+export function installIOSPress(root = window) {
+  let current = null;
+  const clear = () => {
+    if (current) current.el.removeAttribute('data-touch-down');
+    current = null;
+  };
+  const down = e => {
+    if (e.pointerType !== 'touch') return;
+    clear();
+    if (!e.isPrimary) return;
+    const el = e.target.closest?.('button, a[href], [role="button"], [role="tab"], .mw-tile, .pick-cover, .shelf-cover');
+    if (!el || el.disabled || el.closest('[inert], [aria-disabled="true"]')) return;
+    el.setAttribute('data-touch-feedback', '');
+    el.setAttribute('data-touch-down', '');
+    current = { el, id: e.pointerId, x: e.clientX, y: e.clientY };
+  };
+  const move = e => {
+    if (current && e.pointerId === current.id && Math.hypot(e.clientX - current.x, e.clientY - current.y) > 8) clear();
+  };
+  const up = e => { if (current?.id === e.pointerId) clear(); };
+  const events = { pointerdown: down, pointermove: move, pointerup: up, pointercancel: clear, blur: clear, pagehide: clear };
+  for (const [type, handler] of Object.entries(events)) root.addEventListener(type, handler, { capture: true, passive: true });
+  return () => { clear(); for (const [type, handler] of Object.entries(events)) root.removeEventListener(type, handler, true); };
+}
 
 const PRESSABLE = [
   '.mw-tile', '.result', '.rank li button', '.illus-card', '.fresh-card', '.starter-list button', '.pick-cover',
@@ -57,4 +85,7 @@ function install() {
   addEventListener('pointercancel', () => release(false), { capture: true, passive: true });
 }
 
-if (typeof window !== 'undefined' && isTouch() && !prefersReduced()) install();
+if (typeof window !== 'undefined' && isTouch()) {
+  if (isIOS) installIOSPress();
+  else if (!prefersReduced()) install();
+}

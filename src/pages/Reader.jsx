@@ -19,6 +19,7 @@ import { useReadingClock } from '../lib/readstats';
 import Icon from '../components/Icon.jsx';
 import { haptic, onBackButton, setImmersive, isIOS } from '../lib/native';
 import { acctKey } from '../lib/accounts';
+import { applyReaderFont, READER_FONT_STACKS } from '../reader/typography.js';
 import '../styles/reader.css';
 
 const flatten = (items, depth = 0) => items.flatMap(item => [{ ...item, depth }, ...flatten(item.subitems || [], depth + 1)]);
@@ -54,9 +55,9 @@ const NO_FOUND = { q: '', hits: [], done: true, more: false, scanned: 0, of: 0 }
 
 function applyTheme(rendition, prefs) {
   const theme = READER_THEMES[prefs.readerTheme] || READER_THEMES.night;
-  const family = (READER_FONTS[prefs.readerFont] || READER_FONTS.serif).stack;
+  const family = READER_FONT_STACKS[prefs.readerFont] || READER_FONT_STACKS.serif;
   rendition.themes.default({
-    body: { color: `${theme.text} !important`, background: `${theme.page} !important`, 'font-family': `${isIOS ? family.replace('"Noto Serif SC", ', '') : family} !important`, 'font-size': `${prefs.fontSize}% !important`, 'line-height': `${prefs.lineHeight} !important`, 'text-align': 'justify' },
+    body: { color: `${theme.text} !important`, background: `${theme.page} !important`, 'font-family': `${family} !important`, 'font-size': `${prefs.fontSize}% !important`, 'line-height': `${prefs.lineHeight} !important`, 'text-align': 'justify' },
     'p, li': { 'line-height': `${prefs.lineHeight} !important` },
     a: { color: `${theme.link} !important` },
     // 插图不能比一页还高：分页模式下超高的图会被整个挤到下一栏，留下一页空白
@@ -65,6 +66,7 @@ function applyTheme(rendition, prefs) {
     svg: { 'max-width': '100% !important', 'max-height': '82vh !important' },
     '::selection': { background: 'rgba(233,203,139,.35)' },
   });
+  rendition.getContents().forEach(contents => { applyReaderFont(contents, prefs.readerFont); });
 }
 
 /** 液态分段选择：选中态是一滴会流动的玻璃（左右两条边各挂一根弹簧，前沿先冲、后沿慢半拍） */
@@ -78,7 +80,7 @@ function LiquidTabs({ items, value, onChange, className = '' }) {
     if (!el) { th.style.opacity = '0'; return; }
     th.style.opacity = '1';
     const target = { left: el.offsetLeft, right: el.offsetLeft + el.offsetWidth };
-    if (!spring.current || prefersReduced()) {
+    if (isIOS || !spring.current || prefersReduced()) {
       spring.current = new LiquidSpring(target);
       th.style.width = `${target.right - target.left}px`; th.style.transform = `translate3d(${target.left}px,0,0)`;
       return;
@@ -443,6 +445,7 @@ export default function Reader() {
       rendition = book.renderTo(host.current, { width: '100%', height: '100%', spread: 'none', flow: prefsRef.current.readerMode === 'scrolled' ? 'scrolled-doc' : 'paginated', manager: 'default', allowScriptedContent: false });
       engine.current = { book, rendition };
       applyTheme(rendition, prefsRef.current);
+      rendition.hooks.content.register(contents => applyReaderFont(contents, prefsRef.current.readerFont));
       rendition.hooks.content.register(contents => {
         const doc = contents.document;
         const surface = touchSurface.current;

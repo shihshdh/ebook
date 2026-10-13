@@ -55,6 +55,8 @@ with sync_playwright() as p:
         const text='第一章 封面\\n封面\\n第二章 正文\\n'+('这是可连续翻页的正文。'.repeat(900))+'\\n第三章 结尾\\n结束';
         const zip=await JSZip.loadAsync(await txtToEpub(new Blob([text]),'iOS 回归书'));
         zip.file('c0.xhtml','<html xmlns="http://www.w3.org/1999/xhtml"><head><title>封面</title></head><body><svg xmlns="http://www.w3.org/2000/svg" width="300" height="500"><rect width="300" height="500" fill="#947137"/></svg></body></html>');
+        const chapter=await zip.file('c1.xhtml').async('string');
+        zip.file('c1.xhtml',chapter.replace('<head>','<head><style>p {font-family:monospace !important}</style>').replaceAll('<p>','<p style="font-family:monospace !important">'));
         await addToShelf({id:'ios-test',title:'iOS 回归书',ext:'epub'},new Blob([await zip.generateAsync({type:'arraybuffer'})]));
         location.hash='/read/ios-test';
     }''')
@@ -84,6 +86,28 @@ with sync_playwright() as p:
     expect(page.locator('.rd-ambient-top')).to_have_text('第二章 正文')
     page.touchscreen.tap(200,400)
     expect(page.locator('.reader2')).to_have_class(__import__('re').compile('.*is-open.*'))
+    page.get_by_role('tab',name='字体',exact=True).click()
+    samples=[]
+    for label,family in [('黑体','-apple-system'),('宋体','EBOOK Song'),('楷体','EBOOK Kai')]:
+        page.get_by_role('dialog',name='字体',exact=True).get_by_role('tab',name=label,exact=True).click()
+        frame=page.frame_locator('iframe')
+        expect(frame.locator('body')).to_have_css('font-family',__import__('re').compile('.*'+family+'.*'))
+        result=frame.locator('body').evaluate('''async (body,family)=>{
+          const doc=body.ownerDocument;
+          if(family.startsWith('EBOOK')) {
+            const faces=await doc.fonts.load(`28px "${family}"`,'阅读漢字');
+            if(!faces.length || faces.some(f=>f.status!=='loaded')) throw Error('Reader font not loaded');
+          }
+          const paragraph=body.querySelector('p');
+          const actual=doc.defaultView.getComputedStyle(paragraph).fontFamily;
+          const canvas=doc.createElement('canvas');canvas.width=350;canvas.height=50;
+          const c=canvas.getContext('2d');c.font='28px '+actual;c.fillText('阅读漢字字体测试',0,35);
+          return {actual,image:canvas.toDataURL()};
+        }''',family)
+        assert family in result['actual'],result['actual']
+        samples.append(result['image'])
+    assert len(set(samples))==3,'Different settings rendered the same glyphs'
+    page.get_by_role('tab',name='字体',exact=True).first.click()
     page.evaluate("import('/src/lib/prefs.js').then(m=>m.setPrefs({readerTheme:'paper'}))")
     page.get_by_role('tab',name='纸张',exact=True).click()
     page.wait_for_timeout(500)
@@ -95,6 +119,7 @@ with sync_playwright() as p:
     page.get_by_role('tab',name='目录',exact=True).click()
     page.get_by_role('button',name='第三章 结尾',exact=True).click()
     expect(page.locator('.rd-ambient-top')).to_have_text('第三章 结尾')
+    expect(page.frame_locator('iframe').locator('body')).to_have_css('font-family',__import__('re').compile('.*EBOOK Kai.*'))
     page.touchscreen.tap(200,400)
     expect(page.get_by_role('button',name='打开阅读菜单')).to_be_visible()
     page.wait_for_timeout(600)

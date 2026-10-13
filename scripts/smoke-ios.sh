@@ -43,7 +43,7 @@ timed 120 xcrun simctl install "$DEVICE" "$SMOKE_DIR/DerivedData/Build/Products/
 timed 60 xcrun simctl launch "$DEVICE" app.librarium.reader
 sleep 15
 mkdir -p release
-timed 30 xcrun simctl io "$DEVICE" screenshot release/ios-first-launch.png
+timed 60 xcrun simctl io "$DEVICE" screenshot release/ios-first-launch.png
 xcrun simctl spawn "$DEVICE" launchctl list > release/ios-processes.txt
 node --input-type=module -e '
 import {readFileSync} from "node:fs";

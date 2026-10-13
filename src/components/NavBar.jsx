@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { LiquidSpring, prefersReduced } from '../lib/motion.js';
+import { isIOS } from '../lib/native.js';
 import { useTheme } from '../lib/theme.js';
 import AccountMenu from './AccountMenu.jsx';
 import { useRss } from '../lib/rss.js';
@@ -92,6 +93,13 @@ function useLiquidThumb(trackRef, thumbRef, activeIndex, count) {
   const place = (g, l, r) => {
     run.current?.anims.forEach(a => a.cancel());
     run.current = null;
+    if (isIOS) {
+      const thumb = thumbRef.current;
+      thumb.style.width = `${r - l}px`;
+      thumb.style.transform = `translate3d(${l}px,0,0)`;
+      rest.current = { l, r };
+      return;
+    }
     thumbRef.current.style.setProperty('--lt-big', `${g.big}px`);
     const ps = parts(), p = { l, r, q: 1 }, s = seam(g, p);
     for (const [j, prop, , , value] of TRACKS) ps[j].style[prop] = css(prop, value(g, p, s));
@@ -107,7 +115,7 @@ function useLiquidThumb(trackRef, thumbRef, activeIndex, count) {
     thumb.style.opacity = '1';
     // 第一次、减少动态效果、这条导航此刻没显示（手机上的顶栏、电脑上的底栏）、很旧的 WebView：直接落位
     // （不能看 offsetParent：手机底栏是 position: fixed，offsetParent 永远是 null，以前因此每次都瞬移、液态动画从没播过）
-    if (!rest.current || prefersReduced() || !g.big || !canAnimate) { place(g, target.l, target.r); return; }
+    if (isIOS || !rest.current || prefersReduced() || !g.big || !canAnimate) { place(g, target.l, target.r); return; }
     // 从哪儿出发：正在弹的从它此刻的位置、速度接着弹，停着的从停的位置
     let from = { left: rest.current.l, right: rest.current.r, vl: 0, vr: 0 };
     const cur = run.current;

@@ -96,7 +96,7 @@ export default function BookSheet() {
   const close = () => {
     if (prefersReduced()) return closeBook();
     setClosing(true);
-    setTimeout(() => { closeBook(); setClosing(false); }, 320);
+    setTimeout(() => { closeBook(); setClosing(false); }, isIOS ? 180 : 320);
   };
 
   // 手机：内容在顶上时往下拖，面板跟手；超过 120px、或者往下甩（松手前 ~100ms 的速度）就关。

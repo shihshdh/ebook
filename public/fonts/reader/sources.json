@@ -1,0 +1,18 @@
+[
+  {
+    "name": "song",
+    "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/notoserifsc/NotoSerifSC%5Bwght%5D.ttf",
+    "license": "https://raw.githubusercontent.com/google/fonts/main/ofl/notoserifsc/OFL.txt",
+    "sourceSha256": "050080d9255a86808f2945bffac582b31ef32bc36411ce29563b4961670c66f9",
+    "sha256": "75b3c373c96b9486c3d43f608d0749063a28bbf28614ec35b7306126aa5da779",
+    "bytes": 5732692
+  },
+  {
+    "name": "kai",
+    "source": "https://raw.githubusercontent.com/lxgw/LxgwWenKai-Lite/main/fonts/TTF/LXGWWenKaiLite-Regular.ttf",
+    "license": "https://raw.githubusercontent.com/lxgw/LxgwWenKai-Lite/main/OFL.txt",
+    "sourceSha256": "140c99ba4e28e817cec49bf82a0c5fcdc4fe633fb9dfda16d0ee8d59a8545f15",
+    "sha256": "c0d9b93921449a7aca69a1402fd3ed778a73e04f40c4a8b793dfac7d382dc825",
+    "bytes": 5269880
+  }
+]
