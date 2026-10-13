@@ -590,7 +590,7 @@ html.ui-mobile:has(.shelf-managebar) .toasts { bottom: calc(var(--chrome-b) + 70
 .ui-mobile .ws-back { left: 20px; top: 26px; }
 .ui-mobile .ws-headline { left: 20px; bottom: 84px; }
 .ui-mobile .ws-headline h2 { font-family: var(--sans); font-size: 44px; line-height: 1; font-weight: 800; }
-.ui-mobile .ws-tagline { font-size: 15px; color: rgba(255, 248, 234, .72); }
+.ui-mobile .ws-tagline { font-size: 15px; color: var(--ink2); }   /* 跟主题走：浅色拼贴上是深字，深色上是浅字 */
 
 /* ============================================================
    阅读器：照「图书」——正文是一张纸；菜单都是浮在纸上的玻璃
