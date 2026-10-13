@@ -12,7 +12,7 @@ import Icon from '../components/Icon.jsx';
 import { prefersReduced } from '../lib/motion.js';
 import { FPS_ACTIVE, FPS_IDLE, cappedRaf } from '../lib/frame.js';
 import { pressBook, stopWarm, warmBook } from '../lib/glyph-warm.js';
-import { haptic, isIOS } from '../lib/native.js';
+import { haptic, mobileUI } from '../lib/native.js';
 import './DiscShelf.css';
 
 const WINDOW = 4;
@@ -165,7 +165,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
       draw.current();
       // 换到新的一张、盘停到位（离目标不到 0.04 张）那一下轻震（安卓；拖动中目标不是整数，不震）
       const at = Math.round(m.target);
-      if (at === m.target && at !== m.felt && Math.abs(m.target - m.p) < .04) { m.felt = at; haptic(isIOS ? 'selection' : 'light'); }   // 换片停稳：iOS 按 HIG 用 selection（值变了）；安卓照旧
+      if (at === m.target && at !== m.felt && Math.abs(m.target - m.p) < .04) { m.felt = at; haptic(mobileUI ? 'selection' : 'light'); }   // 换片停稳：值变了（HIG：selection）
       const lo = Math.max(0, Math.floor(m.p) - WINDOW), hi = Math.min(n - 1, Math.ceil(m.p) + WINDOW);
       setVisible(prev => prev[0] === lo && prev[1] === hi ? prev : [lo, hi]);
       f.fps = m.settled ? FPS_IDLE : FPS_ACTIVE;

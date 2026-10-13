@@ -1,6 +1,6 @@
 // 全局 UI：打开书籍详情、轻提示、打开阅读器（带从封面展开的转场）
 import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
-import { haptic, isIOS } from './native.js';
+import { haptic, mobileUI } from './native.js';
 
 // 分两个上下文：动作（openBook、toast……，永远是同一组函数）和状态（打开的是哪本书、提示列表、转场）。
 // 以前合在一个里，点开 / 关上一本书、弹一条提示，所有 useUI() 的组件都跟着重渲染——首页、插件页（书源列表一长串 Link）、
@@ -21,7 +21,7 @@ export function UIProvider({ children }) {
   const toast = useCallback((text, { tone = 'info', ms = 2600 } = {}) => {
     const id = ++seq.current;
     // 一件事的结果（下载好了、导入失败……）配系统的成功 / 失败触感（HIG：notification）
-    if (isIOS) { if (tone === 'ok') haptic('success'); else if (tone === 'error') haptic('error'); }
+    if (mobileUI) { if (tone === 'ok') haptic('success'); else if (tone === 'error') haptic('error'); }
     setToasts(t => [...t, { id, text, tone }]);
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), ms);
   }, []);

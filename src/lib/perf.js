@@ -10,7 +10,7 @@
 //
 // 档位：ultra / high / balanced / low。各效果只读 tier()，并监听 'librarium:tier' 事件重建。
 import { isTouch, prefersReduced } from './motion.js';
-import { isIOS } from './native.js';
+import { isIOS, mobileUI } from './native.js';
 
 const ORDER = ['low', 'balanced', 'high', 'ultra'];
 const LEARN_KEY = 'librarium.tier.learned';
@@ -61,15 +61,16 @@ function learned() {
 }
 export function tier() {
   if (current) return current;
-  const hw = hardwareTier(), lr = isIOS ? null : learned();
+  const hw = hardwareTier(), lr = mobileUI ? null : learned();
   current = lr && ORDER.indexOf(lr) < ORDER.indexOf(hw) ? lr : hw;   // 学到的档只会往下压，不会越过手机的上限
   return current;
 }
 function setCurrent(t, why) {
   if (t === current) return;
   current = t;
-  // iPhone 不把降档记下来：开机那几秒主线程忙、低电量模式限 60 帧都会量出「掉帧」，记住了以后效果就永远没了（0.3.16-ios 就是这样）
-  if (!isIOS) try { localStorage.setItem(LEARN_KEY, JSON.stringify({ gpu: gpu(), tier: t })); } catch {}
+  // 手机不把降档记下来：开机那几秒主线程忙、省电模式限 60 帧都会量出「掉帧」，记住了以后效果就永远没了（0.3.16-ios 就是这样）。
+  // 本次运行里照样降，下次打开重新按硬件起步
+  if (!mobileUI) try { localStorage.setItem(LEARN_KEY, JSON.stringify({ gpu: gpu(), tier: t })); } catch {}
   console.info(`[perf] 画质 → ${t}（${why}）`);
   window.dispatchEvent(new CustomEvent('librarium:tier', { detail: t }));
 }

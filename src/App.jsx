@@ -12,7 +12,7 @@ import { needsUnlock } from './lib/accounts.js';
 import OpenTransition from './effects/OpenTransition.jsx';
 import { UIProvider, useUIActions } from './lib/ui.jsx';
 import { startDownloadWatch } from './lib/downloads.js';
-import { onBackButton, isIOS } from './lib/native.js';
+import { onBackButton, isIOS, mobileUI } from './lib/native.js';
 import { loadLibrary, libraryBooks, classics, WORLDS, worldScore } from './lib/library.js';
 import { prefetchCovers } from './lib/covers.js';
 import { trackPointerGlow } from './lib/motion.js';
@@ -242,8 +242,8 @@ function Shell() {
 
   return (
     <>
-      {/* iPhone：状态栏、底栏下面的滚动边缘（内容滚过去时渐隐 + 轻模糊，见 ios.css） */}
-      {isIOS && !reading && <><div className="ios-edge ios-edge-top" aria-hidden="true" /><div className="ios-edge ios-edge-bottom" aria-hidden="true" /></>}
+      {/* 手机：状态栏、底栏下面的滚动边缘（内容滚过去时渐隐 + 轻模糊，见 mobile.css） */}
+      {mobileUI && !reading && <><div className="ios-edge ios-edge-top" aria-hidden="true" /><div className="ios-edge ios-edge-bottom" aria-hidden="true" /></>}
       <NavBar hidden={reading || splash} />
       {!reading && <div className="status-veil" aria-hidden="true" />}
       <main className="pages">

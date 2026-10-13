@@ -161,7 +161,7 @@ function serifReady(c) {
 
 /** 按下一本书时调：把它在书详情里要显示的、还没排过的字先排一遍 */
 export function warmBook(book) {
-  if (!book || typeof document === 'undefined' || document.documentElement.classList.contains('platform-ios')) return;
+  if (!book || typeof document === 'undefined' || document.documentElement.classList.contains('ui-mobile')) return;
   if (!slots) build();
   const jobs = [];
   for (const slot of slots) {

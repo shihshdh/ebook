@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { prefersReduced } from "../lib/motion";
 import { tier, canWebGL2, watchFps } from "../lib/perf";
 import { isLight } from "../lib/theme";
-import { isIOS } from "../lib/native";
+import { mobileUI } from "../lib/native";
 import { FPS_ACTIVE, cappedRaf } from "../lib/frame";
 import "./PrismGlass.css";
 const P = {
@@ -53,7 +53,7 @@ function insetPolygon(points, inset) {
 // 触屏：手指按在玻璃上拖（滚动时 touchmove 照样来）光就跟着走；刚进视野时自己扫一遍光，看得见碎玻璃的反光，扫完就停（省电）
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 function canUseGlass() {
-  if (prefersReduced() || (coarse() && !isIOS)) return false;
+  if (prefersReduced() || (coarse() && !mobileUI)) return false;
   if (tier() === "low") return false;
   try {
     return canWebGL2();
@@ -428,5 +428,5 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
     };
   // lead、caption 是 HTML 字（不画进纹理）：它们变了不用重建 WebGL——以前书库一加载完、书源数一变，就整套拆掉重建一遍
   }, [mode, title.join("\n")]);
-  return <section ref={rootRef} className={`prism-glass ${mode === "glass" ? "has-webgl" : "is-static"}`} style={{ height: isIOS && height === "min(72vh, 640px)" ? "clamp(360px, 46svh, 420px)" : height, "--prism-lines": title.length }}><canvas ref={canvasRef} className="prism-canvas" aria-hidden="true" /><div className="prism-copy"><h2>{title.map((line, i) => <span key={i}>{line}</span>)}</h2></div>{lead && <p className="prism-lead">{lead}</p>}<div className="prism-children">{children}</div><small className="prism-caption">{caption}</small></section>;
+  return <section ref={rootRef} className={`prism-glass ${mode === "glass" ? "has-webgl" : "is-static"}`} style={{ height: mobileUI && height === "min(72vh, 640px)" ? "clamp(360px, 46svh, 420px)" : height, "--prism-lines": title.length }}><canvas ref={canvasRef} className="prism-canvas" aria-hidden="true" /><div className="prism-copy"><h2>{title.map((line, i) => <span key={i}>{line}</span>)}</h2></div>{lead && <p className="prism-lead">{lead}</p>}<div className="prism-children">{children}</div><small className="prism-caption">{caption}</small></section>;
 }

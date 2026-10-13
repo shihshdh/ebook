@@ -6,6 +6,7 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.OpenableColumns;
 import android.util.Base64;
+import android.view.HapticFeedbackConstants;
 import android.view.View;
 import com.getcapacitor.JSObject;
 import android.content.ContentValues;
@@ -42,6 +43,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  *   openWeb({url,title})  订阅源的网页（WebActivity 网页模式），下到的书同样经 consumeFile 进书架
  *   beginSave / appendSave / endSave   账户导出：分块写临时文件，最后放进「下载/EBOOK」（大文件不经一整串 base64）
  *   installApk({token})   检查更新：beginSave/appendSave 写好的新版 APK 交给系统安装器（签名不同的包系统会拒装）
+ *   haptic({kind})        触感：selection / light / soft / rigid / medium / heavy / success / warning / error，
+ *                         用系统定义的语义触感（View.performHapticFeedback），跟随系统「触摸反馈」开关
  * 安全区不在这里：MainActivity 监听 WindowInsets，直接把像素值写进 CSS 变量。
  */
 @CapacitorPlugin(name = "EbookNative")
@@ -266,7 +269,7 @@ public class EbookNative extends Plugin {
             c.setAppearanceLightStatusBars(!dark);
             c.setAppearanceLightNavigationBars(!dark);
             View web = getBridge().getWebView();
-            web.setBackgroundColor(dark ? 0xFF080706 : 0xFFF4EFE6);
+            web.setBackgroundColor(dark ? 0xFF000000 : 0xFFFFFFFF);   // 和页面底色一致（mobile.css：白 / 纯黑）
         });
         call.resolve();
     }
@@ -283,6 +286,37 @@ public class EbookNative extends Plugin {
             } else {
                 c.show(WindowInsetsCompat.Type.systemBars());
             }
+        });
+        call.resolve();
+    }
+
+    /** 前端的语义 → 安卓系统触感常量（新系统有更贴切的就用新的） */
+    private static int hapticConstant(String kind) {
+        switch (kind) {
+            case "selection":
+                return Build.VERSION.SDK_INT >= 34 ? HapticFeedbackConstants.SEGMENT_TICK : HapticFeedbackConstants.CLOCK_TICK;
+            case "success":
+                return Build.VERSION.SDK_INT >= 30 ? HapticFeedbackConstants.CONFIRM : HapticFeedbackConstants.CONTEXT_CLICK;
+            case "warning":
+            case "error":
+                return Build.VERSION.SDK_INT >= 30 ? HapticFeedbackConstants.REJECT : HapticFeedbackConstants.LONG_PRESS;
+            case "medium":
+            case "heavy":
+                return HapticFeedbackConstants.LONG_PRESS;
+            case "rigid":
+                return HapticFeedbackConstants.CONTEXT_CLICK;
+            default:   // light / soft
+                return HapticFeedbackConstants.KEYBOARD_TAP;
+        }
+    }
+
+    @PluginMethod
+    public void haptic(PluginCall call) {
+        final int constant = hapticConstant(call.getString("kind", "light"));
+        getActivity().runOnUiThread(() -> {
+            View web = getBridge().getWebView();
+            // 忽略 WebView 自己的 hapticFeedbackEnabled（WebView 默认关），系统设置里关了触摸反馈照样不震
+            if (web != null) web.performHapticFeedback(constant, HapticFeedbackConstants.FLAG_IGNORE_VIEW_SETTING);
         });
         call.resolve();
     }

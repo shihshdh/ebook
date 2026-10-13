@@ -1,7 +1,7 @@
 // 书籍详情：桌面从右侧滑出的玻璃侧板，手机是能往下拖关闭的底部抽屉。
 // 下载在这里完成：插图版按卷、纯文本版整本、蓝奏云（客户端里开下载页自动填码，下完自动入架）。下完直接"阅读"。
 import { armDownloadWatch } from '../lib/downloads.js';
-import { lanzou, onBackButton, platform, isIOS } from '../lib/native.js';
+import { lanzou, onBackButton, platform, isIOS, mobileUI } from '../lib/native.js';
 import { useEffect, useRef, useState } from 'react';
 import Cover from './Cover.jsx';
 import Icon from './Icon.jsx';
@@ -96,7 +96,7 @@ export default function BookSheet() {
   const close = () => {
     if (prefersReduced()) return closeBook();
     setClosing(true);
-    setTimeout(() => { closeBook(); setClosing(false); }, isIOS ? 250 : 320);   // iOS 的关闭动画 260ms（ios.css），提前一点点卸下
+    setTimeout(() => { closeBook(); setClosing(false); }, mobileUI ? 250 : 320);   // 手机的关闭动画 260ms（mobile.css），提前一点点卸下
   };
 
   // 手机：内容在顶上时往下拖，面板跟手；超过 120px、或者往下甩（松手前 ~100ms 的速度）就关。

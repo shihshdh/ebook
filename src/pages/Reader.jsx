@@ -17,7 +17,7 @@ import { txtToEpub } from '../reader/txt';
 import { searchBook } from '../reader/search';
 import { useReadingClock } from '../lib/readstats';
 import Icon from '../components/Icon.jsx';
-import { haptic, onBackButton, setImmersive, isIOS } from '../lib/native';
+import { haptic, onBackButton, setImmersive, isIOS, mobileUI } from '../lib/native';
 import { acctKey } from '../lib/accounts';
 import { applyReaderFont, READER_FONT_STACKS } from '../reader/typography.js';
 import '../styles/reader.css';
@@ -80,7 +80,7 @@ function LiquidTabs({ items, value, onChange, className = '' }) {
     if (!el) { th.style.opacity = '0'; return; }
     th.style.opacity = '1';
     const target = { left: el.offsetLeft, right: el.offsetLeft + el.offsetWidth };
-    if (isIOS || !spring.current || prefersReduced()) {
+    if (mobileUI || !spring.current || prefersReduced()) {   // 手机：滑块的移动交给 CSS 过渡（mobile.css，带回弹）
       spring.current = new LiquidSpring(target);
       th.style.width = `${target.right - target.left}px`; th.style.transform = `translate3d(${target.left}px,0,0)`;
       return;
@@ -626,7 +626,7 @@ export default function Reader() {
         <div className="rd-track"><i style={{ width: toPercent(scrub ? scrub.f : loc.percent) }} /></div>
         {ticks.map((t, i) => <span key={i} className="rd-tick" style={{ left: toPercent(t.fraction) }} />)}
         <input type="range" min="0" max="1000" aria-label="跳到位置" value={Math.round((scrub ? scrub.f : loc.percent) * 1000)} disabled={!ticks.length}
-          onChange={e => { const f = +e.target.value / 1000, label = scrubLabel(f); if (isIOS && scrub && label !== scrub.label) haptic('selection'); setScrub({ f, label }); }}   // 拖过章节刻度：轻轻一震
+          onChange={e => { const f = +e.target.value / 1000, label = scrubLabel(f); if (mobileUI && scrub && label !== scrub.label) haptic('selection'); setScrub({ f, label }); }}   // 拖过章节刻度：轻轻一震
           onPointerUp={() => { if (scrub) jumpTo(scrub.f); setScrub(null); }}
           onKeyUp={(e) => { if (scrub && /Arrow|Home|End|Page/.test(e.key)) { jumpTo(scrub.f); setScrub(null); } }} />
         {scrub && <span className="rd-bubble glass" style={{ left: toPercent(scrub.f) }}><b className="num">{toPercent(scrub.f)}</b><span>{scrub.label}</span></span>}
@@ -671,7 +671,7 @@ export default function Reader() {
       </div>
 
       {/* 书签丝带 */}
-      {iosTouch && !open && <button className="rd-menu-trigger" onClick={e => { e.stopPropagation(); showBars(0); }} aria-label="打开阅读菜单">
+      {touch && mobileUI && !open && <button className="rd-menu-trigger" onClick={e => { e.stopPropagation(); showBars(0); }} aria-label="打开阅读菜单">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9" /></svg>
       </button>}
       <button className={`rd-ribbon ${bookmarked ? 'on' : ''}`} onClick={(e) => { e.stopPropagation(); toggleBookmark(); }} aria-label={bookmarked ? '移除本页书签' : '为本页加书签'} aria-pressed={bookmarked}>

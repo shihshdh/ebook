@@ -18,6 +18,8 @@ export const isNative = platform !== 'web';
 export const mobileOS = platform === 'capacitor' ? window.Capacitor.getPlatform() : null;
 export const isIOS = mobileOS === 'ios' || (typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent));
 export const supportsPackageUpdate = platform === 'tauri' || mobileOS === 'android';
+/** 手机客户端（iPhone、安卓）：用同一套 iOS 设计语言的界面（styles/mobile.css、液态玻璃标签栏、原生触感） */
+export const mobileUI = isIOS || mobileOS === 'android';
 
 /** 书源需要保留错误页正文，且必须按原始字节而不是桥接默认 UTF-8 解码。 */
 export async function nativeRequest({ url, method = 'GET', headers = {}, body, charset, signal, timeout = 20000 }) {
@@ -247,9 +249,16 @@ export function onBackButton(handler) {
   return () => { const i = backHandlers.lastIndexOf(handler); if (i >= 0) backHandlers.splice(i, 1); };
 }
 
-// iOS：触感走自己的原生插件（EbookNative.haptic）——发生器常驻、用完就 prepare，手指一碰就在同一帧震；
-// 插件对象启动时就建好，震的那一下不用再等一次动态 import。安卓照旧用 @capacitor/haptics
-if (mobileOS === 'ios') import('@capacitor/core').then(m => { ebookNative ||= m.registerPlugin('EbookNative'); }).catch(() => {});
+// 触感走自己的原生插件（EbookNative.haptic）：
+//   iOS：UIFeedbackGenerator 常驻、用完就 prepare，手指一碰就在同一帧震；
+//   安卓：View.performHapticFeedback（CLOCK_TICK / CONFIRM / REJECT……系统定义的语义触感，跟随系统「触摸反馈」开关）。
+// 插件对象启动时就建好，震的那一下不用再等一次动态 import；原生没这个方法（旧安装包）时退回 @capacitor/haptics
+if (mobileOS) import('@capacitor/core').then(m => { ebookNative ||= m.registerPlugin('EbookNative'); }).catch(() => {});
+const capHaptic = (kind) => import('@capacitor/haptics').then(({ Haptics, ImpactStyle, NotificationType }) => {
+  if (kind === 'success' || kind === 'warning' || kind === 'error')
+    return Haptics.notification({ type: kind === 'success' ? NotificationType.Success : kind === 'warning' ? NotificationType.Warning : NotificationType.Error });
+  return Haptics.impact({ style: kind === 'medium' || kind === 'rigid' ? ImpactStyle.Medium : kind === 'heavy' ? ImpactStyle.Heavy : ImpactStyle.Light });
+}).catch(() => {});
 
 /** 触感，按 HIG 的语义用：
  *  'selection'（值在变：切标签、拨过一格、换片停稳）· 'light' / 'soft' / 'rigid' / 'medium' / 'heavy'（东西落位、碰撞，intensity 0–1）
@@ -257,13 +266,8 @@ if (mobileOS === 'ios') import('@capacitor/core').then(m => { ebookNative ||= m.
 export function haptic(kind = 'light', intensity = 1) {
   if (platform !== 'capacitor') return;
   if (kind === 'select') kind = 'selection';
-  if (mobileOS === 'ios' && ebookNative) { ebookNative.haptic({ kind, intensity }).catch(() => {}); return; }
-  import('@capacitor/haptics').then(({ Haptics, ImpactStyle, NotificationType }) => {
-    if (kind === 'success' || kind === 'warning' || kind === 'error')
-      return Haptics.notification({ type: kind === 'success' ? NotificationType.Success : kind === 'warning' ? NotificationType.Warning : NotificationType.Error });
-    if (kind === 'selection') return Haptics.selectionChanged();
-    return Haptics.impact({ style: kind === 'medium' || kind === 'rigid' ? ImpactStyle.Medium : kind === 'heavy' ? ImpactStyle.Heavy : ImpactStyle.Light });
-  }).catch(() => {});
+  if (ebookNative) { ebookNative.haptic({ kind, intensity }).catch(() => capHaptic(kind)); return; }
+  capHaptic(kind);
 }
 
 /** 手指刚落在会震的控件上：先把触感引擎叫醒，接下来那一下没有起振延迟（只 iOS 有意义） */

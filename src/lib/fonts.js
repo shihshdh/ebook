@@ -8,7 +8,7 @@
 // 另外：每个分片下到时，浏览器都会把屏幕附近所有用这套字的文字重排一遍（不管下到的字用没用上），
 // 所以预取要成批、要早，别在滚动当中一片一片地到（见 MasonryWall.jsx 的 FONT_PAGES）。
 
-import { isIOS } from './native.js';
+import { mobileUI } from './native.js';
 const FAMILY = '"Noto Serif SC"';
 
 /**
@@ -18,7 +18,7 @@ const FAMILY = '"Noto Serif SC"';
  * @returns 下好（或下不了）时完成的 Promise，不会失败
  */
 export function loadSerif(text, weight = 600) {
-  if (isIOS) return Promise.resolve();
+  if (mobileUI) return Promise.resolve();   // 手机界面用系统字体（mobile.css），不用下宋体
   const chars = [...new Set(text)].join('');
   if (!chars || !document.fonts?.load) return Promise.resolve();
   return document.fonts.load(`${weight} 16px ${FAMILY}`, chars).then(() => {}, () => {});

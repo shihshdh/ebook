@@ -8,7 +8,7 @@
 // 快速点一下（还没到 PRESS_DELAY 就抬手）补一个「压下—回弹」，照样有反馈；手指移动超过 SLOP、浏览器接管滚动（pointercancel）就松开。
 // 只在触屏上装；电脑有悬停效果，不变。
 import { isTouch, prefersReduced } from './motion.js';
-import { isIOS, haptic, prepareHaptic } from './native.js';
+import { mobileUI, haptic, prepareHaptic } from './native.js';
 
 // Feedback starts on contact; activation still belongs to the normal click.
 // CSS transitions can reverse mid-flight without reading computed styles.
@@ -27,7 +27,7 @@ export function installIOSPress(root = window) {
     if (!el || el.disabled || el.closest('[inert], [aria-disabled="true"]')) return;
     el.setAttribute('data-touch-feedback', '');
     el.setAttribute('data-touch-down', '');
-    // 玻璃控件：手指落点亮起来（ios.css 的 .lg-glass::before 用 --tx / --ty）
+    // 玻璃控件：手指落点亮起来（mobile.css 的 .lg-glass::before 用 --tx / --ty）
     if (el.classList.contains('lg-glass')) {
       const r = el.getBoundingClientRect();
       el.style.setProperty('--tx', `${e.clientX - r.left}px`);
@@ -102,6 +102,6 @@ function install() {
 }
 
 if (typeof window !== 'undefined' && isTouch()) {
-  if (isIOS) installIOSPress();
+  if (mobileUI) installIOSPress();
   else if (!prefersReduced()) install();
 }

@@ -35,7 +35,7 @@ public class MainActivity extends BridgeActivity {
         if (android.os.Build.VERSION.SDK_INT >= 29) getWindow().setNavigationBarContrastEnforced(false);
 
         WebView web = getBridge().getWebView();
-        web.setBackgroundColor(0xFFF4EFE6);   // 默认浅色「象牙纸」；切深色时 EbookNative.setBars 会改
+        web.setBackgroundColor(0xFFFFFFFF);   // 默认浅色（白底，和 mobile.css 一致）；切深色时 EbookNative.setBars 会改
         // 安卓 WebView 的 env(safe-area-inset-*) 靠不住：自己量系统栏 / 刘海 / 键盘，写成 CSS 变量
         View host = (View) web.getParent();
         ViewCompat.setOnApplyWindowInsetsListener(web, (v, insets) -> {

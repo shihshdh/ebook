@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUI } from '../lib/ui.jsx';
 import { getPrefs, READER_THEMES } from '../lib/prefs.js';
 import { prefersReduced } from '../lib/motion.js';
-import { isIOS } from '../lib/native.js';
+import { mobileUI } from '../lib/native.js';
 
 export default function OpenTransition() {
   const { opening, endOpening } = useUI();
@@ -18,8 +18,8 @@ export default function OpenTransition() {
     const el = layer.current;
     const go = () => navigate(`/read/${encodeURIComponent(opening.item.id)}`);
     if (!el || prefersReduced()) { go(); endOpening(); return; }
-    if (isIOS) {
-      // iPhone：封面原地放大铺满屏幕（iOS 的缩放转场），只动 transform / opacity，交给合成线程；
+    if (mobileUI) {
+      // 手机：封面原地放大铺满屏幕（iOS 的缩放转场），只动 transform / opacity，交给合成线程；
       // 阅读器同时开始加载（下一帧就切路由），它第一次渲染再重，放大也不卡，也不用像电脑那样先等 700ms
       const W = innerWidth, H = innerHeight;
       const r = opening.rect || { left: W / 2 - 60, top: H / 2 - 84, width: 120, height: 168 };
@@ -75,8 +75,8 @@ export default function OpenTransition() {
   if (!opening) return null;
   const theme = READER_THEMES[getPrefs().readerTheme] || READER_THEMES.night;
   return (
-    <div ref={layer} className="open-layer" style={{ background: isIOS ? undefined : theme.chrome }} aria-hidden="true">
-      {isIOS && <div className="open-bg" style={{ position: 'absolute', inset: 0, background: theme.chrome, opacity: 0 }} />}
+    <div ref={layer} className="open-layer" style={{ background: mobileUI ? undefined : theme.chrome }} aria-hidden="true">
+      {mobileUI && <div className="open-bg" style={{ position: 'absolute', inset: 0, background: theme.chrome, opacity: 0 }} />}
       {opening.cover && <img src={opening.cover} alt="" />}
     </div>
   );

@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import Icon from './Icon.jsx';
 import { LiquidSpring, prefersReduced } from '../lib/motion.js';
-import { isIOS } from '../lib/native.js';
+import { isIOS, mobileUI } from '../lib/native.js';
 import { useTheme } from '../lib/theme.js';
 import AccountMenu from './AccountMenu.jsx';
 import GlassTabBar from './GlassTabBar.jsx';
@@ -182,7 +182,7 @@ export default function NavBar({ hidden }) {
   const topTrack = useRef(null), topThumb = useRef(null);
   const botTrack = useRef(null), botThumb = useRef(null);
   useLiquidThumb(topTrack, topThumb, active, tabs.length);
-  useLiquidThumb(botTrack, botThumb, active, tabs.length);   // iOS 没有这条（换成 GlassTabBar），钩子见 ref 为空直接返回
+  useLiquidThumb(botTrack, botThumb, active, tabs.length);   // 手机上没有这条（换成 GlassTabBar），钩子见 ref 为空直接返回
   const [theme, setTheme] = useTheme();
 
   return (
@@ -208,8 +208,8 @@ export default function NavBar({ hidden }) {
         </div>
       </header>
 
-      {isIOS ? (
-        // iPhone：液态玻璃标签栏，搜索按 HIG 单独放在右边的圆钮里
+      {mobileUI ? (
+        // 手机：液态玻璃标签栏，搜索按 HIG 单独放在右边的圆钮里
         <GlassTabBar tabs={tabs.filter(t => t.to !== '/search')} searchTab={tabs.find(t => t.to === '/search')} hidden={hidden} />
       ) : (
         <nav className={`tabbar glass ${hidden ? 'is-hidden' : ''}`} ref={botTrack} aria-label="主导航">

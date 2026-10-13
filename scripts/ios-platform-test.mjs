@@ -98,3 +98,33 @@ test('iOS haptics and accessibility reach the native plugin', () => {
   `], {cwd:new URL('..',import.meta.url),encoding:'utf8',timeout:5000});
   assert.equal(run.status,0,run.stderr||run.stdout);
 });
+
+test('Android uses the mobile UI and native semantic haptics, falling back on old builds', () => {
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    import assert from 'node:assert/strict';
+    globalThis.window = globalThis;
+    globalThis.androidBridge = { postMessage(){} };
+    const calls = [];
+    let hasHaptic = true;
+    globalThis.Capacitor = {
+      isNativePlatform:()=>true, getPlatform:()=> 'android',
+      PluginHeaders:[{name:'EbookNative',methods:[{name:'haptic',rtype:'promise'},{name:'addListener',rtype:'callback'},{name:'removeListener',rtype:'promise'}]},
+        {name:'Haptics',methods:['impact','notification','vibrate','selectionStart','selectionChanged','selectionEnd'].map(name=>({name,rtype:'promise'}))}],
+      nativePromise: async (plugin,method,options)=>{ calls.push({plugin,method,options}); if (method==='haptic' && !hasHaptic) throw new Error('not implemented'); return {}; },
+      nativeCallback: (plugin,method)=>{calls.push({plugin,method});return 'listener';}
+    };
+    const native = await import('./src/lib/native.js');
+    assert.equal(native.mobileUI, true);
+    assert.equal(native.isIOS, false);
+    await new Promise(r=>setTimeout(r,50));
+    native.haptic('selection');
+    native.haptic('error');
+    await new Promise(r=>setTimeout(r,20));
+    assert.deepEqual(calls.filter(c=>c.plugin==='EbookNative'&&c.method==='haptic').map(c=>c.options.kind), ['selection','error']);
+    hasHaptic = false;
+    native.haptic('success');
+    await new Promise(r=>setTimeout(r,100));
+    assert.ok(calls.some(c=>c.plugin==='Haptics'), 'old APK without EbookNative.haptic falls back to @capacitor/haptics');
+  `], {cwd:new URL('..',import.meta.url),encoding:'utf8',timeout:5000});
+  assert.equal(run.status,0,run.stderr||run.stdout);
+});
