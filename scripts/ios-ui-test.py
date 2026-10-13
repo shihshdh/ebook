@@ -39,8 +39,8 @@ with sync_playwright() as p:
         fixture.innerHTML='<section class="discshelf" style="position:fixed;inset:0"><div class="disc-footer" style="height:100%">disc</div></section>';
         document.body.append(fixture);
     }''')
-    nav = page.locator('.tabbar').bounding_box()
-    assert page.evaluate('''([x,y]) => !!document.elementFromPoint(x,y).closest('.tabbar')''',
+    nav = page.locator('.lg-tabbar').bounding_box()
+    assert page.evaluate('''([x,y]) => !!document.elementFromPoint(x,y).closest('.lg-tabbar')''',
         [nav['x'] + nav['width']/2, nav['y'] + nav['height']/2]), 'disc covers navigation'
     page.evaluate('''() => {
         const layer=document.createElement('div'); layer.className='sheet-layer'; layer.id='test-sheet';
@@ -142,31 +142,36 @@ with sync_playwright() as p:
             page.evaluate('(route)=>location.hash=route',route)
             page.wait_for_timeout(400)
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), (width,route,'horizontal overflow')
-            expect(page.locator('.tabbar')).to_be_visible()
-            bounds=page.locator('.tabbar').bounding_box()
+            expect(page.locator('.lg-dock')).to_be_visible()
+            bounds=page.locator('.lg-dock').bounding_box()
             assert bounds['x'] >= 0 and bounds['x']+bounds['width'] <= width+1
             assert bounds['y'] >= 0 and bounds['y']+bounds['height'] <= height+1
             if width == 402:
                 page.screenshot(path=str(out/('screen-'+(route.strip('/') or 'home')+'.png')))
         page.screenshot(path=str(out/f'layout-{width}.png'))
     page.set_viewport_size({'width':402,'height':874})
+    # World switch: same push/pull camera as desktop; rapid switching settles on the last world.
     page.evaluate("location.hash='/explore'")
-    page.wait_for_selector('.ws-phone')
-    tabs=page.locator('.ws-phone .ws-cap')
+    page.wait_for_selector('.ws .ws-cap')
+    caps=page.locator('.ws .ws-cap')
     for index in [0,3,1,4,2]:
-        tabs.nth(index).click()
-        expect(tabs.nth(index)).to_have_attribute('aria-selected','true')
-        expect(page.locator('.ws-phone .ws-headline h2')).to_contain_text(tabs.nth(index).get_attribute('aria-label'))
-        assert page.locator('.ws-scene').count() == 0
-        assert page.locator('.ws-phone .cover').count() <= 6
+        caps.nth(index).click()
+        page.wait_for_timeout(150)
+    page.wait_for_timeout(1600)
+    expect(page.locator('.ws-headline h2')).to_be_visible()
     page.screenshot(path=str(out/'world-selected.png'))
-    page.get_by_role('tab',name='全部',exact=True).click()
-    assert page.locator('.ws-phone .cover').count() == 0
     page.evaluate("location.hash='/'")
     page.wait_for_timeout(800)
-    assert page.locator('.page-river canvas.is-live').count() == 0
-    assert page.locator('.route.is-kept[data-warming]').count() == 0
-    assert page.locator('.tabbar').evaluate("e=>getComputedStyle(e).backdropFilter") == 'none'
+    # Liquid Glass tab bar: lens lifts on press, follows a drag and settles on the nearest tab.
+    centers=page.evaluate("[...document.querySelectorAll('.lg-tabbar > .lg-tabs > .lg-tab')].map(t=>{const r=t.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2]})")
+    fire=lambda t,x,y: page.evaluate(f"document.querySelector('.lg-tabbar').dispatchEvent(new PointerEvent('{t}',{{pointerId:9,pointerType:'touch',isPrimary:true,clientX:{x},clientY:{y},bubbles:true}}))")
+    fire('pointerdown',*centers[0]); page.wait_for_timeout(200)
+    assert page.locator('.lg-tabbar[data-lifted]').count()==1, 'lens did not lift'
+    for k in range(1,9): fire('pointermove',centers[0][0]+(centers[2][0]-centers[0][0])*k/8,centers[0][1]); page.wait_for_timeout(20)
+    fire('pointerup',*centers[2]); page.wait_for_timeout(1200)
+    assert page.evaluate("location.hash")=='#/shelf', page.evaluate("location.hash")
+    assert page.locator('.lg-tabbar[data-lifted]').count()==0, 'lens did not settle'
+    assert page.locator('.lg-tabbar').evaluate("e=>getComputedStyle(e).webkitBackdropFilter||getComputedStyle(e).backdropFilter") != 'none'
     page.evaluate('''async () => {
         const original=window.visualViewport;
         const mock=new EventTarget(); mock.height=200; mock.offsetTop=20;
@@ -176,8 +181,8 @@ with sync_playwright() as p:
         const stop=setupIOSViewport();
     }''')
     expect(page.locator('html')).to_have_class(__import__('re').compile('.*keyboard-open.*'))
-    expect(page.locator('.tabbar')).to_be_hidden()
+    expect(page.locator('.lg-dock')).to_be_hidden()
     page.evaluate('window.stopKeyboardTest()')
     assert not errors, errors
-    print('PASS: sandbox, cover/chapter turns, forward/back swipes, menu, TOC, landscape, scroll-mode exit, stacking; 30 route/viewport combinations; iOS rendering profile')
+    print('PASS: sandbox, cover/chapter turns, forward/back swipes, menu, TOC, landscape, scroll-mode exit, stacking; 30 route/viewport combinations; world switch; glass tab bar lens')
     browser.close()

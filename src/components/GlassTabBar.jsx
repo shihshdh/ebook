@@ -242,8 +242,9 @@ export default function GlassTabBar({ tabs, hidden, searchTab }) {
     if (!t || e.pointerId !== t.id) return;
     touch.current = null;
     const geo = g.current;
-    // 甩出去：按松手时的速度往前多送一段再找最近的格（快速一划能跨好几格，有惯性）
-    const i = cancelled ? activeRef.current : nearest(t.moved ? clamp(s.current.x + s.current.vx * .11, geo.centers[0], geo.centers.at(-1)) : localX(e));
+    // 以手指松开的位置为准；甩的时候顺着速度最多再送小半格（手已经过了半格线才会跨过去，不会选错）
+    const lead = clamp(s.current.vx * .04, -geo.W * .45, geo.W * .45);
+    const i = cancelled ? activeRef.current : nearest(t.moved ? s.current.tx + lead : localX(e));
     const to = tabs[i]?.to;
     skipClick.current = true;
     setTimeout(() => { skipClick.current = false; }, 400);
