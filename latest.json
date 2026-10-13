@@ -1,12 +1,8 @@
 {
-  "version": "0.3.16",
-  "notes": "修复书架页被章节名撑宽、整页横向偏移；检查更新可以取消，下载慢或失败时可改用浏览器下载",
-  "windows": {
-    "file": "EBOOK_0.3.16_x64-setup.exe",
-    "sha256": "1bf521fd2462a75be444bf48fc36b2ca285fa10848b89f59d6198af0bdff8426"
-  },
+  "version": "0.3.17",
+  "notes": "手机界面按 iOS 设计逻辑重做：新配色和尺寸、可拖动的玻璃标签栏、「图书」式阅读器菜单、特效全部回归、系统触感",
   "android": {
-    "file": "EBOOK_0.3.16.apk",
-    "sha256": "1259f41d9d48bb7f08c48197890eecb3e277e934fc25768adb28b0f7d2d4057f"
+    "file": "EBOOK_0.3.17.apk",
+    "sha256": "5e9c9a1eab997ea6418390b5e0a4bf29c2f39112331e0a9f56fc58eba6a2efa3"
   }
 }
