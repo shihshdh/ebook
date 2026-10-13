@@ -52,7 +52,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
     idle.current?.anims.forEach(a => { if (run) a.play(); else a.pause(); });
   };
   const enterIdle = () => {
-    if (isIOS || idle.current || reduced.current || typeof Element.prototype.animate !== 'function') return;
+    if (idle.current || reduced.current || typeof Element.prototype.animate !== 'function') return;
     const anims = new Map(), running = spinT.current.since !== null;
     discRefs.current.forEach((el, i) => {
       const at = pose.current.get(el);
@@ -121,7 +121,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
       const y = h * .5 - d * 54 * unit + d * d * 5 * unit;
       const scale = Math.max(.42, Math.min(1.5, 1 + d * .15 - a * .03));
       const tilt = 34 + Math.min(a, 1.6) * 12;
-      const spin = reduced.current || isIOS ? -d * 40 : (clock() * .009 + m.spin) * (1 + i % 3 * .15) - d * 40;   // 匀速那份按钟算
+      const spin = reduced.current ? -d * 40 : (clock() * .009 + m.spin) * (1 + i % 3 * .15) - d * 40;   // 匀速那份按钟算
       const fade = a > 3.2 ? Math.max(0, 1 - (a - 3.2) / .8) : 1;
       const pre = `translate3d(${x - size / 2}px,${y - size / 2}px,0) scale(${scale}) perspective(${900 * unit}px) rotateZ(-24deg) rotateX(${tilt}deg)`;
       el.style.transform = `${pre} rotateZ(${spin}deg)`;
@@ -165,7 +165,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
       draw.current();
       // 换到新的一张、盘停到位（离目标不到 0.04 张）那一下轻震（安卓；拖动中目标不是整数，不震）
       const at = Math.round(m.target);
-      if (at === m.target && at !== m.felt && Math.abs(m.target - m.p) < .04) { m.felt = at; haptic('light'); }
+      if (at === m.target && at !== m.felt && Math.abs(m.target - m.p) < .04) { m.felt = at; haptic(isIOS ? 'selection' : 'light'); }   // 换片停稳：iOS 按 HIG 用 selection（值变了）；安卓照旧
       const lo = Math.max(0, Math.floor(m.p) - WINDOW), hi = Math.min(n - 1, Math.ceil(m.p) + WINDOW);
       setVisible(prev => prev[0] === lo && prev[1] === hi ? prev : [lo, hi]);
       f.fps = m.settled ? FPS_IDLE : FPS_ACTIVE;

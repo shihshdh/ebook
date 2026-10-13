@@ -10,7 +10,6 @@ import Cover from '../components/Cover.jsx';
 import { useCover } from '../lib/covers.js';
 import { jacketScale } from '../lib/jacket.js';
 import { isTouch, prefersReduced } from '../lib/motion.js';
-import { isIOS } from '../lib/native.js';
 import { usePixelGlitch } from './usePixelGlitch.js';
 import { atMost, loadSerif } from '../lib/fonts.js';
 import { pressBook } from '../lib/glyph-warm.js';
@@ -58,7 +57,7 @@ function FlipFrame({ book, active, load, scale }) {
 }
 
 function FlipbookTile({ books, onOpen }) {
-  return isIOS ? <BookTile book={books[0]} onOpen={onOpen} index={0} /> : <AnimatedFlipbookTile books={books} onOpen={onOpen} />;
+  return <AnimatedFlipbookTile books={books} onOpen={onOpen} />;
 }
 function AnimatedFlipbookTile({ books, onOpen }) {
   const ref = useRef(null);

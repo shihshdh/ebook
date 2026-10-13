@@ -67,3 +67,34 @@ for (const [os, platform, canUpdate] of [
     assert.equal(run.status, 0, run.stderr || run.stdout);
   });
 }
+
+test('iOS haptics and accessibility reach the native plugin', () => {
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    import assert from 'node:assert/strict';
+    globalThis.window = globalThis;
+    globalThis.webkit = {messageHandlers:{bridge:{}}};
+    const calls = [];
+    const methods = ['haptic','prepareHaptics','accessibility'];
+    globalThis.Capacitor = {
+      isNativePlatform:()=>true, getPlatform:()=> 'ios',
+      PluginHeaders:[{name:'EbookNative',methods:[...methods.map(name=>({name,rtype:'promise'})),{name:'addListener',rtype:'callback'},{name:'removeListener',rtype:'promise'}]}],
+      nativePromise: async (plugin,method,options)=>{ calls.push({plugin,method,options}); return method === 'accessibility' ? {reduceTransparency:true,increaseContrast:false} : {}; },
+      nativeCallback: (plugin,method)=>{calls.push({plugin,method});return 'listener';}
+    };
+    const native = await import('./src/lib/native.js');
+    await new Promise(r=>setTimeout(r,50));   // 插件对象在模块加载后异步建好
+    native.prepareHaptic('selection');
+    native.haptic('selection');
+    native.haptic('soft', .6);
+    native.haptic('success');
+    let state;
+    const off = native.watchAccessibility(s=>{state=s;});
+    await new Promise(r=>setTimeout(r,50)); off();
+    const h = calls.filter(c=>c.method==='haptic').map(c=>c.options);
+    assert.deepEqual(h.map(o=>o.kind), ['selection','soft','success']);
+    assert.equal(h[1].intensity, .6);
+    assert.ok(calls.some(c=>c.method==='prepareHaptics'));
+    assert.equal(state.reduceTransparency, true);
+  `], {cwd:new URL('..',import.meta.url),encoding:'utf8',timeout:5000});
+  assert.equal(run.status,0,run.stderr||run.stdout);
+});

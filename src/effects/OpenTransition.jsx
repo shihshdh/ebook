@@ -19,11 +19,31 @@ export default function OpenTransition() {
     const go = () => navigate(`/read/${encodeURIComponent(opening.item.id)}`);
     if (!el || prefersReduced()) { go(); endOpening(); return; }
     if (isIOS) {
-      // Start loading the reader immediately instead of waiting 700ms for art.
-      go();
-      const animation = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: 'ease-out', fill: 'forwards' });
-      animation.onfinish = endOpening;
-      return () => animation.cancel();
+      // iPhone：封面原地放大铺满屏幕（iOS 的缩放转场），只动 transform / opacity，交给合成线程；
+      // 阅读器同时开始加载（下一帧就切路由），它第一次渲染再重，放大也不卡，也不用像电脑那样先等 700ms
+      const W = innerWidth, H = innerHeight;
+      const r = opening.rect || { left: W / 2 - 60, top: H / 2 - 84, width: 120, height: 168 };
+      const img = el.querySelector('img'), bg = el.querySelector('.open-bg');
+      const a = r.width / r.height, fw = Math.max(W, H * a), fh = fw / a, s0 = r.width / fw;
+      const cx = r.left + r.width / 2 - W / 2, cy = r.top + r.height / 2 - H / 2;
+      const ease = 'cubic-bezier(.32,.72,0,1)';
+      const anims = [];
+      if (bg) anims.push(bg.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 420, easing: 'ease-out', fill: 'forwards' }));
+      if (img) {
+        // 圆角写死成「缩小时 6px」：铺满时正好接近 iPhone 屏幕的圆角；不做圆角动画（那要逐帧重画整张大图）
+        img.style.width = fw + 'px'; img.style.height = fh + 'px'; img.style.borderRadius = `${6 / s0}px`;
+        anims.push(img.animate([
+          { transform: `translate(${cx}px,${cy}px) scale(${s0})`, opacity: 1 },
+          { transform: 'translate(0,0) scale(1)', opacity: 1, offset: .72 },
+          { transform: 'translate(0,0) scale(1.04)', opacity: 0 },
+        ], { duration: 640, easing: ease, fill: 'forwards' }));
+      }
+      const t = requestAnimationFrame(() => setTimeout(go, 0));
+      const t2 = setTimeout(() => {
+        anims.push(el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, easing: 'ease-out', fill: 'forwards' }));
+        anims.at(-1).onfinish = endOpening;
+      }, 620);
+      return () => { cancelAnimationFrame(t); clearTimeout(t2); };
     }
     const W = innerWidth, H = innerHeight;
     const r = opening.rect || { left: W / 2 - 60, top: H / 2 - 84, width: 120, height: 168, right: W / 2 + 60, bottom: H / 2 + 84 };
@@ -55,7 +75,8 @@ export default function OpenTransition() {
   if (!opening) return null;
   const theme = READER_THEMES[getPrefs().readerTheme] || READER_THEMES.night;
   return (
-    <div ref={layer} className="open-layer" style={{ background: theme.chrome }} aria-hidden="true">
+    <div ref={layer} className="open-layer" style={{ background: isIOS ? undefined : theme.chrome }} aria-hidden="true">
+      {isIOS && <div className="open-bg" style={{ position: 'absolute', inset: 0, background: theme.chrome, opacity: 0 }} />}
       {opening.cover && <img src={opening.cover} alt="" />}
     </div>
   );

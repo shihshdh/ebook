@@ -3,7 +3,6 @@ import { prefersReduced, seeded } from '../lib/motion';
 import { tier, canWebGL2, watchFps } from '../lib/perf';
 import { FPS_ACTIVE, FPS_IDLE, cappedRaf } from '../lib/frame';
 import { isLight } from '../lib/theme';
-import { isIOS } from '../lib/native';
 import './PageRiver.css';
 
 export default function PageRiver({ className = '', style }) {
@@ -17,7 +16,7 @@ export default function PageRiver({ className = '', style }) {
   }, []);
   useEffect(() => {
     setLive(false);
-    if (isIOS || quality === 'low' || prefersReduced() || !canWebGL2()) return;
+    if (quality === 'low' || prefersReduced() || !canWebGL2()) return;
     let disposed = false, cleanup = () => {};
     (async () => {
       const T = await import('three');

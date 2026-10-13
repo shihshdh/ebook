@@ -96,7 +96,7 @@ export default function BookSheet() {
   const close = () => {
     if (prefersReduced()) return closeBook();
     setClosing(true);
-    setTimeout(() => { closeBook(); setClosing(false); }, isIOS ? 180 : 320);
+    setTimeout(() => { closeBook(); setClosing(false); }, isIOS ? 250 : 320);   // iOS 的关闭动画 260ms（ios.css），提前一点点卸下
   };
 
   // 手机：内容在顶上时往下拖，面板跟手；超过 120px、或者往下甩（松手前 ~100ms 的速度）就关。
@@ -128,6 +128,9 @@ export default function BookSheet() {
       if (d.track.length > 12) d.track.shift();
       el.style.transition = 'none';
       el.style.transform = `translate3d(0,${d.dy}px,0)`;
+      // 遮罩跟着往下拉一点点变淡（iOS 面板的手感）
+      const scrim = el.parentElement?.querySelector('.sheet-scrim');
+      if (scrim) scrim.style.opacity = String(Math.max(.15, 1 - d.dy / (el.offsetHeight || 600)));
     };
     const end = (e) => {
       const d = drag.current; drag.current = null;
@@ -137,6 +140,8 @@ export default function BookSheet() {
       // 关：面板停在手指松开的地方，关闭动画从这里接着往下滑（以前先跳回顶上再滑下去）
       if (d.dy > 120 || v > .4) { close(); return; }   // 400px/s：比翻页（200px/s）高，关错了得重新找书
       el.style.transition = ''; el.style.transform = '';
+      const scrim = el.parentElement?.querySelector('.sheet-scrim');
+      if (scrim) { scrim.style.transition = 'opacity .3s ease'; scrim.style.opacity = ''; }
     };
     el.addEventListener('touchstart', start, { passive: true });
     el.addEventListener('touchmove', move, { passive: false });

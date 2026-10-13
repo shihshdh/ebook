@@ -50,8 +50,10 @@ function insetPolygon(points, inset) {
     return [x + (n1[0] + n2[0]) * k, y + (n1[1] + n2[1]) * k];
   });
 }
+// 触屏：手指按在玻璃上拖（滚动时 touchmove 照样来）光就跟着走；刚进视野时自己扫一遍光，看得见碎玻璃的反光，扫完就停（省电）
+const coarse = () => matchMedia("(pointer: coarse)").matches;
 function canUseGlass() {
-  if (prefersReduced() || matchMedia("(pointer: coarse)").matches) return false;
+  if (prefersReduced() || (coarse() && !isIOS)) return false;
   if (tier() === "low") return false;
   try {
     return canWebGL2();
@@ -270,7 +272,7 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         });
         plane.scale.set(aspect * PAD * (dist - PLANE_Z) / dist, PAD * (dist - PLANE_Z) / dist, 1);
       };
-      const state = { tx: 0, ty: 0, x: 0, y: 0, rx: 0.1, ry: -0.06, inside: false, hover: -1, visible: false };
+      const state = { tx: 0, ty: 0, x: 0, y: 0, rx: 0.1, ry: -0.06, inside: false, hover: -1, visible: false, sweep: 0, sweepFrom: 0, touching: false };
       const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
       // 只在倾斜/抬升还没收敛时画，画的时候跟屏幕刷新率；停稳就不画
       const fr = cappedRaf(FPS_ACTIVE);
@@ -282,6 +284,16 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         }
         const dt = Math.min(0.05, last ? (now - last) / 1e3 : 0.016);
         last = now;
+        // 自己扫一遍光：光点沿一条缓慢的 8 字走 3.6 秒，手指一碰就让给手指
+        let sweeping = false;
+        if (state.sweep && !state.touching) {
+          const k = (now - state.sweepFrom) / 1000;
+          if (k < 3.6) {
+            const fade = Math.min(1, k / .6) * Math.min(1, (3.6 - k) / .8);
+            state.tx = Math.sin(k * 1.6 - .9) * .62 * fade; state.ty = Math.sin(k * 2.2) * .32 * fade;
+            state.inside = true; sweeping = true;
+          } else { state.sweep = 0; state.inside = false; }
+        }
         const ease = 1 - Math.exp(-dt * 7);
         state.x += (state.tx - state.x) * ease;
         state.y += (state.ty - state.y) * ease;
@@ -290,7 +302,7 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         state.ry += (goalY - state.ry) * ease;
         group.rotation.set(state.rx, state.ry, 0);
         key.position.set(state.x * W / H * 0.5, state.y * 0.45, 1.25);
-        let moving = Math.abs(goalX - state.rx) + Math.abs(goalY - state.ry) + Math.abs(state.tx - state.x) + Math.abs(state.ty - state.y) > 6e-4;
+        let moving = sweeping || Math.abs(goalX - state.rx) + Math.abs(goalY - state.ry) + Math.abs(state.tx - state.x) + Math.abs(state.ty - state.y) > 6e-4;
         if (state.inside) {
           ndc.set(state.tx, state.ty);
           ray.setFromCamera(ndc, camera);
@@ -305,7 +317,7 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         });
         renderer.render(scene, camera);
         // 第一帧画出来了才藏 HTML 标题：折射的字和 HTML 字在同一帧交接
-        if (!shown) { shown = true; root.setAttribute("data-ready", ""); watchFps(); }
+        if (!shown) { shown = true; root.setAttribute("data-ready", ""); watchFps(); if (coarse() && !prefersReduced()) { state.sweep = 1; state.sweepFrom = now; moving = true; } }
         if (moving && state.visible && !document.hidden) fr.request(loop);
         else last = 0;
       };
@@ -339,6 +351,9 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         state.inside = false;
         kick();
       };
+      let relax = 0;
+      const touchMove = (event) => { const t = event.touches[0]; if (!t) return; state.touching = true; clearTimeout(relax); move(t); };
+      const touchEnd = () => { clearTimeout(relax); relax = setTimeout(() => { state.touching = false; leave(); }, 700); };
       const ro = new ResizeObserver(resize);
       ro.observe(root);
       const stop = () => {
@@ -356,8 +371,16 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         else stop();
       });
       io.observe(root);
-      root.addEventListener("pointermove", move);
-      root.addEventListener("pointerleave", leave);
+      // 触屏的指针事件交给上面的 touch 处理（抬手就发 pointerleave，光会立刻缩回去）
+      const pmove = (event) => { if (event.pointerType !== "touch") move(event); };
+      const pleave = (event) => { if (event.pointerType !== "touch") leave(); };
+      root.addEventListener("pointermove", pmove);
+      root.addEventListener("pointerleave", pleave);
+      const touchOpts = { passive: true };
+      if (coarse()) {
+        root.addEventListener("touchstart", touchMove, touchOpts); root.addEventListener("touchmove", touchMove, touchOpts);
+        root.addEventListener("touchend", touchEnd, touchOpts); root.addEventListener("touchcancel", touchEnd, touchOpts);
+      }
       const lost = event => { event.preventDefault(); stop(); setMode('static'); };
       canvas.addEventListener('webglcontextlost', lost);
       void document.fonts?.ready.then(() => {
@@ -372,8 +395,11 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
         ro.disconnect();
         io.disconnect();
         document.removeEventListener("visibilitychange", visibility);
-        root.removeEventListener("pointermove", move);
-        root.removeEventListener("pointerleave", leave);
+        root.removeEventListener("pointermove", pmove);
+        root.removeEventListener("pointerleave", pleave);
+        clearTimeout(relax);
+        root.removeEventListener("touchstart", touchMove); root.removeEventListener("touchmove", touchMove);
+        root.removeEventListener("touchend", touchEnd); root.removeEventListener("touchcancel", touchEnd);
         canvas.removeEventListener('webglcontextlost', lost);
         root.removeAttribute('data-ready');
         shards.forEach((m) => m.geometry.dispose());
@@ -402,5 +428,5 @@ export default function PrismGlass({ title = [], lead = "", caption = "TRANSMISS
     };
   // lead、caption 是 HTML 字（不画进纹理）：它们变了不用重建 WebGL——以前书库一加载完、书源数一变，就整套拆掉重建一遍
   }, [mode, title.join("\n")]);
-  return <section ref={rootRef} className={`prism-glass ${mode === "glass" ? "has-webgl" : "is-static"}`} style={{ height: isIOS ? "clamp(360px, 52svh, 460px)" : height, "--prism-lines": title.length }}><canvas ref={canvasRef} className="prism-canvas" aria-hidden="true" /><div className="prism-copy"><h2>{title.map((line, i) => <span key={i}>{line}</span>)}</h2></div>{lead && <p className="prism-lead">{lead}</p>}<div className="prism-children">{children}</div><small className="prism-caption">{caption}</small></section>;
+  return <section ref={rootRef} className={`prism-glass ${mode === "glass" ? "has-webgl" : "is-static"}`} style={{ height: isIOS && height === "min(72vh, 640px)" ? "clamp(360px, 46svh, 420px)" : height, "--prism-lines": title.length }}><canvas ref={canvasRef} className="prism-canvas" aria-hidden="true" /><div className="prism-copy"><h2>{title.map((line, i) => <span key={i}>{line}</span>)}</h2></div>{lead && <p className="prism-lead">{lead}</p>}<div className="prism-children">{children}</div><small className="prism-caption">{caption}</small></section>;
 }

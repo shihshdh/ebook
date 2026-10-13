@@ -26,7 +26,24 @@ const P = {
   grid: <><rect x="4.5" y="4.5" width="6" height="6" rx="1.5" /><rect x="13.5" y="4.5" width="6" height="6" rx="1.5" /><rect x="4.5" y="13.5" width="6" height="6" rx="1.5" /><rect x="13.5" y="13.5" width="6" height="6" rx="1.5" /></>,
 };
 
+// 实心版：iOS 标签栏选中的那格用实心图标（SF Symbols 的 .fill），没选中的用线性
+const F = {
+  home: <path d="M3.6 10.6 12 3.9l8.4 6.7a1 1 0 0 1 .4.8v8.1a1.5 1.5 0 0 1-1.5 1.5H15v-5.2a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1V21H4.7a1.5 1.5 0 0 1-1.5-1.5v-8.1a1 1 0 0 1 .4-.8z" />,
+  explore: <path fillRule="evenodd" d="M12 3a9 9 0 1 1 0 18 9 9 0 0 1 0-18zm3.9 5.1-5.5 2.3-2.3 5.5 5.5-2.3z" />,
+  shelf: <><rect x="3.6" y="4" width="4.6" height="16.2" rx="1.1" /><rect x="9.4" y="4" width="4.6" height="16.2" rx="1.1" /><path d="m15.2 5.6 3.4-.9a1 1 0 0 1 1.2.7l3.5 13.6a1 1 0 0 1-.7 1.2l-3.4.9a1 1 0 0 1-1.2-.7L14.5 6.8a1 1 0 0 1 .7-1.2z" /></>,
+  plugin: <path d="M9 3.2a1 1 0 0 1 1 1V7h4V4.2a1 1 0 1 1 2 0V7h1.5a2 2 0 0 1 2 2v3a3 3 0 0 1-3 3H13v2a4 4 0 0 1-4 4 1 1 0 1 1 0-2 2 2 0 0 0 2-2v-2H7.5a3 3 0 0 1-3-3V9a2 2 0 0 1 2-2H8V4.2a1 1 0 0 1 1-1z" />,
+  rss: <path fillRule="evenodd" d="M6 3.5h12A2.5 2.5 0 0 1 20.5 6v12a2.5 2.5 0 0 1-2.5 2.5H6A2.5 2.5 0 0 1 3.5 18V6A2.5 2.5 0 0 1 6 3.5zm1.3 3.2a.9.9 0 0 0 0 1.8 8.2 8.2 0 0 1 8.2 8.2.9.9 0 0 0 1.8 0c0-5.5-4.5-10-10-10zm0 4a.9.9 0 0 0 0 1.8 4.2 4.2 0 0 1 4.2 4.2.9.9 0 0 0 1.8 0 6 6 0 0 0-6-6zm.4 4.2a1.3 1.3 0 1 0 0 2.6 1.3 1.3 0 0 0 0-2.6z" />,
+  user: <><circle cx="12" cy="8" r="4.2" /><path d="M4.2 19.6c1.3-3.9 4.2-6 7.8-6s6.5 2.1 7.8 6a1 1 0 0 1-1 1.3H5.2a1 1 0 0 1-1-1.3z" /></>,
+};
+
 export default function Icon({ name, size = 20, stroke = 1.6, className, style }) {
+  if (name?.endsWith('-fill') && F[name.slice(0, -5)]) {
+    return (
+      <svg className={className} style={style} width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        {F[name.slice(0, -5)]}
+      </svg>
+    );
+  }
   return (
     <svg className={className} style={style} width={size} height={size} viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -34,3 +51,5 @@ export default function Icon({ name, size = 20, stroke = 1.6, className, style }
     </svg>
   );
 }
+
+Icon.filled = (name) => !!F[name];

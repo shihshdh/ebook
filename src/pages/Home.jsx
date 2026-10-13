@@ -137,7 +137,7 @@ export default function Home() {
           <div className="hero-cta reveal" style={{ '--d': '.5s' }}>
             {last ? (
               <button className="btn btn-gold" onClick={() => openReader(last, lastCover.current, last.cover)}>
-                <Icon name="book" size={18} />继续读《{last.title.split(' · ')[0]}》
+                <Icon name="book" size={18} /><span className="btn-label">继续读《{last.title.split(' · ')[0]}》</span>
               </button>
             ) : (
               <Link className="btn btn-gold" to="/explore"><Icon name="explore" size={18} />去探索</Link>

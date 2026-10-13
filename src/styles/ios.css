@@ -1,134 +1,735 @@
-/* iPhone layout and rendering budget; desktop/Android retain their own styles. */
+/* ============================================================
+   iPhone：照 iOS 26/27 的设计逻辑重排（只在 .platform-ios 下生效，电脑、安卓原样）
+   参考 Apple HIG（Materials / Tab bars / Color / Typography / Buttons / Scroll views / Sheets）和 iPhone 原生「图书」：
+     · 颜色用 iOS 的语义色：背景分层（systemBackground / secondarySystemBackground）、四级文字、分隔线、填充色，
+       全 App 只有一个强调色（金），小字对比度不低于 4.5:1
+     · 字号走 iOS 的字号表（34 大标题 / 22 / 20 / 17 正文 / 15 / 13 / 12 / 11），界面字用系统字体，正文阅读才用书的字体
+     · 液态玻璃只给「功能层」：标签栏、悬浮按钮、详情面板、提示、阅读器工具栏；页面里的内容卡片用实色分组卡片
+       （HIG：Don't use Liquid Glass in the content layer）
+     · 触控区至少 44pt，页边距 16pt，圆角同心
+   ============================================================ */
+
+/* ---------- 语义色 ---------- */
+.platform-ios[data-theme="light"], .platform-ios [data-theme="light"] {
+  --sys-bg: #ffffff;                       /* systemBackground：页面 */
+  --sys-bg2: #f2f2f7;                      /* secondarySystemBackground：分组卡片 */
+  --sys-bg3: #ffffff;                      /* tertiary：卡片里再分一层 */
+  --sys-elevated: #ffffff;                 /* 面板、弹层 */
+  --label: #000000;
+  --label2: rgba(60, 60, 67, .6);          /* secondaryLabel */
+  --label2-sm: rgba(60, 60, 67, .76);      /* 13px 以下的小字：iOS 原值只有 3.4:1，小字加深到 4.6:1 */
+  --label3: rgba(60, 60, 67, .3);          /* tertiaryLabel：占位、停用 */
+  --label4: rgba(60, 60, 67, .18);
+  --sep: rgba(60, 60, 67, .29);            /* separator（0.5px 细线） */
+  --sep-opaque: #c6c6c8;
+  --fill: rgba(120, 120, 128, .2);         /* systemFill */
+  --fill2: rgba(120, 120, 128, .16);
+  --fill3: rgba(118, 118, 128, .12);
+  --fill4: rgba(116, 116, 128, .08);
+  --tint: #94661a;                         /* 强调色（字、图标）：白底 5.0:1 */
+  --tint-fill: #e8bc6a;                    /* 强调色底（主按钮），上面压深色字 10:1 */
+  --on-tint: #1d1606;
+  --tint-soft: rgba(196, 140, 40, .14);    /* 强调色的浅底（选中行、标记） */
+  --green: #34c759;
+  --red: #ff3b30;
+  --shadow-cover: 0 1px 2px rgba(0, 0, 0, .08), 0 6px 16px -6px rgba(0, 0, 0, .28);
+  /* 玻璃（功能层） */
+  --lg-bg: rgba(255, 255, 255, .72);
+  --lg-filter: blur(14px) saturate(1.9) brightness(1.04);
+  --lg-edge: rgba(0, 0, 0, .07);
+  --lg-hi: rgba(255, 255, 255, .95);
+  --lg-lo: rgba(255, 255, 255, .45);
+  --lg-shadow: 0 10px 34px -10px rgba(0, 0, 0, .2), 0 2px 6px -2px rgba(0, 0, 0, .06);
+  --lg-pill: rgba(120, 120, 128, .16);
+  --lg-lens: rgba(255, 255, 255, .95);
+  --lg-dense: rgba(250, 250, 252, .86);    /* 面板这种字多的：更不透（HIG：regular，字多的元素要保证可读） */
+  /* 旧变量映射到语义色：没逐个改写的组件也跟着变 */
+  --bg: var(--sys-bg); --bg-2: var(--sys-bg2);
+  --ink: var(--label); --ink2: var(--label2); --ink3: var(--label2-sm);
+  --line: var(--sep); --line2: rgba(60, 60, 67, .36);
+  --gold: var(--tint); --gold-deep: var(--tint); --accent: var(--tint);
+  --soft: var(--fill3); --soft-2: var(--fill2);
+  --tile: #e5e5ea; --scrim: rgba(0, 0, 0, .22); --card: var(--sys-bg2);
+  --surface-tint: transparent; --surface-rim: transparent; --surface-shadow: rgba(0, 0, 0, .12);
+  --glass-base: var(--sys-bg2); --glass-hi: transparent; --glass-dense: var(--sys-elevated);
+  color-scheme: light;
+}
+.platform-ios[data-theme="dark"], .platform-ios [data-theme="dark"] {
+  --sys-bg: #000000;
+  --sys-bg2: #1c1c1e;
+  --sys-bg3: #2c2c2e;
+  --sys-elevated: #1c1c1e;
+  --label: #ffffff;
+  --label2: rgba(235, 235, 245, .6);
+  --label2-sm: rgba(235, 235, 245, .66);
+  --label3: rgba(235, 235, 245, .3);
+  --label4: rgba(235, 235, 245, .16);
+  --sep: rgba(84, 84, 88, .65);
+  --sep-opaque: #38383a;
+  --fill: rgba(120, 120, 128, .36);
+  --fill2: rgba(120, 120, 128, .32);
+  --fill3: rgba(118, 118, 128, .24);
+  --fill4: rgba(118, 118, 128, .18);
+  --tint: #e6b65c;
+  --tint-fill: #e6b65c;
+  --on-tint: #1d1606;
+  --tint-soft: rgba(230, 182, 92, .18);
+  --green: #30d158;
+  --red: #ff453a;
+  --shadow-cover: 0 1px 2px rgba(0, 0, 0, .4), 0 8px 18px -6px rgba(0, 0, 0, .7);
+  --lg-bg: rgba(40, 40, 43, .64);
+  --lg-filter: blur(14px) saturate(1.6) brightness(.92);
+  --lg-edge: rgba(255, 255, 255, .1);
+  --lg-hi: rgba(255, 255, 255, .22);
+  --lg-lo: rgba(255, 255, 255, .06);
+  --lg-shadow: 0 10px 34px -8px rgba(0, 0, 0, .6);
+  --lg-pill: rgba(255, 255, 255, .14);
+  --lg-lens: rgba(56, 56, 60, .93);
+  --lg-dense: rgba(30, 30, 32, .9);
+  --bg: var(--sys-bg); --bg-2: var(--sys-bg2);
+  --ink: var(--label); --ink2: var(--label2); --ink3: var(--label2-sm);
+  --line: var(--sep); --line2: rgba(84, 84, 88, .8);
+  --gold: var(--tint); --gold-deep: var(--tint); --accent: var(--tint);
+  --soft: var(--fill3); --soft-2: var(--fill2);
+  --tile: #2c2c2e; --scrim: rgba(0, 0, 0, .48); --card: var(--sys-bg2);
+  --surface-tint: transparent; --surface-rim: transparent; --surface-shadow: rgba(0, 0, 0, .5);
+  --glass-base: var(--sys-bg2); --glass-hi: transparent; --glass-dense: var(--sys-elevated);
+  color-scheme: dark;
+}
+/* 增强对比度（系统设置 → 辅助功能，原生桥接写上 a11y-contrast；prefers-contrast 作后备） */
+.platform-ios.a11y-contrast[data-theme="light"] { --label2: rgba(60, 60, 67, .82); --label2-sm: rgba(60, 60, 67, .86); --sep: rgba(60, 60, 67, .5); --tint: #7a520f; --lg-edge: rgba(0, 0, 0, .3); --lg-bg: rgba(255, 255, 255, .9); }
+.platform-ios.a11y-contrast[data-theme="dark"] { --label2: rgba(235, 235, 245, .82); --label2-sm: rgba(235, 235, 245, .86); --sep: rgba(84, 84, 88, 1); --tint: #f2cb7e; --lg-edge: rgba(255, 255, 255, .4); --lg-bg: rgba(28, 28, 30, .92); }
+/* 降低透明度：玻璃换成实色 */
+.platform-ios.a11y-solid[data-theme="light"] { --lg-bg: #f9f9f9; --lg-filter: none; --lg-lens: #ffffff; --lg-dense: #ffffff; }
+.platform-ios.a11y-solid[data-theme="dark"] { --lg-bg: #1c1c1e; --lg-filter: none; --lg-lens: #2c2c2e; --lg-dense: #1c1c1e; }
+
+/* ---------- 字号、尺寸 ---------- */
 .platform-ios {
-  --serif: 'Songti SC', 'STSong', 'PingFang SC', serif;
-  --display: Georgia, 'Songti SC', serif;
-  --gutter: clamp(16px, 4vw, 24px);
+  --sans: -apple-system, 'SF Pro Text', 'PingFang SC', system-ui, sans-serif;
+  --serif: -apple-system, 'PingFang SC', system-ui, sans-serif;    /* 界面不用宋体：iOS 界面字一律系统字体（正文的字体在阅读器里另设） */
+  --display: -apple-system, 'PingFang SC', system-ui, sans-serif;
+  --rounded: ui-rounded, -apple-system, 'PingFang SC', sans-serif; /* SF Pro Rounded：大数字 */
+  --gutter: 16px;
+  --tab-h: 62px;
+  --dock-b: max(calc(var(--safe-b) - 12px), 10px);   /* 底栏离屏幕下沿：落在主屏指示条上面一点 */
+  --chrome-b: calc(var(--tab-h) + var(--dock-b) + 12px);  /* 底栏占掉的高度：浮层、提示要让出来 */
+  --r-card: 22px;
+  --r-lg: 26px; --r-md: 16px; --r-sm: 10px;
+  --spring: cubic-bezier(.32, .72, 0, 1);      /* iOS 面板、页面的缓动 */
+  --bounce: cubic-bezier(.34, 1.4, .64, 1);    /* 带一点回弹 */
   --safe-l: env(safe-area-inset-left, 0px);
   --safe-r: env(safe-area-inset-right, 0px);
+  -webkit-text-size-adjust: 100%;
 }
-.platform-ios body { overscroll-behavior-y: none; }
-/* Immediate contact feedback, reversible when a tap becomes a scroll. */
-.platform-ios :is(button, a[href], [role='button'], [role='tab']) { touch-action: manipulation; }
-.platform-ios [data-touch-feedback] {
-  transition: scale 180ms cubic-bezier(.2,.8,.2,1), opacity 140ms ease-out;
+.platform-ios body {
+  background: var(--sys-bg); color: var(--label); font-family: var(--sans); font-size: 17px; line-height: 1.35;
+  letter-spacing: 0; overscroll-behavior-y: none; -webkit-tap-highlight-color: transparent;
 }
-.platform-ios [data-touch-down] { scale: .97; opacity: .72; transition-duration: 55ms; }
-.platform-ios .btn:active, .platform-ios .tabbar-item:active, .platform-ios .rd-btn:active { transform: none; }
-.platform-ios :is(.btn, .chip, .ws-cap, .ws-all) { min-height: 44px; }
-.platform-ios .liquid-thumb {
-  right: auto; background: var(--lt-bg); box-shadow: var(--lt-shadow); border-radius: 999px;
-  transition: transform 220ms cubic-bezier(.2,.8,.2,1);
-}
-.platform-ios .liquid-thumb .lt-clip { display: none; }
-.platform-ios .liquid-tabs-thumb { transition: transform 180ms cubic-bezier(.2,.8,.2,1); }
-.platform-ios .rd-top, .platform-ios .rd-bottom { transition-duration: 180ms; }
-/* One short transition for a page; avoid delayed animations on every row. */
-.platform-ios .route.is-active { animation: ios-route-in 160ms ease-out; }
-.platform-ios .route-reader.is-active { animation: none; }
-@keyframes ios-route-in { from { opacity: .7; } to { opacity: 1; } }
-.platform-ios :is(.result-list li, .shelf-item, .plugin, .vol, .world-card, .sheet-cover, .sp-continue, .sp-stats, .sp-rec-list button, .sp-note-list button) { animation: none; }
-.platform-ios .ws-phone-scene { animation: ios-route-in 140ms ease-out; }
-.platform-ios .sheet { animation-duration: 280ms; transition-duration: 240ms; }
-.platform-ios .sheet-scrim { animation-duration: 180ms; }
-.platform-ios .sheet-layer.is-closing .sheet,
-.platform-ios .sheet-layer.is-closing .sheet-scrim { animation-duration: 180ms; }
-@media (prefers-reduced-motion: reduce) {
-  .platform-ios [data-touch-down] { scale: none; }
-  .platform-ios .liquid-thumb, .platform-ios .liquid-tabs-thumb { transition: none; }
-  .platform-ios :is(.route.is-active, .ws-phone-scene, .sheet, .sheet-scrim) { animation: none; }
-}
+/* 星云、颗粒：iOS 的底是干净的 */
+.platform-ios body::before, .platform-ios body::after { display: none; }
+.platform-ios ::selection { background: var(--tint-soft); }
 .platform-ios ::-webkit-scrollbar { width: 0; height: 0; }
+.platform-ios :is(button, a[href], [role='button'], [role='tab']) { touch-action: manipulation; -webkit-touch-callout: none; }
+.platform-ios .num { font-variant-numeric: tabular-nums; }
+.platform-ios .muted { color: var(--label2-sm); }
+.platform-ios .serif { font-family: var(--sans); }
+
+/* ---------- 页面骨架 ---------- */
 .platform-ios .page {
-  padding-left: max(var(--gutter), var(--safe-l));
-  padding-right: max(var(--gutter), var(--safe-r));
+  padding: calc(var(--safe-t) + 8px) max(var(--gutter), var(--safe-r)) calc(var(--chrome-b) + 28px) max(var(--gutter), var(--safe-l));
 }
-/* Scrolling cards need no live blur of every pixel moving underneath them. */
+/* 大标题（Large Title 34 粗）：页面最上面左对齐，眉题收掉（iOS 没有这一层） */
+.platform-ios .page-title { margin: 6px 0 4px; font-family: var(--sans); font-size: 34px; line-height: 41px; font-weight: 700; letter-spacing: .01em; }
+.platform-ios :is(.shelf-head, .plugins-page header, .rss-head) > .eyebrow,
+.platform-ios :is(.shelf-head, .plugins-page header, .rss-head) > div > .eyebrow { display: none; }
+.platform-ios :is(.plugins-page header, .rss-head, .shelf-head) p:not(.eyebrow) { font-size: 15px; line-height: 20px; color: var(--label2); margin: 0 0 4px; }
+.platform-ios .plugins-page header { margin-bottom: 20px; }
+/* 分区标题：Title 2（22 粗），右边「全部 ›」是强调色的纯文字按钮（「图书」的做法） */
+.platform-ios .section-head { align-items: center; gap: 12px; margin: 0 0 12px; }
+.platform-ios .section-head h2 { font-family: var(--sans); font-size: 22px; line-height: 28px; font-weight: 700; letter-spacing: .01em; }
+.platform-ios .section-head .btn-ghost.sm { min-height: 32px; padding: 0 2px 0 8px; color: var(--tint); font-size: 15px; font-weight: 400; gap: 2px; }
+.platform-ios .section-head .btn-ghost.sm svg { width: 13px; height: 13px; stroke-width: 2.4; }
+.platform-ios .section-head .eyebrow { font-family: var(--sans); font-size: 13px; letter-spacing: 0; font-weight: 600; color: var(--label2-sm); text-transform: none; }
+/* 眉题：Footnote，正常字距 */
+.platform-ios .eyebrow { font-family: var(--sans); font-size: 13px; line-height: 18px; letter-spacing: 0; font-weight: 600; text-transform: none; color: var(--label2-sm); }
+
+/* ---------- 按钮（HIG：主按钮一屏一两个，填强调色；次按钮灰底；纯文字按钮用强调色） ---------- */
+.platform-ios .btn {
+  min-height: 44px; padding: 0 18px; gap: 6px; border: 0; border-radius: 999px;
+  background: var(--fill3); color: var(--label); font-size: 17px; font-weight: 600; letter-spacing: 0; box-shadow: none;
+  transition: scale 420ms var(--bounce), opacity 180ms ease, background-color 180ms ease, filter 180ms ease;
+}
+.platform-ios .btn svg { flex: none; }
+.platform-ios .btn-gold { background: var(--tint-fill); color: var(--on-tint); box-shadow: none; }
+.platform-ios .btn-ghost { background: none; color: var(--tint); font-weight: 400; }
+.platform-ios .btn.sm { min-height: 34px; padding: 0 14px; font-size: 15px; }
+.platform-ios .btn-icon { width: 44px; padding: 0; }
+.platform-ios .btn:disabled { opacity: .35; }
+.platform-ios .btn.is-armed, .platform-ios .shelf-remove { color: var(--red); }
+/* 按钮里放书名这种长字：省略号收尾，不把按钮撑出屏幕 */
+.platform-ios .btn-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- 筛选胶囊、标签、分段控件、开关 ---------- */
+.platform-ios .chip {
+  height: 34px; padding: 0 14px; gap: 5px; border: 0; border-radius: 999px; background: var(--fill3); color: var(--label);
+  font-size: 15px; font-weight: 400; transition: background-color 200ms ease, color 200ms ease, scale 380ms var(--bounce);
+}
+.platform-ios .chip[aria-pressed="true"] { background: var(--tint-fill); color: var(--on-tint); font-weight: 600; }
+.platform-ios .chip-count { font-size: 12px; color: inherit; opacity: .55; margin-left: 1px; }
+.platform-ios .chip[aria-pressed="true"] .chip-count { opacity: .7; }
+.platform-ios .tag { padding: 2px 8px; border: 0; border-radius: 6px; background: var(--fill3); color: var(--label2-sm); font-size: 12px; line-height: 16px; }
+.platform-ios .tag-gold { background: var(--tint-soft); color: var(--tint); }
+/* 分段控件（UISegmentedControl）：一条灰轨，选中那段是一块白色的浮起胶囊 */
+.platform-ios .seg { display: inline-flex; flex-wrap: nowrap; gap: 0; padding: 2px; border-radius: 999px; background: var(--fill3); max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.platform-ios .seg .chip { height: 32px; padding: 0 14px; background: none; color: var(--label); font-size: 14px; flex: none; }
+.platform-ios .seg .chip[aria-pressed="true"] {
+  background: var(--seg-thumb, #fff); color: var(--label); font-weight: 600;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .12), 0 3px 1px rgba(0, 0, 0, .04), 0 0 0 .5px rgba(0, 0, 0, .04);
+}
+.platform-ios[data-theme="dark"] .seg { --seg-thumb: #636366; }
+.platform-ios .seg-wide { display: flex; width: 100%; }
+.platform-ios .seg-wide .chip { flex: 1; justify-content: center; }
+/* 开关（UISwitch 51×31）：开是系统绿；按住时圆钮拉长（iOS 的手感） */
+.platform-ios .switch { width: 51px; height: 31px; border: 0; border-radius: 999px; background: var(--fill); transition: background-color 250ms ease; }
+.platform-ios .switch i {
+  top: 2px; left: 2px; width: 27px; height: 27px; background: #fff;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 3px 1px rgba(0, 0, 0, .06), 0 0 0 .5px rgba(0, 0, 0, .04);
+  transition: transform 380ms var(--bounce), width 220ms var(--spring);
+}
+.platform-ios .switch.on { background: var(--green); border: 0; }
+.platform-ios .switch.on i { transform: translateX(20px); background: #fff; }
+.platform-ios .switch[data-touch-down] i { width: 34px; }
+.platform-ios .switch.on[data-touch-down] i { transform: translateX(13px); }
+.platform-ios .select { font-size: 15px; color: var(--label2); }
+.platform-ios .select select {
+  height: 34px; padding: 0 30px 0 14px; border: 0; border-radius: 999px; font-size: 15px; color: var(--label);
+  background: var(--fill3) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='14' viewBox='0 0 9 14'%3E%3Cpath d='M1 5l3.5-3.5L8 5M1 9l3.5 3.5L8 9' fill='none' stroke='%238e8e93' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 12px center;
+}
+.platform-ios .select option { background: var(--sys-bg); }
+
+/* 输入框（字号 16 以上，WebKit 才不会一聚焦就放大页面） */
+.platform-ios input:not([type='range']):not([type='checkbox']):not([type='radio']),
+.platform-ios textarea, .platform-ios select { font-size: 17px; }
+.platform-ios .search-box {
+  height: 48px; padding: 0 6px 0 16px; gap: 8px; border: 0; border-radius: 999px; background: var(--fill3); color: var(--label2);
+  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
+}
+.platform-ios .search-box::before, .platform-ios .search-box::after { display: none; }
+.platform-ios .search-box input { font-size: 17px; color: var(--label); }
+.platform-ios .search-box input::placeholder { color: var(--label3); }
+.platform-ios .search-box:focus-within { box-shadow: 0 0 0 2px var(--tint-soft); }
+
+/* ---------- 内容层：实色分组卡片，不是玻璃 ---------- */
 .platform-ios .glass {
-  -webkit-backdrop-filter: none; backdrop-filter: none;
-  background: linear-gradient(145deg, var(--surface-tint), transparent), var(--glass-dense);
-  box-shadow: inset 0 1px 0 var(--surface-rim), 0 8px 24px -18px var(--surface-shadow);
+  background: var(--sys-bg2); border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; isolation: auto;
 }
-/* A thin optical rim: static gradients, only opacity changes during contact.
-   No animated blur or pointer-driven repaint across the scrolling page. */
-.platform-ios :is(.glass, .sheet, .btn:not(.btn-ghost), .liquid-thumb)::after {
-  content: ''; display: block; position: absolute; inset: 0; padding: 1.25px;
-  border-radius: inherit; pointer-events: none; z-index: 2;
-  background: linear-gradient(135deg, rgba(255,255,255,.95), rgba(255,255,255,.12) 24%, transparent 43%, rgba(157,184,216,.28) 62%, rgba(255,248,225,.8) 82%, rgba(255,255,255,.22));
-  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor; mask-composite: exclude;
-  opacity: .75; transition: opacity 140ms ease-out;
+.platform-ios .glass::before, .platform-ios .glass::after { display: none; }
+.platform-ios .glass-dense { background: var(--sys-elevated); }
+
+/* ---------- 液态玻璃（功能层） ----------
+   做法：半透明底 + 背景模糊增饱和（WebKit 在 iOS 上把 backdrop-filter 交给系统的 CABackdropLayer，和原生毛玻璃是同一套）
+   + 一圈 0.5px 的暗边 + 上亮下暗的内高光（玻璃的厚度）+ 一道沿边走的镜面反光 + 浮起的阴影。
+   折射在 WebKit 里做不了，用透镜里放大的拷贝和色散边模拟（GlassTabBar.jsx） */
+.platform-ios .lg-glass {
+  position: relative; isolation: isolate;
+  background: var(--lg-bg); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter);
+  box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), inset 0 -1px 1px var(--lg-lo), var(--lg-shadow);
 }
-.platform-ios .btn:not(.btn-ghost) { position: relative; isolation: isolate; }
-.platform-ios :is(.sheet, .btn:not(.btn-ghost), .liquid-thumb) {
-  box-shadow: inset 0 1px 1px #ffffff65, inset 0 -1px 1px #00000014, 0 5px 16px -12px var(--surface-shadow);
+.platform-ios .lg-glass::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px; pointer-events: none; z-index: 3;
+  background: linear-gradient(140deg, var(--lg-hi), transparent 22%, transparent 70%, var(--lg-lo) 88%, var(--lg-hi));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: .9;
 }
-.platform-ios [data-touch-down]::after,
-.platform-ios .tabbar:has([data-touch-down])::after { opacity: 1; transition-duration: 55ms; }
-.platform-ios[data-theme='light'] .glass {
-  box-shadow: inset 0 1px 1px #fff, inset 0 -1px 1px #8d765329, 0 8px 24px -16px var(--surface-shadow);
+/* 按住玻璃：手指那一点亮起来（--tx/--ty 由 press.js 写） */
+.platform-ios .lg-glass::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 2; opacity: 0;
+  background: radial-gradient(circle at var(--tx, 50%) var(--ty, 50%), rgba(255, 255, 255, .55), transparent 60%);
+  mix-blend-mode: soft-light; transition: opacity 300ms ease;
 }
-.platform-ios .sheet-scrim { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.platform-ios [data-theme="dark"] .lg-glass::before, .platform-ios[data-theme="dark"] .lg-glass::before { background: radial-gradient(circle at var(--tx, 50%) var(--ty, 50%), rgba(255, 255, 255, .28), transparent 60%); mix-blend-mode: plus-lighter; }
+.platform-ios .lg-glass[data-touch-down]::before { opacity: 1; transition-duration: 60ms; }
+
+/* ---------- 底栏：玻璃标签栏 + 右边的搜索圆钮 ---------- */
+.platform-ios .tabbar { display: none; }
+.lg-dock {
+  position: fixed; z-index: 50; left: max(16px, calc(var(--safe-l) + 8px)); right: max(16px, calc(var(--safe-r) + 8px)); bottom: var(--dock-b);
+  display: flex; align-items: center; gap: 10px; height: var(--tab-h); pointer-events: none;
+  transition: transform 460ms var(--spring), opacity 300ms ease;
+}
+.lg-dock > * { pointer-events: auto; }
+.lg-dock.is-hidden { transform: translate3d(0, calc(100% + var(--dock-b) + 20px), 0); opacity: 0; }
+.lg-dock.is-hidden > * { pointer-events: none; }
+.lg-tabbar {
+  flex: 1; min-width: 0; height: 100%; border-radius: calc(var(--tab-h) / 2); padding: 0 4px;
+  touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.lg-tabs { position: relative; z-index: 1; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); height: 100%; }
+.lg-tab {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 0;
+  color: var(--label); text-decoration: none; font-size: 10px; line-height: 12px; font-weight: 600; letter-spacing: .01em;
+  -webkit-user-drag: none; -webkit-touch-callout: none;
+}
+.lg-tab svg { width: 25px; height: 25px; transition: color 200ms ease; }
+.lg-tab.active { color: var(--tint); }
+.lg-tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 静止时选中那格底下的胶囊：上下左右各让 4px，和外框同心 */
+.lg-pill {
+  position: absolute; left: 0; top: 4px; bottom: 4px; width: var(--lg-w0, 56px); border-radius: 999px; background: var(--lg-pill); z-index: 0;
+  pointer-events: none;
+}
+/* 浮起来的透镜 */
+.lg-lens {
+  position: absolute; left: 0; top: 0; z-index: 4; width: var(--lg-w1, 70px); height: var(--lg-h1, 72px); border-radius: 999px; overflow: hidden;
+  opacity: 0; visibility: hidden; pointer-events: none;
+  background: var(--lg-lens); -webkit-backdrop-filter: blur(5px) saturate(1.5) brightness(1.06); backdrop-filter: blur(5px) saturate(1.5) brightness(1.06);
+  box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .9), inset 0 2px 3px rgba(255, 255, 255, .85), inset 0 -3px 8px rgba(255, 255, 255, .5),
+    inset 0 0 14px rgba(255, 255, 255, .35), 0 0 0 .5px rgba(0, 0, 0, .1), 0 10px 26px -6px rgba(0, 0, 0, .28);
+}
+[data-lifted] > .lg-lens { visibility: visible; }
+/* 透镜的边：以白色镜面反光为主，背光那一侧（右下）带一点冷暖——不是一整圈彩虹 */
+.lg-lens::before {
+  content: ''; position: absolute; inset: 0; z-index: 3; border-radius: inherit; padding: 1.5px; pointer-events: none;
+  background: linear-gradient(150deg, rgba(255, 255, 255, .95) 0%, rgba(255, 255, 255, .35) 26%, rgba(255, 255, 255, 0) 48%,
+    rgba(150, 190, 255, .32) 70%, rgba(255, 214, 170, .38) 86%, rgba(255, 255, 255, .7) 100%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  filter: blur(.3px);
+}
+/* 镜面高光：上缘一弯亮光 */
+.lg-lens::after {
+  content: ''; position: absolute; left: 16%; right: 16%; top: 4%; height: 30%; z-index: 3; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, .8), rgba(255, 255, 255, 0) 70%); opacity: .5;
+}
+.lg-mag, .lg-ca { position: absolute; left: 0; top: 0; width: var(--lg-bar-w, 300px); height: var(--tab-h); padding: 0 4px; box-sizing: border-box; transform-origin: 0 0; }
+.lg-mag .lg-tab, .lg-ca .lg-tab { color: var(--label); }
+/* 色散（横向色差）：红像略大、蓝像略小，叠在放大的图标上；中心遮掉，越往外越明显。
+   浅色底用正片叠底（白底上只剩彩边，黑字处仍是黑），深色底用滤色（黑底上只剩彩边，白字处仍是白） */
+.lg-ca {
+  z-index: 2; pointer-events: none; opacity: .85;
+  -webkit-mask-image: radial-gradient(closest-side, transparent 45%, rgba(0, 0, 0, .55) 75%, #000 100%);
+  mask-image: radial-gradient(closest-side, transparent 45%, rgba(0, 0, 0, .55) 75%, #000 100%);
+  mix-blend-mode: multiply;
+}
+.lg-ca-r .lg-tab { color: rgb(255, 92, 70); }
+.lg-ca-b .lg-tab { color: rgb(70, 130, 255); }
+[data-theme="dark"] .lg-ca { mix-blend-mode: screen; opacity: .7; }
+[data-theme="dark"] .lg-lens { box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .45), inset 0 2px 3px rgba(255, 255, 255, .3), inset 0 -3px 8px rgba(255, 255, 255, .12), 0 0 0 .5px rgba(0, 0, 0, .5), 0 10px 26px -6px rgba(0, 0, 0, .7); }
+[data-theme="dark"] .lg-lens::after { opacity: .3; }
+/* 搜索：右边单独一颗圆钮（HIG：search tab 放在标签栏尾端） */
+.lg-search {
+  flex: none; width: var(--tab-h); height: var(--tab-h); border-radius: 50%; display: grid; place-items: center; color: var(--label);
+  transition: scale 460ms var(--bounce), color 200ms ease;
+}
+.lg-search.is-on { color: var(--tint); }
+.lg-search.is-on::after { background: linear-gradient(140deg, var(--lg-hi), transparent 22%, transparent 70%, var(--lg-lo) 88%, var(--lg-hi)); }
+.lg-search > svg { position: relative; z-index: 1; }
+.lg-search[data-touch-down] { scale: 1.12; transition-duration: 160ms; }
+
+/* 滚动边缘：内容滚到状态栏 / 底栏下面时，渐隐 + 轻模糊，保证上面的东西压得住（HIG：scroll edge effect，soft 风格） */
+.ios-edge {
+  position: fixed; left: 0; right: 0; z-index: 44; pointer-events: none;
+  -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+.ios-edge-top {
+  top: 0; height: calc(var(--safe-t) + 14px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sys-bg) 88%, transparent), color-mix(in srgb, var(--sys-bg) 0%, transparent));
+  -webkit-mask-image: linear-gradient(180deg, #000 50%, transparent); mask-image: linear-gradient(180deg, #000 50%, transparent);
+}
+.ios-edge-bottom {
+  bottom: 0; height: calc(var(--chrome-b) + 18px); -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: linear-gradient(0deg, color-mix(in srgb, var(--sys-bg) 72%, transparent), color-mix(in srgb, var(--sys-bg) 0%, transparent));
+}
+html:has(.reader2) .ios-edge, html.sheet-open .ios-edge-bottom { display: none; }
+
+/* ---------- 按下的反馈（press.js 在手指接触的那一刻挂 data-touch-down） ----------
+   内容层：轻轻收一点、变淡（像原生列表的高亮）；玻璃控件：鼓起来、手指那里亮（液态玻璃的手感）；纯文字按钮：变淡 */
+.platform-ios [data-touch-feedback] { transition: scale 420ms var(--bounce), opacity 220ms ease, filter 220ms ease; }
+.platform-ios [data-touch-down] { scale: .97; transition-duration: 90ms, 90ms, 90ms; }
+.platform-ios .btn[data-touch-down] { scale: .96; filter: brightness(.94); }
+.platform-ios :is(.btn-ghost, .rd-btn.plain, .section-head a)[data-touch-down] { scale: 1; opacity: .4; filter: none; }
+.platform-ios .lg-glass[data-touch-down] { scale: 1.08; filter: none; }
+.platform-ios :is(.lg-tab, .lg-tabbar)[data-touch-down] { scale: 1; opacity: 1; }
+.platform-ios :is(.pick-cover, .shelf-cover, .mw-tile, .illus-card, .fresh-card, .continue-card, .world-card)[data-touch-down] { scale: .96; }
+.platform-ios :is(.rank li button, .result, .starter-list button, .rss-item, .sp-rec-list button, .sp-note-list button, .rd-toc li button)[data-touch-down] { scale: 1; background: var(--fill4); }
+@media (prefers-reduced-motion: reduce) {
+  .platform-ios [data-touch-down] { scale: none !important; }
+}
+
+/* ---------- 切页：只淡入，短（iOS 切标签是瞬切 + 极短交叉淡化） ---------- */
+.platform-ios .route.is-active { animation: ios-route-in 180ms ease-out; }
+.platform-ios .route-reader.is-active { animation: none; }
+@keyframes ios-route-in { from { opacity: .4; } to { opacity: 1; } }
+/* 列表逐项入场关掉（频繁出现的界面不加动效，HIG：Motion），大块内容保留一次性的淡入 */
+.platform-ios :is(.result-list li, .shelf-item, .plugin, .vol, .world-card, .sheet-cover, .sp-continue, .sp-stats, .sp-rec-list button, .sp-note-list button, .rank li, .illus-card) { animation: none; }
+.platform-ios .reveal { animation-duration: 420ms; animation-timing-function: var(--spring); }
+@keyframes reveal { from { opacity: 0; transform: translate3d(0, 10px, 0); } }
+
+/* ---------- 首页 ---------- */
+.platform-ios .hero { height: auto; min-height: 0; padding: calc(var(--safe-t) + 18px) 0 8px; align-content: start; overflow: visible; }
+.platform-ios .hero::after { display: none; }
+.platform-ios .hero-river, .platform-ios .river-fallback { opacity: .55; }
+.platform-ios .hero-grid { display: flex; flex-direction: column; align-items: stretch; gap: 22px; padding: 0 max(var(--gutter), var(--safe-r)) 0 max(var(--gutter), var(--safe-l)); }
+.platform-ios .hero-copy { max-width: none; }
+.platform-ios .hero-copy .eyebrow { margin: 0; color: var(--tint); }
+.platform-ios .hero-title { margin: 4px 0 8px; font-family: var(--sans); font-size: 34px; line-height: 41px; font-weight: 800; letter-spacing: .01em; text-shadow: none; }
+.platform-ios .hero-title .foil { background-image: linear-gradient(100deg, var(--tint) 0%, color-mix(in srgb, var(--tint) 70%, #fff) 50%, var(--tint) 100%); }
+.platform-ios .hero-sub { margin: 0 0 16px; font-size: 15px; line-height: 20px; color: var(--label2); }
+/* 主按钮占满一行、书名太长就省略；次按钮跟在后面 */
+.platform-ios .hero-cta { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
+.platform-ios .hero-cta .btn { min-height: 50px; padding: 0 20px; font-size: 17px; }
+.platform-ios .hero-cta .btn-gold { justify-content: flex-start; }
+.platform-ios .hero-cta .btn:not(.btn-gold) { padding: 0 18px; }
+.platform-ios .hero-scroll { display: none; }
+.platform-ios .home-body { padding-top: 26px; }
+.platform-ios .home-section { margin-bottom: 34px; }
+.platform-ios .home-folder .ff-stage { margin-top: 0; }
+/* 今日一本 */
+.platform-ios .pick { padding: 16px; border-radius: var(--r-lg); max-width: none; }
+.platform-ios .pick .eyebrow { margin: 0 0 12px; }
+.platform-ios .pick-body { grid-template-columns: 92px minmax(0, 1fr); gap: 14px; }
+.platform-ios .pick-cover .cover, .platform-ios .pick-sheen { border-radius: 6px; }
+.platform-ios .pick-cover .cover { box-shadow: var(--shadow-cover); }
+.platform-ios .pick-text h3 { font-family: var(--sans); font-size: 20px; line-height: 25px; font-weight: 700; margin: 0 0 4px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.platform-ios .pick-by { font-size: 13px; color: var(--label2-sm); margin: 0 0 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.platform-ios .pick-actions { margin-top: 14px; padding-top: 12px; border-top: .5px solid var(--sep); align-items: center; }
+/* 数据条 */
+.platform-ios .stats { margin: 0 0 30px; padding: 4px 0; border-radius: var(--r-card); }
+.platform-ios .stat { padding: 12px 16px; gap: 0; }
+.platform-ios .stat + .stat, .platform-ios .stat:nth-child(n + 3) { border-color: var(--sep); border-width: 0; }
+.platform-ios .stat:nth-child(2n) { border-left: .5px solid var(--sep); }
+.platform-ios .stat:nth-child(n + 3) { border-top: .5px solid var(--sep); }
+.platform-ios .stat:nth-child(5) { border-left: 0; }
+.platform-ios .stat .eyebrow { font-size: 12px; line-height: 16px; }
+.platform-ios .stat strong { font-family: var(--rounded); font-size: 28px; line-height: 34px; font-weight: 700; letter-spacing: 0; }
+.platform-ios .stat > span { font-size: 13px; color: var(--label2-sm); }
+/* 接着读 */
+.platform-ios .continue-row { grid-auto-columns: minmax(264px, 80%); gap: 12px; margin: 0 calc(-1 * var(--gutter)); padding: 0 var(--gutter) 4px; scroll-padding: 0 var(--gutter); scroll-snap-type: x mandatory; }
+.platform-ios .continue-card { grid-template-columns: 58px minmax(0, 1fr); gap: 12px; padding: 10px; border: 0; border-radius: var(--r-md); background: var(--sys-bg2); scroll-snap-align: start; }
+.platform-ios .continue-card .cover { border-radius: 4px; box-shadow: var(--shadow-cover); }
+.platform-ios .continue-meta strong { font-family: var(--sans); font-size: 15px; line-height: 20px; }
+.platform-ios .continue-meta small { font-size: 12px; color: var(--label2-sm); }
+.platform-ios .bar { height: 4px; background: var(--fill2); }
+.platform-ios .bar i { background: var(--tint); }
+/* 近年佳作、插图重制版：平铺在页面上，不套卡片（「图书」的排法） */
+.platform-ios :is(.rank, .illus).glass { background: none; padding: 0; border-radius: 0; }
+.platform-ios .editorial { gap: 34px; }
+.platform-ios .rank li + li { border-top: 0; }
+.platform-ios .rank li button { grid-template-columns: 26px 40px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-radius: 10px; }
+.platform-ios .rank li + li button .rank-text { position: relative; }
+.platform-ios .rank li + li button::before { content: ''; position: absolute; left: 78px; right: 0; top: 0; border-top: .5px solid var(--sep); }
+.platform-ios .rank li button { position: relative; }
+.platform-ios .rank-no { font-family: var(--rounded); font-size: 17px; font-weight: 700; color: var(--label2-sm); }
+.platform-ios .rank-no.top { font-size: 17px; color: var(--tint); }
+.platform-ios .rank .cover { border-radius: 3px; box-shadow: var(--shadow-cover); }
+.platform-ios .rank-text strong { font-size: 17px; line-height: 22px; font-weight: 400; }
+.platform-ios .rank-text small { font-size: 13px; line-height: 18px; color: var(--label2-sm); }
+.platform-ios .illus-lead { margin: -6px 0 12px; font-size: 15px; color: var(--label2); }
+.platform-ios .illus-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.platform-ios .illus-card .cover, .platform-ios .fresh-card .cover { border-radius: 5px; box-shadow: var(--shadow-cover); }
+.platform-ios .illus-badge { top: 6px; right: 6px; padding: 1px 7px; font-size: 11px; font-weight: 600; background: var(--lg-bg); color: var(--label); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter); box-shadow: 0 0 0 .5px var(--lg-edge); }
+.platform-ios .illus-title { margin-top: 6px; font-size: 13px; line-height: 17px; font-weight: 600; }
+/* 横排的书 */
+.platform-ios .fresh-row { grid-auto-columns: 104px; gap: 12px; margin: 0 calc(-1 * var(--gutter)); padding: 4px var(--gutter) 6px; scroll-padding: 0 var(--gutter); }
+.platform-ios .fresh-card { gap: 4px; }
+.platform-ios .fresh-card strong { font-family: var(--sans); font-size: 13px; line-height: 17px; font-weight: 600; margin-top: 4px; }
+.platform-ios .fresh-card small { font-size: 12px; color: var(--label2-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 五个世界 */
+.platform-ios .world-row { grid-template-columns: repeat(5, 46%); gap: 12px; margin: 0 calc(-1 * var(--gutter)); padding: 0 var(--gutter) 4px; scroll-padding: 0 var(--gutter); }
+.platform-ios .world-card { min-height: 132px; padding: 14px; border: 0; border-radius: var(--r-card); background: var(--sys-bg2); }
+.platform-ios .world-glyph { font-size: 44px; }
+.platform-ios .world-name { font-size: 17px; }
+.platform-ios .world-line { font-size: 12px; color: var(--label2-sm); }
+/* 入坑书单 */
+.platform-ios .starter-list { padding: 4px 16px; border-radius: var(--r-card); }
+.platform-ios .starter-list li + li { border-top: .5px solid var(--sep); }
+.platform-ios .starter-list button { padding: 12px 0; grid-template-columns: 26px minmax(0, 1fr); }
+.platform-ios .starter-no { font-family: var(--rounded); font-size: 17px; color: var(--tint); }
+.platform-ios .starter-list strong { font-family: var(--sans); font-size: 17px; line-height: 22px; font-weight: 400; }
+.platform-ios .starter-list small { font-size: 13px; line-height: 18px; color: var(--label2-sm); }
+.platform-ios .home-foot { border-top: .5px solid var(--sep); font-size: 13px; }
+/* 光盘架、世界切换：只调尺寸 */
 .platform-ios .disc { filter: none; }
 .platform-ios .disc-face { box-shadow: inset 0 0 0 1px var(--line2); }
-.platform-ios .pick { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.platform-ios .disc-stage { height: clamp(230px, 32svh, 300px); }
 .platform-ios .pick, .platform-ios .rank, .platform-ios .illus, .platform-ios .stats { contain: paint; }
-.platform-ios body::before, .platform-ios .ws-collage, .platform-ios .ws-caret { animation: none; }
-.platform-ios .hero {
-  height: auto; min-height: calc(100svh - var(--tab-h) - var(--safe-b) - 20px);
-  padding: calc(var(--safe-t) + 28px) 0 28px;
-  align-content: center;
-}
-.platform-ios .hero-grid { gap: 24px; }
-.platform-ios .hero-title { font-size: clamp(40px, 11vw, 62px); }
-.platform-ios .home-body { padding-top: 24px; }
-.platform-ios .disc-stage { height: clamp(240px, 34svh, 320px); }
-.platform-ios .ws { height: clamp(350px, 50svh, 460px); }
-.platform-ios .ws-glyph { font-size: clamp(120px, 34vw, 150px); top: 64%; right: 14px; }
-.platform-ios .prism-glass { min-height: 360px; }
+
+/* ---------- 探索、搜索 ---------- */
+.platform-ios .ws { height: clamp(320px, 44svh, 400px); border-radius: var(--r-lg); }
+.platform-ios .ws-glyph { font-size: clamp(110px, 30vw, 140px); top: 64%; right: 14px; }
+.platform-ios .filters { margin: 18px 0; gap: 10px; }
+.platform-ios .filters-row { gap: 8px; }
+.platform-ios .filters-tags { gap: 8px; margin: 0 calc(-1 * var(--gutter)); padding: 0 var(--gutter) 2px; }
+.platform-ios .filters-count { font-size: 13px; color: var(--label2-sm); }
+.platform-ios .prism-glass { min-height: 300px; }
 .platform-ios .search-page { padding-left: var(--safe-l); padding-right: var(--safe-r); }
+.platform-ios .search-idle { gap: 26px; margin-top: 24px; }
+.platform-ios .search-idle h3 { font-family: var(--sans); font-size: 20px; line-height: 25px; font-weight: 700; }
+.platform-ios .chips-wrap { gap: 8px; }
+.platform-ios .results { margin-top: 18px; }
+.platform-ios .results-count { font-size: 13px; color: var(--label2-sm); }
+.platform-ios .result-list { gap: 0; }
+.platform-ios .result { grid-template-columns: 56px minmax(0, 1fr) auto; gap: 12px; padding: 8px 0; border: 0; border-radius: 0; background: none; }
+.platform-ios .result-list li + li .result { box-shadow: inset 0 .5px 0 var(--sep); }
+.platform-ios .result .cover { border-radius: 4px; box-shadow: var(--shadow-cover); }
+.platform-ios .result-body strong { font-size: 17px; line-height: 22px; font-weight: 600; }
+.platform-ios .result-body small, .platform-ios .result-meta { font-size: 13px; color: var(--label2-sm); }
+.platform-ios .result-from { color: var(--tint); }
+.platform-ios .result-go { color: var(--label3); }
+
+/* ---------- 书架 ---------- */
+.platform-ios .shelf-head { align-items: flex-end; margin-bottom: 6px; }
+.platform-ios .shelf-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px 14px; margin-top: 20px; }
+.platform-ios .shelf-cover { border-radius: 4px; box-shadow: var(--shadow-cover); }
+.platform-ios .shelf-cover::after { width: 6px; background: linear-gradient(90deg, rgba(0, 0, 0, .18), rgba(255, 255, 255, .12), transparent); }
+.platform-ios .shelf-meta strong { font-size: 13px; line-height: 17px; }
+.platform-ios .shelf-meta small { font-size: 12px; color: var(--label2-sm); }
+.platform-ios .shelf-progress { height: 3px; background: rgba(0, 0, 0, .25); }
+.platform-ios .shelf-progress i { background: var(--tint-fill); }
+.platform-ios .shelf-check { border-color: #fff; }
+.platform-ios .shelf-item.is-picked .shelf-check { background: var(--tint-fill); border-color: var(--tint-fill); color: var(--on-tint); }
+.platform-ios .shelf-item.is-picked .shelf-cover { outline-color: var(--tint-fill); }
+.platform-ios .shelf-empty { padding: 36px 20px; margin: 20px 0; border-radius: var(--r-lg); }
+.platform-ios .shelf-managebar { bottom: var(--chrome-b); border-radius: 999px; padding: 6px 6px 6px 18px; font-size: 15px; }
+html.platform-ios:has(.shelf-managebar) .toasts { bottom: calc(var(--chrome-b) + 70px); }
+
+/* ---------- 插件、设置 ---------- */
+.platform-ios .plugin-list { gap: 14px; }
+.platform-ios .plugin { padding: 16px; border-radius: var(--r-lg); gap: 12px; }
+.platform-ios .plugin.is-off { opacity: .6; }
+.platform-ios .plugin-icon { width: 44px; height: 44px; border-radius: 10px; font-size: 20px; color: var(--on-tint); background: var(--tint-fill); box-shadow: none; }
+.platform-ios .plugin-title h2 { font-size: 17px; line-height: 22px; font-weight: 600; }
+.platform-ios .plugin-title p { font-size: 13px; color: var(--label2-sm); }
+.platform-ios .plugin-desc { font-size: 15px; line-height: 21px; color: var(--label2); }
+.platform-ios .plugin-facts { gap: 8px; }
+.platform-ios .plugin-facts div { padding: 8px 12px; border: 0; border-radius: 12px; background: var(--sys-bg3); }
+.platform-ios[data-theme="light"] .plugin-facts div { background: #fff; }
+.platform-ios .plugin-facts dt { font-size: 12px; color: var(--label2-sm); }
+.platform-ios .plugin-facts dd { font-size: 15px; font-weight: 600; }
+.platform-ios .settings { margin-top: 24px; padding: 16px; border-radius: var(--r-lg); }
+.platform-ios .settings h2 { font-size: 20px; line-height: 25px; font-weight: 700; }
+.platform-ios .settings > p { font-size: 13px; color: var(--label2-sm); }
+
+/* ---------- 提示条：玻璃胶囊，浮在底栏上面 ---------- */
+.platform-ios .toasts { bottom: calc(var(--chrome-b) + 6px); }
+.platform-ios .toast {
+  padding: 11px 18px; border-radius: 999px; font-size: 15px; font-weight: 500; color: var(--label);
+  background: var(--lg-bg); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter);
+  box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), var(--lg-shadow);
+  animation: ios-toast-in 520ms var(--bounce) backwards;
+}
+.platform-ios .toast.tone-ok { color: var(--label); }
+.platform-ios .toast.tone-error { color: var(--red); }
+@keyframes ios-toast-in { from { opacity: 0; transform: translate3d(0, 16px, 0) scale(.9); } }
+
+/* ---------- 书籍详情：iOS 26 的面板 ---------- */
 .platform-ios .sheet-layer, .platform-ios .acct-modal, .platform-ios .upd-layer {
   top: var(--visual-top, 0px); bottom: auto; height: var(--visual-height, 100dvh);
 }
-.platform-ios .sheet { max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - 12px); }
-.platform-ios .sheet-body { min-height: 0; -webkit-overflow-scrolling: touch; }
-.platform-ios input:not([type='range']):not([type='checkbox']):not([type='radio']),
-.platform-ios textarea, .platform-ios select { font-size: 16px; }
-.platform-ios.keyboard-open .tabbar { visibility: hidden; pointer-events: none; }
+.platform-ios .sheet-scrim { background: rgba(0, 0, 0, .28); -webkit-backdrop-filter: none; backdrop-filter: none; animation-duration: 300ms; }
+.platform-ios[data-theme="dark"] .sheet-scrim { background: rgba(0, 0, 0, .55); }
+.platform-ios .sheet {
+  left: max(6px, var(--safe-l)); right: max(6px, var(--safe-r)); bottom: 6px; width: auto;
+  max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - 10px);
+  border-radius: 34px; background: var(--sys-elevated);
+  box-shadow: 0 0 0 .5px var(--lg-edge), 0 -10px 40px -10px rgba(0, 0, 0, .25);
+  animation: ios-sheet-in 520ms var(--spring) backwards; transition: transform 420ms var(--spring);
+}
+.platform-ios .sheet.is-partial { height: calc(var(--visual-height, 100dvh) - var(--safe-t) - 10px); }
+@keyframes ios-sheet-in { from { transform: translate3d(0, 105%, 0); } }
+.platform-ios .sheet-layer.is-closing .sheet { animation: ios-sheet-out 260ms cubic-bezier(.4, 0, 1, 1) forwards; }
+.platform-ios .sheet-layer.is-closing .sheet-scrim { animation: fade-out 240ms ease forwards; }
+@keyframes ios-sheet-out { to { transform: translate3d(0, 105%, 0); } }
+.platform-ios .sheet-grip { display: block; width: 36px; height: 5px; margin: 6px auto 0; border-radius: 3px; background: var(--label3); flex: none; }
+.platform-ios .sheet-close {
+  top: 12px; right: 12px; width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; color: var(--label2);
+  background: var(--lg-bg); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter);
+  box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), 0 4px 12px -4px rgba(0, 0, 0, .18);
+}
+.platform-ios .sheet-close::before { content: ''; position: absolute; inset: -4px; }
+.platform-ios .sheet-body { min-height: 0; -webkit-overflow-scrolling: touch; padding: 14px 20px calc(24px + var(--safe-b)); }
+.platform-ios .sheet-hero { grid-template-columns: 104px minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
+.platform-ios .sheet-cover { border-radius: 6px; box-shadow: 0 2px 4px rgba(0, 0, 0, .1), 0 16px 30px -12px rgba(0, 0, 0, .45); }
+.platform-ios .sheet-cover-glow { display: none; }
+.platform-ios .sheet-title { font-family: var(--sans); font-size: 22px; line-height: 28px; font-weight: 700; }
+.platform-ios .sheet-alt { font-size: 13px; color: var(--label2-sm); }
+.platform-ios .sheet-author { margin: 6px 0 10px; font-size: 15px; color: var(--label2); }
+.platform-ios .sheet-desc { font-family: var(--sans); font-size: 15px; line-height: 22px; color: var(--label); }
+.platform-ios .sheet-note { border: 0; border-radius: 12px; background: var(--sys-bg2); color: var(--label2); font-size: 13px; }
+.platform-ios .dl-head h3 { font-family: var(--sans); font-size: 20px; line-height: 25px; font-weight: 700; color: var(--label); }
+.platform-ios .dl-head p { font-size: 13px; color: var(--label2-sm); }
+.platform-ios .vol-list { border-top: .5px solid var(--sep); }
+.platform-ios .vol { border-bottom: .5px solid var(--sep); padding: 10px 0; min-height: 44px; }
+.platform-ios .vol-solo { border: 0; border-radius: 14px; background: var(--sys-bg2); padding: 12px 14px; }
+.platform-ios .vol-no { font-family: var(--rounded); font-size: 15px; color: var(--label2-sm); }
+.platform-ios .vol-title { font-size: 15px; }
+.platform-ios .vol-title small { font-size: 12px; color: var(--label2-sm); }
+.platform-ios .dl-ring { background: conic-gradient(var(--tint) calc(var(--p) * 360deg), var(--fill2) 0); }
+.platform-ios .dl-ring .num { color: var(--tint); }
+.platform-ios .sheet-body { padding-bottom: calc(24px + var(--safe-b)); }
+.platform-ios .sheet-scrim { -webkit-backdrop-filter: none; backdrop-filter: none; }
+
+/* 其它弹窗：账户、更新 */
+.platform-ios :is(.acct-dialog, .upd-card) { border-radius: 30px; background: var(--sys-elevated); box-shadow: 0 20px 60px -20px rgba(0, 0, 0, .4); }
+
+/* ---------- 键盘 ---------- */
+.platform-ios.keyboard-open .lg-dock { visibility: hidden; pointer-events: none; }
+.platform-ios.keyboard-open .ios-edge-bottom { display: none; }
 .platform-ios.keyboard-open .sheet-body { padding-bottom: 20px; }
 .platform-ios.keyboard-open .reader2 { top: var(--visual-top, 0px); bottom: auto; height: var(--visual-height, 100dvh); }
-.platform-ios .reader2 .rd-panel.as-pop { max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - var(--safe-b) - 160px); }
-.platform-ios .rd-search input { font-size: 16px; }
-.ws-phone .ws-phone-scene { position: absolute; inset: 0; }
-.ws-phone .ws-headline { opacity: 1; top: 38px; bottom: auto; }
-.ws-phone .ws-collage { grid-template-columns: repeat(3, 1fr); opacity: .6; }
-.ws-phone .ws-dock { backdrop-filter: none; -webkit-backdrop-filter: none; background: #211c17; justify-content: space-between; gap: 4px; }
-.ws-phone .ws-cap { flex: none; transition: none; padding: 4px; }
-.ws-phone .ws-cap.on { outline: 2px solid var(--c); outline-offset: 2px; }
-.ws-phone .ws-all { color: #eee6d7; }
-.ws-phone .ws-all.on { color: #1a140a; }
-.platform-ios .reader2 .rd-ambient-top { padding-left: 56px; padding-right: 108px; justify-content: flex-start; }
-.platform-ios .rd-menu-trigger { right: max(48px, var(--safe-r)); background: transparent; border-radius: 0; font-size: 12px; opacity: .65; }
-.platform-ios .reader2 .rd-top,
-.platform-ios .reader2 .rd-dock,
-.platform-ios .reader2 .rd-panel { background: var(--rd-page); border: 1px solid var(--line2); border-radius: 18px; box-shadow: 0 6px 24px #00000018; }
-.platform-ios .reader2 .rd-top { left: max(12px, var(--safe-l)); right: max(12px, var(--safe-r)); top: calc(var(--safe-t) + 4px); }
-.platform-ios .reader2 .rd-bottom { left: max(12px, var(--safe-l)); right: max(12px, var(--safe-r)); bottom: calc(var(--safe-b) + 8px); }
+
+/* ---------- 世界切换：和电脑同一套推拉镜头，只把底部图标排换成玻璃 ---------- */
+.platform-ios .ws { border: 0; }
+.platform-ios .ws-dock {
+  left: 12px; right: 12px; bottom: 12px; padding: 6px; border: 0;
+  background: rgba(30, 26, 22, .5); -webkit-backdrop-filter: blur(14px) saturate(1.6); backdrop-filter: blur(14px) saturate(1.6);
+  box-shadow: 0 0 0 .5px rgba(255, 255, 255, .14), inset 0 1px 1px rgba(255, 255, 255, .2), 0 10px 30px -10px rgba(0, 0, 0, .5);
+}
+.platform-ios .ws-back-title { font-family: var(--sans); font-size: 30px; line-height: 36px; font-weight: 800; }
+.platform-ios .ws-back { left: 20px; top: 26px; }
+.platform-ios .ws-headline { left: 20px; bottom: 84px; }
+.platform-ios .ws-headline h2 { font-family: var(--sans); font-size: 44px; line-height: 1; font-weight: 800; }
+.platform-ios .ws-tagline { font-size: 15px; color: rgba(255, 248, 234, .72); }
+
+/* ============================================================
+   阅读器：照「图书」——正文是一张纸；菜单都是浮在纸上的玻璃
+   ============================================================ */
+.platform-ios .reader2 {
+  --lg-bg: color-mix(in srgb, var(--rd-page) 62%, transparent);
+  --lg-dense: color-mix(in srgb, var(--rd-page) 94%, transparent);
+}
+.platform-ios .reader2[data-theme="light"] { --lg-hi: rgba(255, 255, 255, .9); --lg-lo: rgba(255, 255, 255, .4); --lg-edge: rgba(0, 0, 0, .08); }
+.platform-ios .reader2 .rd-ambient-top { padding-left: 64px; padding-right: 64px; justify-content: center; }
+.platform-ios .reader2 .rd-ambient { font-family: var(--sans); font-size: 12px; opacity: .5; }
+/* 顶栏：左边一颗返回圆钮，中间书名，右边搜索 + 书签合成一组玻璃胶囊（iOS 26 工具栏分组） */
+.platform-ios .reader2 .rd-top {
+  left: max(12px, var(--safe-l)); right: max(12px, var(--safe-r)); top: calc(var(--safe-t) + 2px); height: 48px; padding: 0; gap: 10px;
+  background: none; border: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none;
+  transform: translate3d(0, -14px, 0) scale(.96); transition: transform 420ms var(--spring), opacity 220ms ease;
+}
+.platform-ios .reader2 .rd-top::before, .platform-ios .reader2 .rd-top::after { display: none; }
+.platform-ios .reader2 .rd-top.show { transform: none; }
+.platform-ios .reader2 .rd-top > .rd-btn:first-child, .platform-ios .reader2 .rd-group {
+  height: 48px; border-radius: 999px;
+  background: var(--lg-bg); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter);
+  box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), inset 0 -1px 1px var(--lg-lo), var(--lg-shadow);
+}
+.platform-ios .reader2 .rd-top > .rd-btn:first-child { width: 48px; min-width: 48px; padding: 0; color: var(--rd-text, var(--label)); }
+.platform-ios .reader2 .rd-top > .rd-btn:first-child span { display: none; }
+.platform-ios .reader2 .rd-group { display: flex; align-items: center; padding: 0 4px; }
+.platform-ios .reader2 .rd-group .rd-btn { width: 44px; min-width: 44px; height: 44px; padding: 0; border-radius: 999px; color: var(--rd-text, var(--label)); }
+.platform-ios .reader2 .rd-title strong { font-family: var(--sans); font-size: 15px; font-weight: 600; color: var(--rd-text, var(--label)); }
+.platform-ios .reader2 .rd-title small { font-size: 12px; color: var(--rd-text, var(--label)); opacity: .6; }
+.platform-ios .reader2 .rd-btn { color: var(--rd-text, var(--label)); font-size: 15px; }
+.platform-ios .reader2 .rd-btn.on { color: var(--tint); }
+.platform-ios .reader2 .rd-btn:active { transform: none; }
+/* 底部：五格菜单是一条玻璃，和主标签栏一样高、一样的选中胶囊 */
+.platform-ios .reader2 .rd-bottom {
+  left: max(12px, var(--safe-l)); right: max(12px, var(--safe-r)); bottom: var(--dock-b);
+  transform: translate3d(0, 16px, 0) scale(.96); transition: transform 420ms var(--spring), opacity 220ms ease;
+}
+.platform-ios .reader2 .rd-bottom.show { transform: none; }
+.platform-ios .reader2 .rd-dock {
+  width: 100%; height: var(--tab-h); padding: 4px; border-radius: calc(var(--tab-h) / 2); border: 0;
+  background: var(--lg-bg); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter);
+  box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), inset 0 -1px 1px var(--lg-lo), var(--lg-shadow);
+}
+.platform-ios .reader2 .liquid-tabs.dock { height: 100%; }
+.platform-ios .reader2 .liquid-tabs.dock button { height: 100%; gap: 1px; font-size: 10px; font-weight: 600; letter-spacing: .01em; color: var(--rd-text, var(--label)); }
+.platform-ios .reader2 .liquid-tabs.dock button svg { width: 24px; height: 24px; }
+.platform-ios .reader2 .liquid-tabs.dock button.on { color: var(--tint); }
+.platform-ios .reader2 .liquid-tabs-thumb {
+  top: 0; bottom: 0; border-radius: 999px; background: var(--lg-pill); box-shadow: none;
+  transition: transform 460ms var(--bounce), width 300ms var(--spring), opacity 200ms ease;
+}
+.platform-ios .reader2 .rd-return, .platform-ios .reader2 .rd-srnav {
+  background: var(--lg-bg); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter);
+  box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), var(--lg-shadow); color: var(--tint); min-height: 40px;
+}
+/* 收起时的菜单钮：右下角一颗小玻璃圆钮（「图书」的位置） */
+.platform-ios .rd-menu-trigger {
+  top: auto; right: max(14px, var(--safe-r)); bottom: max(calc(var(--safe-b) - 6px), 8px); width: 40px; height: 40px; min-width: 0; padding: 0;
+  display: grid; place-items: center; border-radius: 50%; color: var(--rd-text, var(--label)); opacity: .82;
+  background: var(--lg-bg); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter);
+  box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), 0 4px 14px -6px rgba(0, 0, 0, .3);
+  transition: scale 460ms var(--bounce), opacity 200ms ease;
+}
+.platform-ios .reader2.is-touch .rd-ambient-bottom { padding-right: 64px; }
+/* 面板：浮起的玻璃卡片，从底栏那里长出来 */
+.platform-ios .reader2 .rd-scrim { background: rgba(0, 0, 0, .12); }
+.platform-ios .reader2 .rd-panel {
+  border: 0; border-radius: 30px; color: var(--rd-text, var(--label));
+  background: var(--lg-dense); -webkit-backdrop-filter: blur(24px) saturate(1.7); backdrop-filter: blur(24px) saturate(1.7);
+  box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), 0 18px 50px -12px rgba(0, 0, 0, .35);
+}
+.platform-ios .reader2 .rd-panel::before, .platform-ios .reader2 .rd-panel::after { display: none; }
+.platform-ios .reader2 .rd-panel.as-pop {
+  left: max(10px, var(--safe-l)); right: max(10px, var(--safe-r)); width: auto; bottom: calc(var(--dock-b) + var(--tab-h) + 10px); padding: 16px;
+  max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - var(--dock-b) - var(--tab-h) - 80px);
+  transform-origin: 50% 100%; animation: ios-panel-in 460ms var(--spring) backwards;
+}
+@keyframes ios-panel-in { from { opacity: 0; transform: translate3d(0, 24px, 0) scale(.92); } }
+.platform-ios .reader2 .rd-panel-head h2 { font-family: var(--sans); font-size: 20px; line-height: 25px; font-weight: 700; }
+.platform-ios .reader2 .rd-panel-head .rd-btn.sm { width: 32px; min-width: 32px; height: 32px; padding: 0; border-radius: 50%; background: var(--fill3); color: var(--label2); }
+.platform-ios .reader2 .rd-panel-sub { font-size: 13px; color: var(--label2-sm); border-bottom: .5px solid var(--sep); }
+.platform-ios .reader2 .rd-toc li button { min-height: 44px; padding-top: 11px; padding-bottom: 11px; border-radius: 12px; font-family: var(--sans); font-size: 16px; color: var(--rd-text, var(--label)); }
+.platform-ios .reader2 .rd-toc li.is-read button { opacity: .55; }
+.platform-ios .reader2 .rd-toc li.is-current button { color: var(--tint); background: var(--tint-soft); box-shadow: none; font-weight: 600; }
+.platform-ios .reader2 .rd-settings label { font-size: 13px; letter-spacing: 0; color: var(--label2-sm); text-transform: none; }
+.platform-ios .reader2 .rd-row .rd-btn, .platform-ios .reader2 .rd-stepper .rd-btn { height: 44px; border-radius: 999px; background: var(--fill3); }
+.platform-ios .reader2 .rd-papers { gap: 10px; }
+.platform-ios .reader2 .rd-papers button { border: 0; border-radius: 16px; box-shadow: 0 0 0 .5px var(--sep); font-size: 13px; transition: scale 420ms var(--bounce), box-shadow 200ms ease; }
+.platform-ios .reader2 .rd-papers button.on { box-shadow: 0 0 0 2.5px var(--tint); transform: none; }
+.platform-ios .reader2 .rd-now { color: var(--tint); font-weight: 600; }
+.platform-ios .reader2 .rd-search { height: 44px; border-radius: 999px; background: var(--fill3); box-shadow: none; }
+.platform-ios .reader2 .rd-search input { font-family: var(--sans); font-size: 17px; }
+.platform-ios .reader2 .rd-search:focus-within { box-shadow: 0 0 0 2px var(--tint-soft); }
+.platform-ios .reader2 .rd-toast {
+  color: var(--label); background: var(--lg-bg); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter);
+  box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), var(--lg-shadow); font-size: 15px; animation: ios-toast-in 460ms var(--bounce) backwards;
+}
+/* 进度条：iOS 滑块（细轨 + 白色圆钮），拖的时候圆钮放大变成半透明的玻璃 */
+.platform-ios .reader2 .rd-track { height: 4px; background: var(--fill); }
+.platform-ios .reader2 .rd-track i { background: var(--tint); }
+.platform-ios .reader2 .rd-slider input::-webkit-slider-thumb {
+  width: 28px; height: 28px; margin-top: 1px; border-radius: 50%; background: #fff;
+  box-shadow: 0 0 0 .5px rgba(0, 0, 0, .04), 0 3px 8px rgba(0, 0, 0, .15), 0 3px 1px rgba(0, 0, 0, .06);
+  transition: width 260ms var(--bounce), height 260ms var(--bounce), margin 260ms var(--bounce), background-color 200ms ease, box-shadow 200ms ease;
+}
+.platform-ios .reader2 .rd-slider input:active::-webkit-slider-thumb {
+  width: 40px; height: 34px; margin-top: -2px; border-radius: 999px; background: rgba(255, 255, 255, .35);
+  box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .95), inset 0 2px 3px rgba(255, 255, 255, .8), inset 0 -2px 5px rgba(255, 255, 255, .4), 0 0 0 .5px rgba(0, 0, 0, .12), 0 8px 18px -6px rgba(0, 0, 0, .35);
+}
+.platform-ios .reader2 .rd-tick { background: var(--label3); }
+.platform-ios .reader2 .rd-bubble { border-radius: 14px; background: var(--lg-dense); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter); box-shadow: 0 0 0 .5px var(--lg-edge), var(--lg-shadow); }
+.platform-ios .reader2 .rd-bubble b { color: var(--tint); }
+.platform-ios .reader2 .rd-pct { font-size: 13px; color: var(--label2-sm); }
+/* 选中文字的浮层、笔记编辑：玻璃 */
+.platform-ios .reader2 :is(.rd-sel, .rd-note-editor) {
+  border: 0; background: var(--lg-dense); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter);
+  box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), var(--lg-shadow);
+}
+.platform-ios .reader2 .rd-note-editor { border-radius: 26px; }
+.platform-ios .reader2 .rd-panel.as-pop.panel-marks { padding-bottom: 8px; }
 .platform-ios .reader2 .rd-ribbon { top: var(--safe-t); }
 .platform-ios .reader2 .rd-ribbon:not(.on), .platform-ios .reader2.is-open .rd-ribbon { display: none; }
-/* Landscape iPhones remain touch layouts instead of gaining a desktop title bar. */
-@media (pointer: coarse) and (max-height: 500px) and (min-width: 761px) {
-  .platform-ios { --tab-h: 54px; }
-  .platform-ios .topbar { display: none; }
-  .platform-ios .tabbar {
-    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr;
-    position: fixed; z-index: 50; left: max(12px, var(--safe-l)); right: max(12px, var(--safe-r));
-    bottom: calc(6px + var(--safe-b)); height: var(--tab-h); padding: 4px; border-radius: 28px;
-  }
-  .platform-ios .tabbar.is-hidden { visibility: hidden; pointer-events: none; }
-  .platform-ios .tabbar-item { display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; color: var(--ink2); }
-  .platform-ios .page { padding-top: calc(var(--safe-t) + 16px); padding-bottom: calc(var(--tab-h) + var(--safe-b) + 24px); }
-  .platform-ios .hero-grid { grid-template-columns: 1fr 1fr; }
-  .platform-ios .hero-title { font-size: 38px; }
-  .platform-ios .sheet { top: 8px; bottom: 8px; }
-  .platform-ios .reader2 .rd-panel.as-pop { bottom: calc(64px + var(--safe-b)); max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - var(--safe-b) - 100px); }
+.platform-ios .reader2 .rd-panel.as-pop.panel-search { max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - 40px); }
+@media (prefers-reduced-motion: reduce) {
+  .platform-ios :is(.route.is-active, .ws-phone-scene, .sheet, .sheet-scrim, .toast, .reader2 .rd-panel) { animation: none; }
+  .platform-ios :is(.lg-dock, .reader2 .rd-top, .reader2 .rd-bottom) { transition-duration: 1ms; }
 }
+
+/* ---------- 横屏 iPhone：底栏变矮，图标和字并排 ---------- */
+@media (pointer: coarse) and (max-height: 500px) and (min-width: 600px) {
+  .platform-ios { --tab-h: 50px; }
+  .platform-ios .topbar { display: none; }
+  .lg-dock { left: 50%; right: auto; width: min(560px, calc(100% - 2 * max(var(--safe-l), var(--safe-r)) - 32px)); transform: translateX(-50%); }
+  .lg-dock.is-hidden { transform: translate(-50%, calc(100% + 30px)); }
+  .lg-tab { flex-direction: row; gap: 6px; font-size: 13px; }
+  .lg-tab svg { width: 21px; height: 21px; }
+  .platform-ios .page { padding-top: calc(var(--safe-t) + 12px); }
+  .platform-ios .hero-grid { flex-direction: row; align-items: center; }
+  .platform-ios .hero-grid > * { flex: 1; }
+  .platform-ios .sheet { left: 50%; right: auto; width: min(560px, calc(100% - 24px)); translate: -50% 0; top: 8px; bottom: 8px; }
+  .platform-ios .reader2 .rd-panel.as-pop { left: 50%; right: auto; width: min(520px, calc(100% - 24px)); translate: -50% 0; max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - var(--tab-h) - 40px); }
+}
+.platform-ios .chip-static { height: 28px; padding: 0 10px; font-size: 13px; }

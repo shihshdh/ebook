@@ -626,7 +626,7 @@ export default function Reader() {
         <div className="rd-track"><i style={{ width: toPercent(scrub ? scrub.f : loc.percent) }} /></div>
         {ticks.map((t, i) => <span key={i} className="rd-tick" style={{ left: toPercent(t.fraction) }} />)}
         <input type="range" min="0" max="1000" aria-label="跳到位置" value={Math.round((scrub ? scrub.f : loc.percent) * 1000)} disabled={!ticks.length}
-          onChange={e => { const f = +e.target.value / 1000; setScrub({ f, label: scrubLabel(f) }); }}
+          onChange={e => { const f = +e.target.value / 1000, label = scrubLabel(f); if (isIOS && scrub && label !== scrub.label) haptic('selection'); setScrub({ f, label }); }}   // 拖过章节刻度：轻轻一震
           onPointerUp={() => { if (scrub) jumpTo(scrub.f); setScrub(null); }}
           onKeyUp={(e) => { if (scrub && /Arrow|Home|End|Page/.test(e.key)) { jumpTo(scrub.f); setScrub(null); } }} />
         {scrub && <span className="rd-bubble glass" style={{ left: toPercent(scrub.f) }}><b className="num">{toPercent(scrub.f)}</b><span>{scrub.label}</span></span>}
@@ -671,7 +671,9 @@ export default function Reader() {
       </div>
 
       {/* 书签丝带 */}
-      {iosTouch && !open && <button className="rd-menu-trigger" onClick={e => { e.stopPropagation(); showBars(0); }} aria-label="打开阅读菜单">菜单</button>}
+      {iosTouch && !open && <button className="rd-menu-trigger" onClick={e => { e.stopPropagation(); showBars(0); }} aria-label="打开阅读菜单">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" aria-hidden="true"><path d="M5 7h14M5 12h14M5 17h9" /></svg>
+      </button>}
       <button className={`rd-ribbon ${bookmarked ? 'on' : ''}`} onClick={(e) => { e.stopPropagation(); toggleBookmark(); }} aria-label={bookmarked ? '移除本页书签' : '为本页加书签'} aria-pressed={bookmarked}>
         <svg viewBox="0 0 22 40" aria-hidden="true"><path d="M1 0h20v38l-10-8-10 8z" /></svg>
       </button>
@@ -690,11 +692,13 @@ export default function Reader() {
       <header data-tauri-drag-region="deep" className={`rd-top glass ${open ? 'show' : ''}`} onClick={e => e.stopPropagation()} onPointerEnter={() => !touch && showBars(0)} onPointerLeave={() => !touch && showBars(1200)}>
         <button className="rd-btn" onClick={back} aria-label="退出阅读"><Icon name="back" size={20} /><span className="hide-sm">书架</span></button>
         <div className="rd-title"><strong>{item?.title || 'EBOOK'}</strong><small>{loc.chapter}</small></div>
+        <div className="rd-group">
         <button className={`rd-btn ${panel === 'search' ? 'on' : ''}`} onClick={() => panel === 'search' ? setPanel('') : openSearch()} title="书内搜索 (Ctrl+F)" aria-label="书内搜索"><Icon name="search" size={18} /></button>
         {!touch && <button className={`rd-btn ${panel === 'toc' ? 'on' : ''}`} onClick={() => setPanel(p => p === 'toc' ? '' : 'toc')} title="目录 (T)"><Icon name="grid" size={18} /><span>目录</span></button>}
         <button className={`rd-btn ${bookmarked ? 'on' : ''}`} onClick={toggleBookmark} title="书签 (B)" aria-label="书签">
           <svg width="18" height="18" viewBox="0 0 24 24" fill={bookmarked ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"><path d="M6 3.5h12v17l-6-4.2-6 4.2z" /></svg>
         </button>
+        </div>
       </header>
 
       {/* 底栏：电脑是导航条，手机是四个标签 */}

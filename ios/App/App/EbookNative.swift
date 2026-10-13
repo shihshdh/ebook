@@ -59,9 +59,18 @@ public class EbookNative: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDelegate 
         CAPPluginMethod(name: "appendSave", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "endSave", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "openWeb", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "openLanzou", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "openLanzou", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "haptic", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "prepareHaptics", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "accessibility", returnType: CAPPluginReturnPromise)
     ]
     private var observer: NSObjectProtocol?
+    private var a11yObservers: [NSObjectProtocol] = []
+    // Feedback generators are created lazily on the main thread and kept prepared,
+    // so a haptic fired from the web layer lands on the same frame as its animation.
+    private var selectionGenerator: UISelectionFeedbackGenerator?
+    private var notificationGenerator: UINotificationFeedbackGenerator?
+    private var impactGenerators: [Int: UIImpactFeedbackGenerator] = [:]
     private var saves: [String: URL] = [:] // file queue only
     private var exportCall: CAPPluginCall?
     private var exportURL: URL?
@@ -70,8 +79,96 @@ public class EbookNative: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDelegate 
         observer = NotificationCenter.default.addObserver(forName: EbookFiles.changed, object: nil, queue: .main) { [weak self] _ in
             self?.notifyListeners("fileOpened", data: [:])
         }
+        let names: [Notification.Name] = [
+            UIAccessibility.reduceTransparencyStatusDidChangeNotification,
+            UIAccessibility.darkerSystemColorsStatusDidChangeNotification,
+            UIAccessibility.reduceMotionStatusDidChangeNotification,
+            UIAccessibility.boldTextStatusDidChangeNotification
+        ]
+        a11yObservers = names.map { name in
+            NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard let self = self else { return }
+                self.notifyListeners("accessibility", data: self.accessibilityState())
+            }
+        }
     }
-    deinit { if let observer = observer { NotificationCenter.default.removeObserver(observer) } }
+    deinit {
+        if let observer = observer { NotificationCenter.default.removeObserver(observer) }
+        a11yObservers.forEach { NotificationCenter.default.removeObserver($0) }
+    }
+
+    private func accessibilityState() -> [String: Any] {
+        [
+            "reduceTransparency": UIAccessibility.isReduceTransparencyEnabled,
+            "increaseContrast": UIAccessibility.isDarkerSystemColorsEnabled,
+            "reduceMotion": UIAccessibility.isReduceMotionEnabled,
+            "boldText": UIAccessibility.isBoldTextEnabled
+        ]
+    }
+    @objc func accessibility(_ call: CAPPluginCall) {
+        DispatchQueue.main.async { call.resolve(self.accessibilityState()) }
+    }
+
+    private func impactStyle(_ kind: String) -> UIImpactFeedbackGenerator.FeedbackStyle {
+        switch kind {
+        case "medium": return .medium
+        case "heavy": return .heavy
+        case "soft": return .soft
+        case "rigid": return .rigid
+        default: return .light
+        }
+    }
+    private func impactGenerator(_ style: UIImpactFeedbackGenerator.FeedbackStyle) -> UIImpactFeedbackGenerator {
+        if let generator = impactGenerators[style.rawValue] { return generator }
+        let generator = UIImpactFeedbackGenerator(style: style)
+        impactGenerators[style.rawValue] = generator
+        return generator
+    }
+    private func selection() -> UISelectionFeedbackGenerator {
+        if let generator = selectionGenerator { return generator }
+        let generator = UISelectionFeedbackGenerator()
+        selectionGenerator = generator
+        return generator
+    }
+    private func notifier() -> UINotificationFeedbackGenerator {
+        if let generator = notificationGenerator { return generator }
+        let generator = UINotificationFeedbackGenerator()
+        notificationGenerator = generator
+        return generator
+    }
+    /// kind: selection | light | medium | heavy | soft | rigid | success | warning | error
+    @objc func haptic(_ call: CAPPluginCall) {
+        let kind = call.getString("kind") ?? "selection"
+        let intensity = CGFloat(max(0.05, min(1, call.getDouble("intensity") ?? 1)))
+        DispatchQueue.main.async {
+            switch kind {
+            case "selection":
+                let generator = self.selection()
+                generator.selectionChanged()
+                generator.prepare()
+            case "success", "warning", "error":
+                let generator = self.notifier()
+                generator.notificationOccurred(kind == "success" ? .success : kind == "warning" ? .warning : .error)
+                generator.prepare()
+            default:
+                let generator = self.impactGenerator(self.impactStyle(kind))
+                generator.impactOccurred(intensity: intensity)
+                generator.prepare()
+            }
+        }
+        call.resolve()
+    }
+    /// Called when a finger lands on an interactive glass control: wakes the Taptic Engine
+    /// so the haptic that follows (selection change, snap) has no start-up latency.
+    @objc func prepareHaptics(_ call: CAPPluginCall) {
+        let kind = call.getString("kind") ?? "selection"
+        DispatchQueue.main.async {
+            if kind == "selection" { self.selection().prepare() }
+            else if kind == "success" || kind == "warning" || kind == "error" { self.notifier().prepare() }
+            else { self.impactGenerator(self.impactStyle(kind)).prepare() }
+        }
+        call.resolve()
+    }
 
     @objc func ready(_ call: CAPPluginCall) { call.resolve() }
     @objc func setBars(_ call: CAPPluginCall) {

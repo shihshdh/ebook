@@ -10,6 +10,7 @@
 //
 // 档位：ultra / high / balanced / low。各效果只读 tier()，并监听 'librarium:tier' 事件重建。
 import { isTouch, prefersReduced } from './motion.js';
+import { isIOS } from './native.js';
 
 const ORDER = ['low', 'balanced', 'high', 'ultra'];
 const LEARN_KEY = 'librarium.tier.learned';
@@ -47,6 +48,8 @@ function hardwareTier() {
   // 要画的像素：超过 2560×1600 的屏，同样的效果开销明显上去
   const px = screen.width * screen.height * Math.min(devicePixelRatio || 1, 2) ** 2;
   let score = g * 2 + (cores >= 12 ? 2 : cores >= 8 ? 1 : 0) + (mem >= 8 ? 1 : mem >= 4 ? 0 : -1) - (px > 9e6 ? 1 : 0) - (isTouch() ? 1 : 0);
+  // iPhone：iOS 27 支持的机型（A13 起）跑这些效果都绰绰有余，固定「均衡」——效果全开，粒子数和分辨率减半
+  if (isIOS) return 'balanced';
   // 手机：屏小、散热差，再好的芯片也最多「均衡」——效果照样有，粒子数和分辨率减半，滑起来不掉帧
   if (isTouch()) return score >= 3 ? 'balanced' : 'low';
   return score >= 7 ? 'ultra' : score >= 5 ? 'high' : score >= 3 ? 'balanced' : 'low';
@@ -58,14 +61,15 @@ function learned() {
 }
 export function tier() {
   if (current) return current;
-  const hw = hardwareTier(), lr = learned();
+  const hw = hardwareTier(), lr = isIOS ? null : learned();
   current = lr && ORDER.indexOf(lr) < ORDER.indexOf(hw) ? lr : hw;   // 学到的档只会往下压，不会越过手机的上限
   return current;
 }
 function setCurrent(t, why) {
   if (t === current) return;
   current = t;
-  try { localStorage.setItem(LEARN_KEY, JSON.stringify({ gpu: gpu(), tier: t })); } catch {}
+  // iPhone 不把降档记下来：开机那几秒主线程忙、低电量模式限 60 帧都会量出「掉帧」，记住了以后效果就永远没了（0.3.16-ios 就是这样）
+  if (!isIOS) try { localStorage.setItem(LEARN_KEY, JSON.stringify({ gpu: gpu(), tier: t })); } catch {}
   console.info(`[perf] 画质 → ${t}（${why}）`);
   window.dispatchEvent(new CustomEvent('librarium:tier', { detail: t }));
 }

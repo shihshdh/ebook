@@ -79,6 +79,7 @@
   transform: translate3d(0, -140%, 0); opacity: 0; pointer-events: none;
 }
 .rd-top.show, .rd-bottom.show { transform: none; opacity: 1; pointer-events: auto; }
+.rd-group { display: contents; }   /* 搜索 + 书签：iPhone 上合成一组玻璃胶囊（ios.css），别处照旧平铺 */
 .rd-title { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; line-height: 1.3; }
 .rd-title strong { max-width: 100%; font-family: var(--serif); font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rd-title small { max-width: 100%; font-size: 11px; color: var(--ink3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

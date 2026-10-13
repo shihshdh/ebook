@@ -242,6 +242,8 @@ function Shell() {
 
   return (
     <>
+      {/* iPhone：状态栏、底栏下面的滚动边缘（内容滚过去时渐隐 + 轻模糊，见 ios.css） */}
+      {isIOS && !reading && <><div className="ios-edge ios-edge-top" aria-hidden="true" /><div className="ios-edge ios-edge-bottom" aria-hidden="true" /></>}
       <NavBar hidden={reading || splash} />
       {!reading && <div className="status-veil" aria-hidden="true" />}
       <main className="pages">

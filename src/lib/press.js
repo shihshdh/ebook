@@ -8,7 +8,7 @@
 // 快速点一下（还没到 PRESS_DELAY 就抬手）补一个「压下—回弹」，照样有反馈；手指移动超过 SLOP、浏览器接管滚动（pointercancel）就松开。
 // 只在触屏上装；电脑有悬停效果，不变。
 import { isTouch, prefersReduced } from './motion.js';
-import { isIOS } from './native.js';
+import { isIOS, haptic, prepareHaptic } from './native.js';
 
 // Feedback starts on contact; activation still belongs to the normal click.
 // CSS transitions can reverse mid-flight without reading computed styles.
@@ -23,16 +23,32 @@ export function installIOSPress(root = window) {
     clear();
     if (!e.isPrimary) return;
     const el = e.target.closest?.('button, a[href], [role="button"], [role="tab"], .mw-tile, .pick-cover, .shelf-cover');
+    if (el?.closest('.lg-tabbar')) return;   // 标签栏有自己的透镜
     if (!el || el.disabled || el.closest('[inert], [aria-disabled="true"]')) return;
     el.setAttribute('data-touch-feedback', '');
     el.setAttribute('data-touch-down', '');
+    // 玻璃控件：手指落点亮起来（ios.css 的 .lg-glass::before 用 --tx / --ty）
+    if (el.classList.contains('lg-glass')) {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty('--tx', `${e.clientX - r.left}px`);
+      el.style.setProperty('--ty', `${e.clientY - r.top}px`);
+    }
     current = { el, id: e.pointerId, x: e.clientX, y: e.clientY };
   };
   const move = e => {
     if (current && e.pointerId === current.id && Math.hypot(e.clientX - current.x, e.clientY - current.y) > 8) clear();
   };
   const up = e => { if (current?.id === e.pointerId) clear(); };
+  // 切换类控件：手指落下先叫醒触感引擎，点下去那一刻 selection 一震（HIG：值在变）
+  const SELECT = '.chip[aria-pressed], [role="tab"], [role="radio"], .switch, .ws-cap, .ws-all, .rd-papers button';
+  const tick = e => {
+    const el = e.target.closest?.(SELECT);
+    if (!el || el.closest('.lg-tabbar') || el.disabled) return;
+    if (e.type === 'pointerdown') prepareHaptic('selection'); else haptic('selection');
+  };
   const events = { pointerdown: down, pointermove: move, pointerup: up, pointercancel: clear, blur: clear, pagehide: clear };
+  root.addEventListener('pointerdown', tick, { capture: true, passive: true });
+  root.addEventListener('click', tick, { capture: true, passive: true });
   for (const [type, handler] of Object.entries(events)) root.addEventListener(type, handler, { capture: true, passive: true });
   return () => { clear(); for (const [type, handler] of Object.entries(events)) root.removeEventListener(type, handler, true); };
 }

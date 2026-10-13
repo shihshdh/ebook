@@ -247,11 +247,41 @@ export function onBackButton(handler) {
   return () => { const i = backHandlers.lastIndexOf(handler); if (i >= 0) backHandlers.splice(i, 1); };
 }
 
-/** 轻震：翻页、加书签、下拉到位。'light' | 'medium' | 'select' */
-export function haptic(kind = 'light') {
+// iOS：触感走自己的原生插件（EbookNative.haptic）——发生器常驻、用完就 prepare，手指一碰就在同一帧震；
+// 插件对象启动时就建好，震的那一下不用再等一次动态 import。安卓照旧用 @capacitor/haptics
+if (mobileOS === 'ios') import('@capacitor/core').then(m => { ebookNative ||= m.registerPlugin('EbookNative'); }).catch(() => {});
+
+/** 触感，按 HIG 的语义用：
+ *  'selection'（值在变：切标签、拨过一格、换片停稳）· 'light' / 'soft' / 'rigid' / 'medium' / 'heavy'（东西落位、碰撞，intensity 0–1）
+ *  · 'success' / 'warning' / 'error'（一件事的结果）。旧写法 'select' 等同 'selection' */
+export function haptic(kind = 'light', intensity = 1) {
   if (platform !== 'capacitor') return;
-  import('@capacitor/haptics').then(({ Haptics, ImpactStyle }) =>
-    Haptics.impact({ style: kind === 'medium' ? ImpactStyle.Medium : ImpactStyle.Light })).catch(() => {});
+  if (kind === 'select') kind = 'selection';
+  if (mobileOS === 'ios' && ebookNative) { ebookNative.haptic({ kind, intensity }).catch(() => {}); return; }
+  import('@capacitor/haptics').then(({ Haptics, ImpactStyle, NotificationType }) => {
+    if (kind === 'success' || kind === 'warning' || kind === 'error')
+      return Haptics.notification({ type: kind === 'success' ? NotificationType.Success : kind === 'warning' ? NotificationType.Warning : NotificationType.Error });
+    if (kind === 'selection') return Haptics.selectionChanged();
+    return Haptics.impact({ style: kind === 'medium' || kind === 'rigid' ? ImpactStyle.Medium : kind === 'heavy' ? ImpactStyle.Heavy : ImpactStyle.Light });
+  }).catch(() => {});
+}
+
+/** 手指刚落在会震的控件上：先把触感引擎叫醒，接下来那一下没有起振延迟（只 iOS 有意义） */
+export function prepareHaptic(kind = 'selection') {
+  if (mobileOS === 'ios' && ebookNative) ebookNative.prepareHaptics({ kind }).catch(() => {});
+}
+
+/** iOS 无障碍设置：降低透明度、增强对比度、减弱动态效果、粗体。cb({ reduceTransparency, increaseContrast, reduceMotion, boldText })，改了会再回调 */
+export function watchAccessibility(cb) {
+  if (mobileOS !== 'ios') return () => {};
+  let handle = null, dead = false;
+  nativePlugin().then(async ({ plugin: p }) => {
+    if (!p) return;
+    p.accessibility().then(s => { if (!dead) cb(s); }).catch(() => {});
+    const h = await p.addListener('accessibility', s => { if (!dead) cb(s); });
+    if (dead) h.remove(); else handle = h;
+  }).catch(() => {});
+  return () => { dead = true; handle?.remove(); };
 }
 
 /** 系统栏图标颜色跟主题：dark=true（深色主题）用浅色图标 */
