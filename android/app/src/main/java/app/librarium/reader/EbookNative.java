@@ -39,7 +39,7 @@ import com.getcapacitor.annotation.CapacitorPlugin;
  *   setImmersive({on})    阅读时藏起系统栏，从边缘划一下临时呼出；离开阅读器恢复
  *   consumeFile()         取走「用 EBOOK 打开 / 分享到 EBOOK」带进来的文件：{ name, data(base64) }，没有就 {}
  *   事件 fileOpened         有新文件带进来了（应用已在运行时），前端收到后调 consumeFile
- *   openLanzou({url,pwd,title})  打开蓝奏云下载页（WebActivity）：提取码自动填，下完的文件同样经 consumeFile 交给前端
+ *   openLanzou({url,pwd,title})  用系统浏览器下载，复制提取码；下载后从文件管理打开或书架导入
  *   openWeb({url,title})  订阅源的网页（WebActivity 网页模式），下到的书同样经 consumeFile 进书架
  *   beginSave / appendSave / endSave   账户导出：分块写临时文件，最后放进「下载/EBOOK」（大文件不经一整串 base64）
  *   installApk({token})   检查更新：beginSave/appendSave 写好的新版 APK 交给系统安装器（签名不同的包系统会拒装）
@@ -76,13 +76,30 @@ public class EbookNative extends Plugin {
     @PluginMethod
     public void openLanzou(PluginCall call) {
         String url = call.getString("url", "");
-        if (!WebActivity.isLanzou(Uri.parse(url))) { call.reject("只支持蓝奏云链接"); return; }
-        Intent i = new Intent(getContext(), WebActivity.class);
-        i.putExtra(WebActivity.EXTRA_URL, url);
-        i.putExtra(WebActivity.EXTRA_PWD, call.getString("pwd", ""));
-        i.putExtra(WebActivity.EXTRA_TITLE, call.getString("title", ""));
-        getActivity().startActivity(i);
-        call.resolve();
+        if (!WebActivity.isWeb(Uri.parse(url))) { call.reject("只能打开网页地址"); return; }
+        getActivity().runOnUiThread(() -> {
+            boolean copied = false;
+            String pwd = call.getString("pwd", "");
+            if (!pwd.isEmpty()) {
+                try {
+                    android.content.ClipboardManager clipboard = (android.content.ClipboardManager)
+                        getContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("提取码", pwd));
+                    copied = true;
+                } catch (Exception ignored) { /* 提取码仍显示在书籍详情里 */ }
+            }
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.addCategory(Intent.CATEGORY_BROWSABLE);
+                getActivity().startActivity(intent);
+                JSObject result = new JSObject();
+                result.put("external", true);
+                result.put("copied", copied);
+                call.resolve(result);
+            } catch (Exception e) {
+                call.reject("无法打开浏览器，请安装或启用浏览器后重试", e);
+            }
+        });
     }
 
     /** 订阅源的网页：在 WebActivity 的网页模式里打开 */

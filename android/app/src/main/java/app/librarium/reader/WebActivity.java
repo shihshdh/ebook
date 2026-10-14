@@ -116,6 +116,23 @@ public class WebActivity extends AppCompatActivity {
         texts.addView(name);
         texts.addView(status);
         head.addView(texts, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1));
+        TextView external = new TextView(this);
+        external.setText("浏览器打开");
+        external.setTextColor(0xFF6B5A3E);
+        external.setTextSize(TypedValue.COMPLEX_UNIT_SP, 14);
+        external.setPadding(dp(12), dp(12), dp(12), dp(12));
+        external.setOnClickListener(v -> {
+            // 打开原始页面，让浏览器建立自己的登录和下载会话。
+            try {
+                Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+                intent.addCategory(Intent.CATEGORY_BROWSABLE);
+                startActivity(intent);
+            } catch (Exception e) {
+                status.setText("无法打开浏览器，请安装或启用浏览器后重试");
+                status.setTextColor(0xFFB3412E);
+            }
+        });
+        head.addView(external);
         root.addView(head);
 
         bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
@@ -267,7 +284,7 @@ public class WebActivity extends AppCompatActivity {
                 downloading = false;
                 runOnUiThread(() -> {
                     bar.setVisibility(View.GONE);
-                    status.setText("没下成（" + e.getMessage() + "），再点一次下载试试");
+                    status.setText("下载失败（" + e.getMessage() + "），可点右上角「浏览器打开」");
                     status.setTextColor(0xFFB3412E);
                 });
             }

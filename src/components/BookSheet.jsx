@@ -1,7 +1,7 @@
 // 书籍详情：桌面从右侧滑出的玻璃侧板，手机是能往下拖关闭的底部抽屉。
 // 下载在这里完成：插图版按卷、纯文本版整本、蓝奏云（客户端里开下载页自动填码，下完自动入架）。下完直接"阅读"。
 import { armDownloadWatch } from '../lib/downloads.js';
-import { lanzou, onBackButton, platform, isIOS, mobileUI } from '../lib/native.js';
+import { lanzou, onBackButton, platform, isIOS, mobileOS, mobileUI } from '../lib/native.js';
 import { useEffect, useRef, useState } from 'react';
 import Cover from './Cover.jsx';
 import Icon from './Icon.jsx';
@@ -283,20 +283,21 @@ export default function BookSheet() {
                 <span className="vol-title">{d.label}<small className="muted">{d.note}{d.pwd ? ` · 提取码 ${d.pwd}` : ''}</small></span>
                 <span className="vol-meta" />
                 <button className="btn sm" disabled={openingDownload !== null} aria-busy={openingDownload === i} onClick={async () => {
-                  // 客户端：在 EBOOK 里开蓝奏云（Windows 小窗 / 安卓下载页），提取码自动填好，点下载后直接进书架
+                  // 安卓交给系统浏览器；iOS / Windows 使用内置下载窗口。
                   if (lanzou.available) {
                     setOpeningDownload(i);
                     let timer;
                     try {
-                      await Promise.race([
+                      const result = await Promise.race([
                         lanzou.open({ url: d.url, pwd: d.pwd || '', title: book.title }),
                         new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('打开超时，请重试')), 10000); }),
                       ]);
+                      if (result?.external) toast([result.copied && `提取码 ${d.pwd} 已复制`, '下载后用 EBOOK 打开文件，或在书架「导入本地书」'].filter(Boolean).join('。'), { ms: 6500 });
                       if (platform === 'tauri') toast('提取码已自动填好。在小窗里点下载，下完会自动放进书架', { ms: 5200 });
                       return;
                     } catch (e) {
                       console.warn('[lanzou]', e);
-                      if (isIOS) { toast(`无法打开下载页：${e?.message || String(e)}`, { ms: 6000 }); return; }
+                      if (platform === 'capacitor') { toast(`无法打开下载页：${e?.message || String(e)}`, { ms: 6000 }); return; }
                     } finally {
                       clearTimeout(timer);
                       setOpeningDownload(null);
@@ -308,7 +309,7 @@ export default function BookSheet() {
                   const watching = armDownloadWatch(book.title);
                   toast([copied && `提取码 ${d.pwd} 已复制`, watching ? '下好后回到 EBOOK，会自动放进书架' : '下好后在书架页点「导入本地书」'].filter(Boolean).join('。'), { ms: 5200 });
                   window.open(d.url, '_blank', 'noopener');
-                }}><Icon name={lanzou.available ? 'download' : 'copy'} size={16} />{openingDownload === i ? '打开中…' : lanzou.available ? '打开下载' : '复制并打开'}</button>
+                }}><Icon name={lanzou.available ? 'download' : 'copy'} size={16} />{openingDownload === i ? '打开中…' : mobileOS === 'android' ? '浏览器下载' : lanzou.available ? '打开下载' : '复制并打开'}</button>
               </div>
             </section>
           ))}
