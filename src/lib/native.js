@@ -341,6 +341,12 @@ export function onOpenedFile(cb) {
 // ---------- 网页（订阅源）：Windows 开一个网页窗口，安卓开 EBOOK 自带的网页页面，网页版开新标签 ----------
 // 远程网页拿不到 EBOOK 的任何本地能力；页面里下载到的 EPUB / TXT / ZIP 走蓝奏云同一条路进书架
 export const browser = {
+  async openExternal({ url }) {
+    const parsed = new URL(url);
+    if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('只能打开网页地址');
+    if (mobileOS === 'android') return (await nativePlugin()).plugin.openExternal({ url: parsed.href });
+    window.open(parsed.href, '_blank', 'noopener');
+  },
   async open({ url, title = '' }) {
     if (platform === 'capacitor') return (await nativePlugin()).plugin.openWeb({ url, title });
     if (platform === 'tauri') {

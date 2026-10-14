@@ -1,9 +1,9 @@
 // 检查更新：仓库根目录的 latest.json 写着最新版本号和安装包文件名（发版时一起改）。
 // 只在客户端里查（网页版本来就是最新的）；走 GitHub 加速代理，国内不开代理也能查。
-//   安卓：在 EBOOK 里下好 APK，直接拉起系统安装器（系统会核对签名，别人改过的包装不上）
+//   安卓：默认浏览器下载 APK，用户下载后打开安装。
 //   Windows：下好安装包放进「下载」文件夹并在资源管理器里选中，双击安装
 import { getBinary, getJSON, releaseAssetUrls, repoFileUrls } from './net.js';
-import { platform, saveExport, supportsPackageUpdate } from './native.js';
+import { platform, saveExport, supportsPackageUpdate, mobileOS, browser } from './native.js';
 
 const OWNER = 'shihshdh', REPO = 'ebook';
 // 「以后再说」只管这一次打开（sessionStorage）：下次打开还提示。以前存在 localStorage 里是永久跳过这个版本，读到就清掉
@@ -46,13 +46,21 @@ async function sha256Hex(bytes) {
 const assetUrls = (u) => releaseAssetUrls(OWNER, REPO, `v${u.version}`, u.file);
 /** 在系统浏览器里下安装包用的地址（国内加速线路）：应用里下不动的时候给用户一个退路 */
 export const browserDownloadUrl = (u) => assetUrls(u)[0];
+export const usesBrowserUpdate = mobileOS === 'android';
 
 /**
- * 下载并安装。onProgress(0..1)；onPhase('download' | 'verify' | 'install') 告诉界面现在在哪一步；signal 中止下载（点「取消」）。
+ * 安卓打开浏览器；桌面下载并校验。onProgress(0..1)；onPhase('browser' | 'download' | 'verify' | 'install')。
  * 返回给用户看的提示
  */
 export async function installUpdate(u, onProgress, { onPhase, signal } = {}) {
   if (!supportsPackageUpdate) throw new Error('iOS 请通过 SideStore 导入新版 IPA 更新');
+  signal?.throwIfAborted();
+  if (usesBrowserUpdate) {
+    // 手机更新交给默认浏览器，避免大 APK 经 WebView/base64 桥接占用多份内存。
+    onPhase?.('browser');
+    await browser.openExternal({ url: browserDownloadUrl(u) });
+    return '已打开浏览器，请下载 APK 后点击安装；若系统提示，请允许该浏览器安装应用';
+  }
   onPhase?.('download');
   const blob = await getBinary(assetUrls(u),
     (loaded, total) => onProgress?.(total ? loaded / total : 0), { expectZip: platform === 'capacitor', signal });

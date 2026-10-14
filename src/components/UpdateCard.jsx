@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Icon from './Icon.jsx';
-import { browserDownloadUrl, checkUpdate, current, installUpdate, skipUpdate } from '../lib/update.js';
+import { browserDownloadUrl, checkUpdate, current, installUpdate, skipUpdate, usesBrowserUpdate } from '../lib/update.js';
 import { useUIActions } from '../lib/ui.jsx';
 
 export default function UpdateCard({ hidden }) {
@@ -69,13 +69,13 @@ export default function UpdateCard({ hidden }) {
       setState('idle');
       if (ctl.signal.aborted) return;   // 自己点了取消
       setFailed(true);
-      toast('更新没下成：' + (e?.message || '网络错误'), { tone: 'error', ms: 4000 });
+      toast((usesBrowserUpdate ? '无法打开更新下载页：' : '更新没下成：') + (e?.message || '网络错误'), { tone: 'error', ms: 4000 });
     } finally {
       if (run.current === ctl) run.current = null;
     }
   };
   const cancel = () => run.current?.abort();
-  const label = phase === 'verify' ? '校验中…' : phase === 'install' ? '打开安装器…' : p ? Math.round(p * 100) + '%' : '连接中…';
+  const label = phase === 'browser' ? '打开浏览器…' : phase === 'verify' ? '校验中…' : phase === 'install' ? '打开安装器…' : p ? Math.round(p * 100) + '%' : '连接中…';
 
   return (
     <div className="upd-layer">
@@ -93,11 +93,13 @@ export default function UpdateCard({ hidden }) {
                 {phase === 'download' && <button className="btn btn-ghost sm upd-cancel" onClick={cancel}>取消</button>}
               </div>
             : <>
-                <button ref={goBtn} className="btn btn-gold" onClick={go}><Icon name="download" size={16} />更新</button>
+                <button ref={goBtn} className="btn btn-gold" onClick={go}><Icon name="download" size={16} />{usesBrowserUpdate ? '浏览器下载更新' : '更新'}</button>
                 <button className="btn btn-ghost" onClick={later}>以后</button>
               </>}
         </div>
-        {(state === 'loading' && slow) || (state === 'idle' && failed)
+        {usesBrowserUpdate
+          ? <p className="upd-foot muted">使用默认浏览器下载 APK，下载完成后点击文件安装。首次安装需允许该浏览器安装应用。</p>
+          : (state === 'loading' && slow) || (state === 'idle' && failed)
           ? <p className="upd-foot muted">{failed ? '没下成？' : '下得慢？'}可以<a href={browserDownloadUrl(upd)} target="_blank" rel="noreferrer">用浏览器下载</a>，下好后手动安装</p>
           : <p className="upd-foot muted">经国内加速线路下载，下完自动校验安装包</p>}
       </section>

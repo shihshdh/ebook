@@ -5,9 +5,6 @@ the JS/native boundary, not presentation of a UIKit window on a physical phone.
 Run with Vite on port 5178.
 """
 from playwright.sync_api import sync_playwright, expect
-import os
-
-ANDROID = os.environ.get('EBOOK_TEST_PLATFORM') == 'android'
 
 BASE = 'http://127.0.0.1:5178'
 HTML = '<html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"></head><body><div id="test"></div></body></html>'
@@ -16,7 +13,7 @@ PREAMBLE = '''async () => {
   RefreshRuntime.injectIntoGlobalHook(window);
   window.$RefreshReg$=()=>{};window.$RefreshSig$=()=>type=>type;
   window.__vite_plugin_react_preamble_installed__=true;
-  document.documentElement.classList.add('ui-mobile');
+  document.documentElement.classList.add('platform-ios');
 }'''
 
 with sync_playwright() as p:
@@ -58,23 +55,20 @@ with sync_playwright() as p:
     context.add_init_script('''
       window.calls=[];window.webkit={messageHandlers:{bridge:{}}};
       window.Capacitor={isNativePlatform:()=>true,getPlatform:()=> 'ios',
-        PluginHeaders:[{name:'EbookNative',methods:[{name:'openLanzou',rtype:'promise'}]}, {name:'App',methods:[{name:'addListener',rtype:'callback'},{name:'removeListener',rtype:'promise'}]}],
-        nativeCallback:()=> 'back-listener',
+        PluginHeaders:[{name:'EbookNative',methods:[{name:'openLanzou',rtype:'promise'}]}],
         nativePromise:(plugin,method,options)=>{
           calls.push({plugin,method,options});
           return new Promise((resolve,reject)=>{window.finishOpen=resolve;window.failOpen=()=>reject(Error('Native window unavailable'));});
         }
       };
-    '''.replace("getPlatform:()=> 'ios'", "getPlatform:()=> 'android'" if ANDROID else "getPlatform:()=> 'ios'"))
-    if ANDROID:
-        context.add_init_script('window.androidBridge={};')
+    ''')
     page = context.new_page()
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)))
     page.goto(BASE+'/entry-test')
     page.evaluate(PREAMBLE)
     page.evaluate('''async () => {
-      await Promise.all(['tokens','base','app','mobile'].map(n=>import(`/src/styles/${n}.css`)));
+      await Promise.all(['tokens','base','app','ios'].map(n=>import(`/src/styles/${n}.css`)));
       const {default:React}=await import('/node_modules/.vite/deps/react.js');
       const {default:{createRoot}}=await import('/node_modules/.vite/deps/react-dom_client.js');
       const {UIProvider,useUIActions}=await import('/src/lib/ui.jsx');
@@ -83,7 +77,7 @@ with sync_playwright() as p:
       function Fixture(){const {openBook}=useUIActions();React.useEffect(()=>openBook({id:'test',title:'Bridge test',author:'Test',source:'local',tags:[],downloads:[{kind:'external',label:'蓝奏云',url:'https://example.com/book',pwd:'1234'}]}),[]);return React.createElement(React.Fragment,null,React.createElement(BookSheet),React.createElement(Toasts));}
       createRoot(document.getElementById('test')).render(React.createElement(UIProvider,null,React.createElement(Fixture)));
     }''')
-    button = page.get_by_role('button',name='浏览器下载' if ANDROID else '打开下载',exact=True)
+    button = page.get_by_role('button',name='打开下载',exact=True)
     button.tap()
     expect(page.get_by_role('button',name='打开中…',exact=True)).to_be_disabled()
     page.wait_for_function('calls.length===1')
@@ -93,10 +87,8 @@ with sync_playwright() as p:
     expect(button).to_be_enabled()
     button.tap()
     page.wait_for_function('calls.length===2')
-    page.evaluate('finishOpen({external:true,copied:true})' if ANDROID else 'finishOpen({})')
+    page.evaluate('finishOpen({})')
     expect(button).to_be_enabled()
-    if ANDROID:
-        expect(page.get_by_text('提取码 1234 已复制。下载后用 EBOOK 打开文件，或在书架「导入本地书」', exact=True)).to_be_visible()
     button.tap()
     expect(page.get_by_text('无法打开下载页：打开超时，请重试',exact=True)).to_be_visible(timeout=12000)
     expect(button).to_be_enabled()
