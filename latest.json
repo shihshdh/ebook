@@ -1,8 +1,8 @@
 {
-  "version": "0.3.17",
-  "notes": "手机界面重新整理，标签栏和阅读器菜单重新布局；手机上恢复全部动效；改用系统触感",
+  "version": "0.3.18",
+  "notes": "安卓版本更新改为默认浏览器下载 APK，下载后手动安装。",
   "android": {
-    "file": "EBOOK_0.3.17.apk",
-    "sha256": "5e9c9a1eab997ea6418390b5e0a4bf29c2f39112331e0a9f56fc58eba6a2efa3"
+    "file": "EBOOK_0.3.18.apk",
+    "sha256": "631a38bbb04fa1c549e3f9ff4015545272286044367afabc1764099fa0e75b67"
   }
 }
