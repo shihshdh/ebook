@@ -1,1 +1,4 @@
 *.sh text eol=lf
+# cap sync 每次都把这两个文件重新写成 LF；固定成 LF，免得打完安卓包工作区就「脏」了（release.mjs 发版前会查）
+android/capacitor.settings.gradle text eol=lf
+android/app/capacitor.build.gradle text eol=lf
