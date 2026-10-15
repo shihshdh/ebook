@@ -1,12 +1,14 @@
 // 探索页「漫画」标签的书单。不分源：所有打开的漫画源混在一起，界面上不出现源的名字（详情里才看得到）。
 //
-//   全部：各源探索页（推荐、热门、最新……）的第一页，各源轮流交错排（不让一个源刷屏），同名的合成一条（同搜索池）
-//   世界：奇幻 / 校园 / 科幻 / 恋爱 / 悬疑（和轻小说同一套 WORLDS）——在每个源的分类里找名字对得上的那个
+//   名作：最前面先放大家都听过的那几十部（famous.js：东京喰种、咒术回战……），按书名到打开的源里搜，哪个源有用哪个
+//   全部：名作，然后是各源探索页（推荐、热门、最新……）的第一页，各源轮流交错排（不让一个源刷屏），同名的合成一条（同搜索池）
+//   世界：这个世界的名作，然后奇幻 / 校园 / 科幻 / 恋爱 / 悬疑（和轻小说同一套 WORLDS）——在每个源的分类里找名字对得上的那个
 //         （奇幻 ← 奇幻、魔幻、玄幻、异世界……），各取第一页，同样交错合并
 //   这次运行里记着：切世界、来回切标签不重拉
 import { useEffect, useState } from 'react';
 import { listComicSources, withSource } from './sources.js';
 import { comicBook } from './book.js';
+import { FAMOUS } from './famous.js';
 import { normTitle } from '../lib/pool.js';
 
 // 世界 → 分类名里出现这些就算（繁简、日文、英文的写法都有）
@@ -76,6 +78,74 @@ async function fromSource(source, key) {
   } catch { return []; }
 }
 
+// ---------- 名作 ----------
+// 先搜简体中文的源，这次运行里出过错、超时的源往后挪；一部最多试 4 个源。书名要对得上（famous.js 里写了繁体和别名），
+// 不认「海贼王同人」这种沾边的。搜到的在本机记 7 天，没搜到的记 1 天（打开的源变了就重搜），第二次打开直接出来
+const PREFER = ['copy_manga', 'baozi', 'goda', 'mycomic', 'ManHuaGui', 'manhuaren', 'ykmh', 'Komiic', 'ccc', 'manga_dex'];
+const FAMOUS_KEY = 'comic:famous', DAY = 864e5, HIT_DAYS = 7, MISS_DAYS = 1, TRIES = 4, SEARCH_TIMEOUT = 15000;
+const famousSlot = limiter(3);   // 和探索页、世界分类各排各的队：名作要先出来
+const shaky = new Set();         // 这次运行里搜出过错的源
+const namesOf = (f) => new Set([f.title, ...(f.alias || [])].map(normTitle).filter(Boolean));
+let famousCache;
+const cacheOf = () => {
+  if (!famousCache) { try { famousCache = JSON.parse(localStorage.getItem(FAMOUS_KEY)) || {}; } catch { famousCache = {}; } }
+  return famousCache;
+};
+const remember = (title, value) => { cacheOf()[title] = value; try { localStorage.setItem(FAMOUS_KEY, JSON.stringify(famousCache)); } catch { /* 存不下就下次再搜 */ } };
+// PREFER 里写的是源的 key（id 是「venera:copy_manga」这样带仓库前缀的）
+const rank = (s) => (shaky.has(s.id) ? 100 : 0) + (PREFER.includes(s.key) ? PREFER.indexOf(s.key) : PREFER.length);
+
+const finding = new Map();   // 书名 → Promise<{ sourceId, sourceName, comic } | null>
+function findFamous(f, sources) {
+  if (finding.has(f.title)) return finding.get(f.title);
+  const job = (async () => {
+    const ids = sources.map(s => s.id), was = cacheOf()[f.title], now = Date.now();
+    if (was?.sourceId && ids.includes(was.sourceId) && now - was.at < HIT_DAYS * DAY) return was;
+    if (was?.miss && was.sources === ids.join() && now - was.at < MISS_DAYS * DAY) return null;
+    const names = namesOf(f);
+    for (const source of [...sources].sort((a, b) => rank(a) - rank(b)).slice(0, TRIES)) {
+      try {
+        const comics = await famousSlot(() => withSource(source.id, async box => {
+          if (!box.meta.search) return [];
+          const options = box.meta.searchOptions.map(o => o.default);
+          return (await box.call('search', [f.title, options, 1, null], { timeout: SEARCH_TIMEOUT })).comics;
+        }));
+        const comic = comics.find(c => names.has(normTitle(c.title)));
+        if (comic) {
+          const hit = { at: now, sourceId: source.id, sourceName: source.name, comic: { id: comic.id, title: comic.title, subtitle: comic.subtitle || '', cover: comic.cover || '', tags: (comic.tags || []).slice(0, 4), description: String(comic.description || '').slice(0, 300) } };
+          remember(f.title, hit);
+          return hit;
+        }
+      } catch { shaky.add(source.id); }
+    }
+    remember(f.title, { at: now, miss: true, sources: ids.join() });
+    return null;
+  })();
+  finding.set(f.title, job);
+  return job;
+}
+
+/** 名作在前（按 famous.js 的顺序），后面接探索页的；探索页里同名的并进名作那一条（多一个可换的源），不再单列 */
+function compose(famous, picks, got) {
+  const front = [], byName = new Map();
+  famous.forEach((f, i) => {
+    const p = picks[i];
+    if (!p) return;
+    // 书名用名单里的简体写法（繁体源里是「東京喰種」「BLUE LOCK (藍色監獄)」），源里的原名留作别名
+    const b = comicBook({ sourceId: p.sourceId, sourceName: p.sourceName, comic: p.comic });
+    if (b.title !== f.title) { b.alt = b.title; b.title = f.title; }
+    front.push(b);
+    for (const n of namesOf(f).add(normTitle(b.title))) byName.set(n, b);
+  });
+  const rest = blend(got).filter(b => {
+    const same = byName.get(normTitle(b.title));
+    if (!same) return true;
+    for (const c of b.comics) if (!same.comics.some(x => x.sourceId === c.sourceId)) { same.comics.push(c); same.poolSources.push(c.sourceName); }
+    return false;
+  });
+  return [...front, ...rest];
+}
+
 const lists = new Map();   // 'all' | 世界 id → { books, done, subs }
 function load(key) {
   let entry = lists.get(key);
@@ -86,8 +156,13 @@ function load(key) {
   (async () => {
     const sources = (await listComicSources()).filter(e => e.enabled);
     const got = sources.map(source => ({ source, comics: [] }));
-    // 谁先回来先显示：每回来一个源就重新混一遍
-    await Promise.all(got.map(async (g) => { g.comics = await fromSource(g.source, key); entry.books = blend(got); emit(); }));
+    const famous = FAMOUS.filter(f => key === 'all' || f.world === key), picks = famous.map(() => null);
+    const show = () => { entry.books = compose(famous, picks, got); emit(); };
+    // 谁先回来先显示：每找到一部名作、每回来一个源就重新排一遍
+    await Promise.all([
+      ...famous.map(async (f, i) => { picks[i] = await findFamous(f, sources).catch(() => null); if (picks[i]) show(); }),
+      ...got.map(async (g) => { g.comics = await fromSource(g.source, key); show(); }),
+    ]);
     entry.done = true;
     emit();
   })().catch(() => { entry.done = true; emit(); });
@@ -121,4 +196,4 @@ export function useComicCollage(worlds, on) {
 }
 
 /** 漫画源有开关变化（插件页）：书单作废，下次重拉 */
-export function forgetComicLists() { lists.clear(); categories.clear(); }
+export function forgetComicLists() { lists.clear(); categories.clear(); finding.clear(); }
