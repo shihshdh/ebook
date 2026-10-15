@@ -75,4 +75,9 @@
   .ws-headline { bottom: 96px; }
   .ws-collage { grid-template-columns: repeat(4, 1fr); }
 }
+/* 手机竖屏（iPhone SE 到 16 Pro、360 宽的安卓）：「全部」+ 五个世界原来要 346px，SE 上只有 319px，「谜」被切掉一半。收紧间距放得下 */
+@media (max-width: 420px) {
+  .ws-dock { gap: 4px; padding: 6px; }
+  .ws-all { padding: 0 11px; }
+}
 @media (prefers-reduced-motion: reduce) { .ws-collage { animation: none; } }
