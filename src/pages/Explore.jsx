@@ -1,4 +1,5 @@
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { comicSupported } from '../comic/sources.js';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import WorldSwitch from '../effects/WorldSwitch.jsx';
 import MasonryWall, { PAGE_SLOTS, firstPageText } from '../effects/MasonryWall.jsx';
@@ -6,6 +7,7 @@ import { atMost, loadSerif } from '../lib/fonts.js';
 import { warmIdle } from '../lib/glyph-warm.js';
 import { artRank, classicScore, worldScore, searchBooks, useLibrary, WORLDS, isLightNovel } from '../lib/library.js';
 import { useUIActions } from '../lib/ui.jsx';
+import { acctKey } from '../lib/accounts.js';
 
 const SORTS = [
   { id: 'classic', label: '精选优先' },
@@ -45,6 +47,9 @@ export function prepareWorlds(books, done) {
   return { stop: () => { stopped = true; window.cancelIdleCallback?.(h); } };
 }
 const FONT_WAIT = 3000;
+// 「漫画」小标签：Venera 漫画源的推荐和最近在看，按需加载
+const ComicExplore = lazy(() => import('../components/ComicExplore.jsx'));
+const KIND_KEY = acctKey('librarium.explore.kind');
 
 export default function Explore() {
   const { world } = useParams();
@@ -57,6 +62,14 @@ export default function Explore() {
   const [onlyIll, setOnlyIll] = useState(() => params.get('art') === '1');
   const [extra, setExtra] = useState([]);
   const [sort, setSort] = useState('classic');
+  // 轻小说 / 漫画：记住上次看的是哪个（跟账户走）；地址里带 ?kind=comic 的（阅读器退回来）直接进漫画
+  const [kind, setKindState] = useState(() => {
+    if (!comicSupported) return 'novel';
+    if (params.get('kind') === 'comic') return 'comic';
+    try { return localStorage.getItem(KIND_KEY) === 'comic' ? 'comic' : 'novel'; } catch { return 'novel'; }
+  });
+  const setKind = (k) => { setKindState(k); try { localStorage.setItem(KIND_KEY, k); } catch {} };
+  const comic = kind === 'comic';
 
   // 每个世界的拼贴：该题材的精选（近年佳作）在前的 14 本
   const collage = useMemo(() => Object.fromEntries(WORLDS.map(w => {
@@ -92,13 +105,28 @@ export default function Explore() {
 
   const toggleTag = (t) => setExtra(x => x.includes(t) ? x.filter(y => y !== t) : [...x, t]);
 
+  const pickWorld = (id) => navigate(id ? `/explore/${id}` : '/explore', { replace: true });
+  // 「轻小说 / 漫画」小标签：漫画和轻小说同一套界面（世界 + 书墙），整块交给 ComicExplore
+  const kindTabs = comicSupported && (
+    <div className="seg explore-kind" role="radiogroup" aria-label="看什么">
+      <button className="chip" role="radio" aria-checked={!comic} aria-pressed={!comic} onClick={() => setKind('novel')}>轻小说</button>
+      <button className="chip" role="radio" aria-checked={comic} aria-pressed={comic} onClick={() => setKind('comic')}>漫画</button>
+    </div>
+  );
+
+  if (comic) return (
+    <div className="page explore explore-comic">
+      <Suspense fallback={null}><ComicExplore active={active} onChange={pickWorld} tabs={kindTabs} /></Suspense>
+    </div>
+  );
+
   return (
     <div className="page explore">
-      <WorldSwitch worlds={WORLDS} active={active} total={lib.books.filter(isLightNovel).length} collage={collage} onSettle={onSettle}
-        onChange={(id) => navigate(id ? `/explore/${id}` : '/explore', { replace: true })} />
+      <WorldSwitch worlds={WORLDS} active={active} total={lib.books.filter(isLightNovel).length} collage={collage} onSettle={onSettle} onChange={pickWorld} />
 
       <div className="filters">
         <div className="filters-row">
+          {kindTabs}
           <div className="seg" role="group" aria-label="状态">
             {[['', '全部'], ['连载中', '连载中'], ['已完结', '已完结']].map(([v, l]) =>
               <button key={l} className="chip" aria-pressed={status === v} onClick={() => setStatus(v)}>{l}</button>)}

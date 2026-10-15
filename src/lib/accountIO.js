@@ -28,11 +28,12 @@ export async function exportAccount(id, { books = true, onProgress } = {}) {
   const acc = getAccount(id);
   if (!acc) throw new Error('账户不存在');
   const db = acctDB(id);
-  const [shelf, bookmarks, notes, orphans, legado] = await Promise.all([
+  const [shelf, bookmarks, notes, orphans, legado, comic] = await Promise.all([
     idbEntries(db, 'shelf'), idbEntries(db, 'bookmarks'), idbEntries(db, 'kv', isNotesKey),
     // 上次导入时没带书、还没重新下载的条目也带上，进度不丢
     idbEntries(db, 'kv', k => typeof k === 'string' && k.startsWith('orphan:')),
     idbEntries(db, 'kv', k => typeof k === 'string' && k.startsWith('legado:')),   // 导入的书源
+    idbEntries(db, 'kv', k => typeof k === 'string' && k.startsWith('comic:')),    // 漫画源和它们的设置
   ]);
   const local = {};
   for (const k of ACCOUNT_KEYS) {
@@ -47,6 +48,7 @@ export async function exportAccount(id, { books = true, onProgress } = {}) {
     bookmarks: Object.fromEntries(bookmarks),
     notes: Object.fromEntries(notes.map(([k, v]) => [k.slice('notes:'.length), v])),
     legado: Object.fromEntries(legado),
+    comic: Object.fromEntries(comic),
     books: [],
   };
   if (books) {
@@ -93,7 +95,10 @@ export async function importAccount(bytes, { onProgress } = {}) {
   let books = 0, orphans = 0, done = 0;
   for (const item of m.shelf || []) {
     const f = paths.has(item.id) && zip.file(paths.get(item.id));
-    if (f) {
+    if (item.ext === 'comic' && item.comic?.sourceId && item.comic?.comicId) {
+      await idbPut(db, 'shelf', item.id, { ...item, size: 0 });
+      books++;
+    } else if (f) {
       const type = item.ext === 'txt' ? 'text/plain;charset=utf-8' : 'application/epub+zip';
       await idbPut(db, 'blob', item.id, new Blob([await f.async('uint8array')], { type }));
       await idbPut(db, 'shelf', item.id, item);
@@ -107,5 +112,6 @@ export async function importAccount(bytes, { onProgress } = {}) {
   for (const [id, list] of Object.entries(m.bookmarks || {})) await idbPut(db, 'bookmarks', id, list);
   for (const [id, list] of Object.entries(m.notes || {})) await idbPut(db, 'kv', `notes:${id}`, list);
   for (const [k, v] of Object.entries(m.legado || {})) if (k.startsWith('legado:')) await idbPut(db, 'kv', k, v);
+  for (const [k, v] of Object.entries(m.comic || {})) if (k.startsWith('comic:')) await idbPut(db, 'kv', k, v);
   return { account: acc, books, orphans };
 }

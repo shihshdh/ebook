@@ -124,3 +124,19 @@
 | 88 | 有新版时首页弹卡片 | Claude | 完成 | 每次打开（开屏后 1.2 秒）查 latest.json，有新版在首页弹卡片「更新 / 以后」；「以后」只管这次打开 | 用户要求。下载本来就是国内加速代理优先、直连垫底、下完验 SHA-256。取代底部横幅（UpdateBanner → UpdateCard） |
 | 89 | 封面加载 | Claude | 完成 | 冷启动停在首页几秒再进探索页，首屏多数封面已在缓存里 | 实测两个代理冷图 2–4 秒、原站直连不通：超时 8→15 秒、补发 0.9→2 秒、失败 15→5 秒再试；离屏 800px 内就开始找；空闲预取探索第一屏 + 各世界拼贴（屏幕外最多占 4 个并发，屏幕上的优先，预取中的被看到会升为优先）；排队判远近不再读布局；Bangumi preconnect |
 | 90 | 书源列表可折叠 | Claude | 完成 | 插件页「书源」：「能用的 N 个」「用不了的 N 个」两个折叠组，默认都收起 | 用户：「书源做成可折叠的，不然往下翻要好久」（内置两百来个平铺） |
+
+## 漫画源（2026-10-15，分支 `feat/comic-sources`；方案 `docs/COMIC_PLAN.md`，ASTRA 任务书 `docs/ASTRA_TASKS_R7.md`）
+
+| # | 模块 | 负责 | 状态 | 验证 | 备注 |
+|---|---|---|---|---|---|
+| 91 | 漫画源沙箱：Venera 源脚本原样跑（sandbox iframe + 兼容层） | Claude | 完成 | `node scripts/comic-test.mjs` 11/11；Windows 客户端里 21 个源装上、「测一遍」10 个通过 | `src/comic/runtime/`；源脚本碰不到书架和账户、自己发不出请求、本机和局域网不许访问 |
+| 92 | 默认漫画源随包附带（白名单 21 个，默认开 10 个） | Claude | 完成 | 清空漫画数据后打开客户端：21 个源自动装上，包子漫画预设好能用的域名 | `scripts/comic-bundle-defaults.mjs` 生成 `src/comic/default-sources.js`；两个源仓库都没写许可证 |
+| 93 | 探索页「漫画」小标签：和轻小说同一套世界 + 书墙，不分源 | Claude | 完成 | 探索页点「漫画」：五个世界、514 部漫画的书墙、最近在看 | `src/components/ComicExplore.jsx`、`src/comic/catalog.js`；世界按各源的分类名对上（奇幻 ← 奇幻/魔幻/玄幻/异世界…） |
+| 94 | 搜索池：漫画和轻小说一起搜、一起列 | Claude | 完成 | 搜「葬送的芙莉莲」：4 秒内漫画出来，三个源的同一部合成一条，排在同名小说后面 | 漫画不和小说合并；`src/lib/pool.js` |
+| 95 | 漫画详情（同一个详情面板）+ 阅读器（条漫 / 翻页 / 从右往左） | Claude | 完成 | 详情自动跳过没章节的源；阅读器刷新后接着上次那张；方向键、滚轮翻页；Esc 退出 | `src/components/ComicSheetBody.jsx`、`src/pages/ComicReader.jsx` |
+| 96 | Windows：沙箱碰不到原生桥（实测） | Claude | 完成 | 从沙箱发 toggle_maximize 不生效、从主页面发生效；沙箱里 XHR 公网 / ipc:// / 局域网全被拦 | `chrome.webview` 删掉；`__TAURI_INTERNALS__` 删不掉但调不通 |
+| 97 | 安卓验收漫画源 | ASTRA | 阻塞 | 见 ASTRA_TASKS_R7 R7-1 | debug APK 已打出；模拟器工具 / 镜像从 Google 下载超时，没有设备 |
+| 98 | iPhone 原生桥只认主 frame + 主页面标记，iPhone 开放漫画源 | ASTRA | 完成（代码）/ 待 CI | 静态检查 4/4；390 宽模拟截图 | 真机 / 模拟器验收要推送后跑 ios.yml |
+| 99 | 默认漫画源体检脚本 | ASTRA | 完成 | `node scripts/comic-defaults-check.mjs` | 报告 `docs/ASTRA_COMIC_DEFAULTS_R7.md` |
+| 100 | 漫画阅读器和小说同一套界面、手势、面板 | ASTRA | 完成 | 电脑 / 390 宽各五个面板和小说同位置对照（`docs/screenshots/comic/r8-*`） | `src/reader/chrome.jsx` 两个阅读器共用 |
+| 101 | 漫画加入书架（自动加入、进度、继续阅读、书签、账户备份） | ASTRA → Claude | 完成 | 真实源：加入 → 读到第 7 张 → 书架「看到 第1话 第 7 张」→ 点开接着读 | 漫画进度按话说（Claude 收尾） |

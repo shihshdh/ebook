@@ -199,6 +199,12 @@ export function useCover(book, visible = true, near, scale = 0) {
     // 本地书没有可查的书名；公版古籍去 Bangumi 只会搜到同名动画/漫画的图，统一用生成的书衣
     if (!book || own || !visible || book.source === 'local' || book.source === 'public') return;
     let alive = true, retry = 0;
+    // 漫画：封面要带源给的防盗链请求头，只能经那个源的沙箱去取（comic/library.js，按需加载）；取不到就是生成的书衣
+    if (book.source === 'comic') {
+      const c = book.comics?.[0];
+      if (c && src) import('../comic/library.js').then(m => m.coverURL(c.sourceId, src)).then(u => { if (alive) setFound(u); }, () => {});
+      return () => { alive = false; };
+    }
     const later = () => { if (attempt < 3) retry = setTimeout(() => { if (alive) setAttempt(a => a + 1); }, 6000); };
     // 查 Bangumi 用书目里的书名和别名（书架条目的书名带「· 上卷」，搜不准）
     const viaBangumi = () => (book.source === 'pick' ? pickCover(book) : bangumiCover(catalogBook || book)).then(async u => {

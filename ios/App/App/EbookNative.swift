@@ -2,13 +2,44 @@ import Capacitor
 import UIKit
 import WebKit
 
-// Only the bundled app has a Capacitor bridge. Remote pages use a separate WKWebView.
+// WKUserContentController retains handlers. Keep the delegate weak to avoid a cycle
+// through Capacitor's delegationHandler.contentController.
+private final class MainFrameBridgeHandler: NSObject, WKScriptMessageHandler {
+    private weak var delegate: WebViewDelegationHandler?
+
+    init(delegate: WebViewDelegationHandler) {
+        self.delegate = delegate
+        super.init()
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.frameInfo.isMainFrame else { return }
+        delegate?.userContentController(userContentController, didReceive: message)
+    }
+}
+
+// Remote pages use a separate WKWebView; bundled-app sandbox frames must also
+// be denied native calls, even when webkit.messageHandlers.bridge is visible.
 class EbookViewController: CAPBridgeViewController {
     var immersive = false
     override func capacitorDidLoad() {
+        super.capacitorDidLoad()
+        // CAPBridgeProtocol does not expose webViewDelegationHandler in Capacitor 6.
+        // loadView creates CapacitorBridge and calls us before viewDidLoad loads JS.
+        guard let capacitorBridge = bridge as? CapacitorBridge, let webView = webView else {
+            fatalError("Cannot secure Capacitor bridge before loading app content")
+        }
+        let controller = webView.configuration.userContentController
+        controller.removeScriptMessageHandler(forName: "bridge")
+        controller.add(MainFrameBridgeHandler(delegate: capacitorBridge.webViewDelegationHandler), name: "bridge")
+        controller.addUserScript(WKUserScript(
+            source: "window.__EBOOK_BRIDGE_GUARD__ = 'main-frame';",
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        ))
         bridge?.registerPluginInstance(EbookNative())
-        webView?.scrollView.alwaysBounceHorizontal = false
-        webView?.scrollView.keyboardDismissMode = .interactive
+        webView.scrollView.alwaysBounceHorizontal = false
+        webView.scrollView.keyboardDismissMode = .interactive
     }
     override var prefersHomeIndicatorAutoHidden: Bool { immersive }
     override var prefersStatusBarHidden: Bool { immersive }

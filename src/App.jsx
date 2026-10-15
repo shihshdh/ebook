@@ -32,6 +32,7 @@ function ReaderMissing() {
   return <div className="page center-note"><p className="serif">阅读器还在装订中…</p></div>;
 }
 const Reader = lazyOptional(import.meta.glob('./pages/Reader.jsx'), ReaderMissing);
+const ComicReader = lazy(() => import('./pages/ComicReader.jsx'));   // 漫画阅读器（/read/comic/…），按需加载
 
 // 空闲时先在后台渲染好的几页（见 Shell 里的预渲染）
 const PREWARM = [['explore', '/explore'], ['search', '/search'], ['shelf', '/shelf'], ['plugins', '/plugins']];
@@ -263,7 +264,7 @@ function Shell() {
         {reading && (
           <div className="route route-reader is-active">
             <Suspense fallback={<div className="page" />}>
-              <Routes><Route path="/read/:id" element={<Reader />} /></Routes>
+              <Routes><Route path="/read/:id" element={<Reader />} /><Route path="/read/comic/:sourceId/:comicId/:index" element={<ComicReader />} /></Routes>
             </Suspense>
           </div>
         )}

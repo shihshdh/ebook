@@ -2,7 +2,9 @@
 // 下载在这里完成：插图版按卷、纯文本版整本、蓝奏云（客户端里开下载页自动填码，下完自动入架）。下完直接"阅读"。
 import { armDownloadWatch } from '../lib/downloads.js';
 import { lanzou, onBackButton, platform, isIOS, mobileUI } from '../lib/native.js';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { isComic } from '../comic/book.js';
 import Cover from './Cover.jsx';
 import Icon from './Icon.jsx';
 import { useUI } from '../lib/ui.jsx';
@@ -13,6 +15,8 @@ import { isTouch, prefersReduced } from '../lib/motion.js';
 import { pauseEffects } from '../lib/frame.js';
 
 const fmtSize = (n) => !n ? '' : n > 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+// 漫画（source: 'comic'）没有下载入口，换成章节列表；按需加载，看小说的人不背这一截
+const ComicSheetBody = lazy(() => import('./ComicSheetBody.jsx'));
 
 // 取封面最多等 6 秒：个别结构怪的 EPUB 会让 epub.js 一直不返回，不能因此卡住下载
 function epubCover(blob) {
@@ -65,6 +69,7 @@ function useProgressMap() {
 
 export default function BookSheet() {
   const { sheet, closeBook, toast, openReader } = useUI();
+  const navigate = useNavigate();
   const { ids } = useShelf();
   const [progress, setProgress] = useProgressMap();
   const [closing, setClosing] = useState(false);
@@ -212,7 +217,7 @@ export default function BookSheet() {
               <span className="sheet-cover-glow" aria-hidden="true" />
             </div>
             <div className="sheet-head">
-              <p className="eyebrow">{book.publisher || 'LIGHT NOVEL'}{book.aid ? ` · No.${book.aid}` : ''}</p>
+              <p className="eyebrow">{isComic(book) ? 'COMIC · 漫画' : book.publisher || 'LIGHT NOVEL'}{book.aid ? ` · No.${book.aid}` : ''}</p>
               <h2 className="sheet-title serif">{book.title}</h2>
               {book.alt && <p className="sheet-alt">又名 {book.alt}</p>}
               <p className="sheet-author">{book.author}</p>
@@ -229,6 +234,11 @@ export default function BookSheet() {
           {book.description && <p className="sheet-desc">{book.description}</p>}
           {book.tags.length > 0 && <div className="sheet-tags">{book.tags.map(t => <span key={t} className="chip chip-static">{t}</span>)}</div>}
           {book.blockedNote && <p className="sheet-note">{book.blockedNote}</p>}
+          {isComic(book) && (
+            <Suspense fallback={<p className="sheet-note">…</p>}>
+              <ComicSheetBody book={book} onRead={(path, state) => { closeBook(); navigate(path, { state }); }} />
+            </Suspense>
+          )}
 
           {illustrated && (
             <section className="dl-block">
@@ -313,8 +323,10 @@ export default function BookSheet() {
             </section>
           ))}
 
-          {!book.downloads.length && <p className="sheet-note">这本书暂时没有可用的下载来源。</p>}
-          <p className="sheet-source muted">来源：{book.poolSources?.length > 1 ? book.poolSources.join('、') : plugin?.name}</p>
+          {!isComic(book) && <>
+            {!book.downloads.length && <p className="sheet-note">这本书暂时没有可用的下载来源。</p>}
+            <p className="sheet-source muted">来源：{book.poolSources?.length > 1 ? book.poolSources.join('、') : plugin?.name}</p>
+          </>}
           </>}
         </div>
       </aside>

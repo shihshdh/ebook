@@ -31,8 +31,8 @@ export function openDB(name = SHARED) {
   return p;
 }
 
-// kv 里跟着账户走的：notes:*（划线笔记）、orphan:*（导入时没带书的书架条目，等重新下载时接上进度）、legado:*（自己导入的书源）
-const isAccountKey = (store, key) => ACCOUNT_STORES.has(store) || (store === 'kv' && typeof key === 'string' && /^(notes|orphan|legado):/.test(key));
+// kv 里跟着账户走的：notes:*（划线笔记）、orphan:*（导入时没带书的书架条目，等重新下载时接上进度）、legado:*（自己导入的书源）、comic:*（漫画源）
+const isAccountKey = (store, key) => ACCOUNT_STORES.has(store) || (store === 'kv' && typeof key === 'string' && /^(notes|orphan|legado|comic):/.test(key));
 const dbFor = (store, key) => (isAccountKey(store, key) ? acctDB() : SHARED);
 
 function run(dbName, store, mode, fn) {

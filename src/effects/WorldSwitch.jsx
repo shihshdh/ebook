@@ -30,7 +30,8 @@ export default function WorldSwitch(props) {
   return <AnimatedWorldSwitch {...props} />;
 }
 
-function AnimatedWorldSwitch({ worlds, active, onChange, collage, total, onSettle }) {
+// unit：背面那句「N 本轻小说」的量词（探索页的漫画标签传「部漫画」）
+function AnimatedWorldSwitch({ worlds, active, onChange, collage, total, onSettle, unit = '本轻小说' }) {
   const hero = useRef(null), scene = useRef(null), veil = useRef(null), back = useRef(null), headline = useRef(null);
   const capsRef = useRef({});
   const [shown, setShown] = useState(active || worlds[0].id); // 场景层当前显示的世界
@@ -138,7 +139,7 @@ function AnimatedWorldSwitch({ worlds, active, onChange, collage, total, onSettl
     <section ref={hero} className="ws" style={{ '--w': world.color, '--wg': world.glow }} aria-label="题材世界">
       <div ref={back} className="ws-back" aria-hidden="true">
         <p className="ws-back-title serif">选一个世界，<br />走进去。</p>
-        <p className="ws-back-sub muted">{total ? `${total.toLocaleString()} 本轻小说，按题材分成五个入口` : '正在打开书库…'}</p>
+        <p className="ws-back-sub muted">{total ? `${total.toLocaleString()} ${unit}，按题材分成五个入口` : '正在打开书库…'}</p>
       </div>
 
       <div ref={scene} className="ws-scene" aria-hidden={!zoomed}>

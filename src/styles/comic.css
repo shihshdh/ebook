@@ -1,0 +1,126 @@
+/* ---------- 漫画源（插件页）：列表、按钮沿用书源那一节的 .bs-*（app.css） ---------- */
+.comicsources .bs-head p a { color: var(--gold); text-decoration: none; }
+.cs-catalog { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 16px; border: 1px dashed var(--line2); animation: reveal .4s var(--ease) backwards; }
+.cs-note { margin: 0; font-size: 12.5px; line-height: 1.7; }
+.cs-note.bad, .cs-test.bad p { color: #c0543d; }
+[data-theme="dark"] :is(.cs-note.bad, .cs-test.bad p) { color: #ff8f80; }
+.bs-row .btn-icon.is-on { color: var(--gold); }
+
+.cs-panel { display: flex; flex-direction: column; gap: 12px; padding: 2px 16px 14px; }
+.cs-test { display: flex; align-items: center; gap: 12px; }
+.cs-test p { margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--ink2); }
+.cs-test img { flex: none; width: 54px; height: 76px; border-radius: 6px; object-fit: cover; object-position: top; border: 1px solid var(--line); background: var(--soft); }
+.cs-settings { display: flex; flex-direction: column; gap: 8px; }
+.cs-field { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; font-size: 13px; }
+.cs-field > span { color: var(--ink2); }
+.cs-field .select select { max-width: 220px; }
+.cs-input {
+  width: min(260px, 60%); height: 34px; box-sizing: border-box; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line2);
+  background: var(--soft); color: var(--ink); font: 13px var(--sans); outline: none;
+}
+.cs-input:focus { border-color: var(--gold); }
+.ui-mobile .cs-field { font-size: 15px; }
+.ui-mobile .cs-input { height: 38px; font-size: 16px; }
+.ui-mobile .cs-input:focus { box-shadow: 0 0 0 2px var(--tint-soft); }
+
+/* ---------- 探索页「漫画」标签：世界和书墙沿用轻小说的（WorldSwitch.css、MasonryWall.css） ---------- */
+.explore-kind { margin-right: 4px; }
+.cx-count { margin: 0; }
+.cx-recent { margin: 2px 0 28px; }
+.cx-recent h2 { margin: 0 0 12px; font-size: 18px; }
+.cx-recent ol { list-style: none; margin: 0; padding: 0 0 6px; display: grid; grid-auto-flow: column; grid-auto-columns: 112px; gap: 14px; overflow-x: auto; scrollbar-width: thin; }
+.cx-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; max-width: 640px; padding: 22px; border-radius: 22px; }
+.cx-empty p { margin: 0; font-size: 14px; line-height: 1.8; }
+.cx-status { margin: 0 0 18px; font-size: 13px; line-height: 1.8; }
+.cx-status.bad { color: #c0543d; }
+[data-theme="dark"] .cx-status.bad { color: #ff8f80; }
+.cx-group { margin-bottom: 36px; }
+.cx-group-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+.cx-group-head h2 { margin: 0; font-size: 20px; }
+.cx-grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 22px 16px; }
+.cx-grid li { min-width: 0; animation: reveal .5s var(--ease) backwards; animation-delay: calc(var(--i, 0) * 30ms); }
+.cx-card { display: flex; flex-direction: column; gap: 6px; width: 100%; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.cx-card .cover {
+  display: block; width: 100%; aspect-ratio: 3 / 4; border-radius: 10px; overflow: hidden;
+  box-shadow: 0 14px 30px -20px var(--surface-shadow); transition: transform .35s var(--ease);
+}
+.cx-card .cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
+@media (hover: hover) { .cx-card:hover .cover { transform: translateY(-3px); } }
+.cx-card strong { font-size: 14px; font-weight: 600; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.cx-card small { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) { .cx-grid { grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 18px 12px; } }
+
+/* ---------- 详情面板里的漫画：换源、开始看、章节 ---------- */
+.cs-pick { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 14px; font-size: 13px; }
+.cs-read { display: flex; flex-direction: column; gap: 12px; }
+.cs-read-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cx-chapter-group h3 { margin: 8px 0 8px; font-size: 13px; font-weight: 500; }
+.cx-chapter-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+.cx-chapter-list button {
+  width: 100%; height: 40px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--soft);
+  color: var(--ink); font: 13px var(--sans); text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer;
+}
+@media (hover: hover) { .cx-chapter-list button:hover { border-color: var(--gold); } }
+.cx-chapter-list button.is-current { border-color: var(--gold); color: var(--gold); font-weight: 600; }
+.ui-mobile .cx-chapter-list button { height: 44px; font-size: 15px; }
+
+/* ---------- 漫画阅读器：不管外观设定，一律暗底 ---------- */
+.comic-reader { position: fixed; inset: 0; z-index: 30; background: #0d0c0b; color: #e9e3d6; }
+.cr-scroll { position: absolute; inset: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
+.mode-page .cr-scroll { overflow: hidden; }
+.cr-page { display: flex; align-items: center; justify-content: center; width: min(100%, 880px); min-height: min(142vw, 1250px); margin: 0 auto; }
+.cr-page.is-loaded, .cr-page.has-ratio { min-height: 0; }
+.cr-page img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-drag: none; }
+.cr-ph { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; min-height: inherit; font-size: 15px; color: rgba(233, 227, 214, .3); }
+.cr-ph.is-error { min-height: 160px; margin: 12px; padding: 20px; border: 1px dashed rgba(255, 255, 255, .2); border-radius: 12px; background: none; color: #ff8f80; font: 13px var(--sans); cursor: pointer; }
+.cr-stage { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; }
+.cr-stage img { max-width: 100%; max-height: 100%; object-fit: contain; user-select: none; -webkit-user-drag: none; animation: cr-fade .25s; }
+@keyframes cr-fade { from { opacity: 0; } }
+.cr-end { display: flex; flex-direction: column; align-items: center; gap: 14px; width: min(100%, 880px); margin: 0 auto; padding: 56px 20px 140px; text-align: center; }
+.cr-end p { margin: 0; }
+.cr-message { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; color: rgba(233, 227, 214, .75); }
+.cr-message p { margin: 0; max-width: 480px; line-height: 1.8; }
+.cr-message-actions { display: flex; gap: 8px; }
+
+.cr-top, .cr-bottom {
+  position: absolute; left: 0; right: 0; z-index: 2; display: flex; align-items: center; gap: 12px; padding: 10px 16px;
+  background: rgba(13, 12, 11, .84); backdrop-filter: blur(18px) saturate(1.2); -webkit-backdrop-filter: blur(18px) saturate(1.2);
+  transition: transform .35s var(--ease), opacity .35s;
+}
+.cr-top { top: 0; padding-top: calc(10px + var(--safe-t, 0px)); border-bottom: 1px solid rgba(255, 255, 255, .08); }
+.cr-bottom { bottom: 0; padding-bottom: calc(10px + var(--safe-b, 0px)); border-top: 1px solid rgba(255, 255, 255, .08); }
+.platform-tauri .cr-top { padding-right: 160px; }   /* 让出窗口按钮 */
+.comic-reader:not(.show-chrome) .cr-top { transform: translateY(-100%); opacity: 0; pointer-events: none; }
+.comic-reader:not(.show-chrome) .cr-bottom { transform: translateY(100%); opacity: 0; pointer-events: none; }
+.cr-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cr-title strong, .cr-title small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cr-title strong { font-size: 15px; }
+.cr-title small { font-size: 12px; color: rgba(233, 227, 214, .6); }
+.cr-modes { flex: none; }
+.cr-progress { flex: 1; display: flex; align-items: center; gap: 12px; min-width: 0; font-size: 13px; color: rgba(233, 227, 214, .7); }
+.cr-progress input { flex: 1; min-width: 0; accent-color: #e2b45c; }
+.comic-reader :is(.btn, .chip) { color: #e9e3d6; border-color: rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .06); }
+.comic-reader .btn-ghost { background: none; border-color: transparent; }
+.comic-reader .btn:disabled { opacity: .35; }
+.comic-reader .chip[aria-pressed="true"] { background: #e2b45c; border-color: #e2b45c; color: #1a1408; }
+.comic-reader .btn-gold { background: #e2b45c; border-color: #e2b45c; color: #1a1408; }
+@media (max-width: 560px) {
+  .cr-modes .chip { padding: 0 10px; }
+  .cr-bottom .btn { padding: 0 8px; }
+}
+
+/* Comic content uses the same reader chrome; only the image stage differs. */
+.comic-reader2 .cr-scroll { position: relative; inset: auto; width: 100%; height: 100%; min-height: 0; background: var(--rd-page); color: var(--rd-text); overflow-anchor: none; }
+.comic-reader2.mode-paginated .cr-scroll { overflow: hidden; touch-action: pan-y pinch-zoom; }
+.comic-reader2 .cr-stage.is-spread > * { max-width: 50%; }
+.comic-reader2 .cr-message { color: var(--rd-text); }
+.comic-reader2 .cr-ph { color: var(--rd-text); }
+.comic-reader2 .rd-edge:hover { opacity: 1; pointer-events: auto; }
+.comic-reader2 .rd-edge { pointer-events: auto; }
+.ui-mobile .comic-reader2 .rd-panel :is(.rd-btn, .liquid-tabs button) { min-height: 44px; }
+.ui-mobile .comic-reader2 .rd-settings label { font-size: 15px; }
+.ui-mobile .comic-reader2 .rd-toc button { min-height: 44px; font-size: 16px; }
+.ui-mobile :is(.cs-read, .cs-pick, .comicsources) button { min-height: 44px; }
+
+.ui-mobile .comic-reader2 .rd-menu-trigger { width: 44px; height: 44px; }
+.ui-mobile .comicsources :is(.cs-input, select) { min-height: 44px; font-size: 16px; }

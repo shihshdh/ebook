@@ -31,7 +31,7 @@ const altsOf = (b) => String(b.alt || '').split(/[/／、,，;；|]/).map(s => s
  * @param byAuthor 想找的作者（首页推荐点进来时带着）：同名的书里这位作者的排第一
  * @returns 合并后的书，多了 poolSources（来源名单，按先后）
  */
-export function pool(library, remote, term, labelOf = () => '书目', byAuthor = '') {
+export function pool(library, remote, term, labelOf = () => '书目', byAuthor = '', comics = []) {
   const key = norm(term);
   const groups = [], byTitle = new Map();
   const index = (title, g) => {
@@ -68,11 +68,29 @@ export function pool(library, remote, term, labelOf = () => '书目', byAuthor =
     if (!t.coverSrc && b.coverSrc) t.coverSrc = b.coverSrc;
     if (!t.description && b.description) t.description = b.description;
   }
+  // 漫画（comic/book.js 的 comicBook）：不和小说合并（同名的小说和漫画是两样东西），不同漫画源里的同一部合成一条
+  const comicByTitle = new Map();
+  for (const b of comics) {
+    const k = norm(b.title), author = normAuthor(b.author), c = b.comics[0];
+    const g = k && (comicByTitle.get(k) || []).find(x => sameAuthor(x.author, author));
+    if (!g) {
+      const fresh = { book: { ...b, comics: [...b.comics], poolSources: [...b.poolSources] }, author, names: [], order: groups.length, comic: true };
+      groups.push(fresh);
+      if (k) { fresh.names.push(k); comicByTitle.set(k, [...(comicByTitle.get(k) || []), fresh]); }
+      continue;
+    }
+    const t = g.book;
+    if (t.comics.some(x => x.sourceId === c.sourceId)) continue;
+    t.comics.push(c);
+    if (!t.poolSources.includes(c.sourceName)) t.poolSources.push(c.sourceName);
+    if (!g.author && author) { g.author = author; t.author = b.author; }
+    if (!t.description && b.description) t.description = b.description;
+  }
   // 书名（或别名）和关键词完全一样的排前面，其次是包含关键词的；
-  // 同档里：指定作者的在前，再按来源多少（同名的同人、跟风书一般只有一两个站有），最后书目在前、书源按回来的先后
+  // 同档里：指定作者的在前，小说在漫画前，再按来源多少（同名的同人、跟风书一般只有一两个站有），最后书目在前、书源按回来的先后
   const rank = (g) => Math.min(...g.names.map(n => n === key ? 0 : n.includes(key) ? 1 : 2), 2);
   const want = normAuthor(byAuthor);
   const mine = (g) => want && g.author && (g.author.includes(want) || want.includes(g.author)) ? 0 : 1;
-  return groups.map(g => [rank(g), mine(g), -g.book.poolSources.length, g.order, g.book])
-    .sort((x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || x[3] - y[3]).map(x => x[4]);
+  return groups.map(g => [rank(g), mine(g), g.comic ? 1 : 0, -g.book.poolSources.length, g.order, g.book])
+    .sort((x, y) => x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || x[3] - y[3] || x[4] - y[4]).map(x => x[5]);
 }

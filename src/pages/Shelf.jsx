@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import FolderFan from '../effects/FolderFan.jsx';
 import Cover from '../components/Cover.jsx';
@@ -13,6 +13,9 @@ import { ContinueCard, StatsCard, NotesPanel, ForYou, isFinished, isReading } fr
 import { acctKey } from '../lib/accounts.js';
 import { haptic, onBackButton } from '../lib/native.js';
 import { usePageActive } from '../lib/pageActive.js';
+import { comicByline, comicWhere } from '../comic/book.js';
+
+const ComicShelfBookmarks = lazy(() => import('../components/ComicShelfBookmarks.jsx'));
 
 // 书架的排序 / 筛选：记在本机（跟账户走），下次打开还是这样
 const VIEW_KEY = acctKey('librarium.shelfView');
@@ -58,7 +61,7 @@ export default function Shelf() {
   }, [items, view, q]);
   const counts = useMemo(() => ({ all: items.length, reading: items.filter(isReading).length, done: items.filter(isFinished).length, unread: items.filter(it => !(it.progress?.percent > 0)).length }), [items]);
   // 「最近划线」点进来：留一个一次性的跳转位置给阅读器
-  const openAt = (it, cfi) => { try { sessionStorage.setItem('librarium.jump', JSON.stringify({ id: it.id, cfi })); } catch {} openReader(it, null, it.cover); };
+  const openAt = (it, cfi) => { if (it.ext === 'comic') { openReader({ ...it, openAt: cfi }, null, it.cover); return; } try { sessionStorage.setItem('librarium.jump', JSON.stringify({ id: it.id, cfi })); } catch {} openReader(it, null, it.cover); };
 
   const doImport = async (fileList) => {
     // 先拷一份：调用方紧接着会清空 <input> 的值，FileList 是活的，await 之后就空了
@@ -145,7 +148,7 @@ export default function Shelf() {
         <FolderFan label="最近在读" note={`${recent.length} 本`} word="reading"
           cards={recent.map((it, i) => ({
             key: it.id, title: it.title,
-            tag: i === 0 ? '上次读到 ' + Math.round((it.progress?.percent || 0) * 100) + '%' : i === recent.length - 1 ? ago(it.lastReadAt || it.addedAt) : undefined,
+            tag: i === 0 ? (it.ext === 'comic' ? '上次看到 ' + (comicWhere(it) || '开头') : '上次读到 ' + Math.round((it.progress?.percent || 0) * 100) + '%') : i === recent.length - 1 ? ago(it.lastReadAt || it.addedAt) : undefined,
             thumb: <Cover book={it} eager alt="" />,
           }))}
           onOpenCard={(k, el) => { const it = items.find(x => x.id === k); if (it) open(it, el); }}
@@ -191,13 +194,13 @@ export default function Shelf() {
                 onPointerDown={holdStart(it)} onPointerMove={holdMove} onPointerUp={holdEnd} onPointerCancel={holdEnd} onContextMenu={(e) => { if (!editing && e.nativeEvent.pointerType !== 'mouse') e.preventDefault(); }}>
                 <Cover book={it} />
                 <span className="shelf-progress"><i style={{ width: `${Math.round((it.progress?.percent || 0) * 100)}%` }} /></span>
-                {it.ext === 'txt' && <span className="shelf-ext">TXT</span>}
+                {(it.ext === 'txt' || it.ext === 'comic') && <span className="shelf-ext">{it.ext === 'comic' ? '漫画' : 'TXT'}</span>}
                 {editing && <span className="shelf-check" aria-hidden="true"><Icon name="check" size={15} stroke={2.4} /></span>}
               </button>
               <div className="shelf-meta">
                 <strong className="serif">{it.title}</strong>
-                <small className="muted">{it.author || '佚名'} · {fmtSize(it.size)}</small>
-                <small className="muted num">{it.progress?.percent ? `读到 ${Math.round(it.progress.percent * 100)}%` : '未开始'}{it.lastReadAt ? ` · ${ago(it.lastReadAt)}` : ''}</small>
+                <small className="muted">{it.ext === 'comic' ? comicByline(it) : `${it.author || '佚名'} · ${fmtSize(it.size)}`}</small>
+                <small className="muted num">{it.ext === 'comic' ? (comicWhere(it) ? `看到 ${comicWhere(it)}` : '未开始') : it.progress?.percent ? `读到 ${Math.round(it.progress.percent * 100)}%` : '未开始'}{it.lastReadAt ? ` · ${ago(it.lastReadAt)}` : ''}</small>
               </div>
             </article>
           ))}
@@ -206,6 +209,7 @@ export default function Shelf() {
 
       {items.length > 0 && (
         <div className="shelf-bottom">
+          {items.some(it => it.ext === 'comic') && <Suspense fallback={null}><ComicShelfBookmarks items={items} onOpenAt={openAt} /></Suspense>}
           <NotesPanel items={items} onOpenAt={openAt} toast={toast} />
           <ForYou items={items} books={lib.books} byId={lib.byId} onOpen={openBook} />
         </div>

@@ -8,6 +8,7 @@ import Cover from './Cover.jsx';
 import Icon from './Icon.jsx';
 import { listNotes } from '../lib/shelf.js';
 import { useReadingStats, fmtMinutes } from '../lib/readstats.js';
+import { comicByline, comicWhere } from '../comic/book.js';
 import { classicScore } from '../lib/library.js';
 import { saveExport } from '../lib/native.js';
 import { pressBook } from '../lib/glyph-warm.js';
@@ -34,11 +35,11 @@ export function ContinueCard({ items, onOpen }) {
       <div className="sp-body">
         <p className="eyebrow">{started ? `继续阅读 · ${ago(it.lastReadAt)}` : '还没开始 · 新放进书架的'}</p>
         <h2 className="serif">{it.title}</h2>
-        <p className="muted sp-author">{it.author || '佚名'}</p>
-        {it.progress?.chapter && <p className="sp-chapter">读到 <b>{it.progress.chapter}</b></p>}
+        <p className="muted sp-author">{it.ext === 'comic' ? comicByline(it) : it.author || '佚名'}</p>
+        {it.progress?.chapter && <p className="sp-chapter">{it.ext === 'comic' ? '看到' : '读到'} <b>{it.ext === 'comic' ? comicWhere(it) : it.progress.chapter}</b></p>}
         <div className="sp-bar" aria-hidden="true"><i style={{ width: `${pct(it)}%` }} /></div>
         <div className="sp-row">
-          <span className="num muted">{started ? `已读 ${pct(it)}%` : '0%'}</span>
+          <span className="num muted">{it.ext === 'comic' ? (started ? '漫画' : '还没开始') : started ? `已读 ${pct(it)}%` : '0%'}</span>
           <button className="btn btn-gold sm" onClick={go}><Icon name="book" size={16} />{started ? '继续读' : '开始读'}</button>
         </div>
       </div>

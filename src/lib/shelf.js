@@ -35,6 +35,17 @@ export async function addToShelf(item, blob) {
   if (orphan) await idbDel('kv', `orphan:${item.id}`).catch(() => {});
   emit();
 }
+/** Online comics have metadata and bookmarks, but no downloaded book blob. */
+export async function addShelfMetadata(item) {
+  if (item.ext !== 'comic' || !item.comic?.sourceId || !item.comic?.comicId) throw new Error('无效的漫画书架条目');
+  const existing = await getShelfItem(item.id);
+  if (existing) return existing;
+  const entry = { addedAt: Date.now(), ...item, size: 0 };
+  await idbSet('shelf', item.id, entry);
+  emit();
+  return entry;
+}
+
 export async function removeFromShelf(id) {
   await idbDel('shelf', id);
   await idbDel('blob', id);

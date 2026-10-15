@@ -21,8 +21,15 @@ export const supportsPackageUpdate = platform === 'tauri' || mobileOS === 'andro
 /** 手机客户端（iPhone、安卓）：用同一套 iOS 设计语言的界面（styles/mobile.css、液态玻璃标签栏、原生触感） */
 export const mobileUI = isIOS || mobileOS === 'android';
 
-/** 书源需要保留错误页正文，且必须按原始字节而不是桥接默认 UTF-8 解码。 */
-export async function nativeRequest({ url, method = 'GET', headers = {}, body, charset, signal, timeout = 20000 }) {
+// 响应头 → 普通对象，名字一律小写（Tauri / 浏览器给 Headers，Capacitor 给大小写不定的对象）
+const headersOf = (h) => Object.fromEntries(typeof h?.entries === 'function'
+  ? [...h.entries()] : Object.entries(h || {}).map(([k, v]) => [k.toLowerCase(), String(v)]));
+
+/**
+ * 书源需要保留错误页正文，且必须按原始字节而不是桥接默认 UTF-8 解码。
+ * raw: true 时不解码，返回 { status, url, headers, bytes }（漫画源要图片字节和响应头）
+ */
+export async function nativeRequest({ url, method = 'GET', headers = {}, body, charset, signal, timeout = 20000, raw = false }) {
   if (signal?.aborted) throw new DOMException('已取消', 'AbortError');
   // 有的书源照抄浏览器请求头，带着 Accept-Encoding: gzip, br：手动指定后原生 HTTP 不再替我们解压，拿回来的是压缩字节，
   // 正文一片乱码。去掉它，压缩交给 HTTP 栈自己协商、自己解
@@ -64,6 +71,7 @@ export async function nativeRequest({ url, method = 'GET', headers = {}, body, c
         type = response.headers.get('content-type');
       }
       controller.signal.throwIfAborted();
+      if (raw) return { status: response.status, url: response.url || url, headers: headersOf(response.headers), bytes };
       const fromHeader = /charset\s*=\s*["']?([^\s;"']+)/i.exec(type || '')?.[1];
       // 书源往往只在搜索地址里写了 charset，目录页、正文页不写；GBK 网站又常常不声明编码或声明错。
       // 按内容判断（合法 UTF-8 就是 UTF-8，否则在声明的编码 / GB18030 / Big5 里挑），和阅读 App 一样

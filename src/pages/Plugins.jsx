@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import Icon from '../components/Icon.jsx';
 import NetDiag from '../components/NetDiag.jsx';
 import AccountPanel from '../components/AccountPanel.jsx';
 import LegadoSources from '../components/LegadoSources.jsx';
+const ComicSources = lazy(() => import('../components/ComicSources.jsx'));   // 漫画源一节按需加载，不进首屏的包
 import RssSources from '../components/RssSources.jsx';
 import { useSources } from '../lib/legado.js';
 import { PLUGINS, enabledPlugins, setPluginEnabled } from '../plugins/registry.js';
@@ -98,6 +99,7 @@ export default function Plugins() {
       </section>
 
       <LegadoSources />
+      <Suspense fallback={null}><ComicSources /></Suspense>
       <RssSources />
 
       <section className="settings glass">

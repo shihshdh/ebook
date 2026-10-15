@@ -13,6 +13,7 @@ import { prefersReduced } from '../lib/motion.js';
 import { useTheme } from '../lib/theme.js';
 import { useUsableSourceCount } from '../lib/legado.js';
 import { SOURCE_PICKS } from '../lib/picks.js';
+import { comicWhere } from '../comic/book.js';
 
 // ⑥ 书页之河（ASTRA 负责）；文件没到位时用一团静态暖光顶上
 function RiverFallback() { return <div className="river-fallback" aria-hidden="true" />; }
@@ -171,7 +172,7 @@ export default function Home() {
                   <span className="continue-meta">
                     <strong>{it.title}</strong>
                     <span className="bar"><i style={{ width: `${Math.round((it.progress?.percent || 0) * 100)}%` }} /></span>
-                    <small className="num">{Math.round((it.progress?.percent || 0) * 100)}%{it.progress?.chapter ? ` · ${it.progress.chapter}` : ''}</small>
+                    <small className="num">{it.ext === 'comic' ? (comicWhere(it) || '还没开始') : <>{Math.round((it.progress?.percent || 0) * 100)}%{it.progress?.chapter ? ` · ${it.progress.chapter}` : ''}</>}</small>
                   </span>
                 </button>
               ))}

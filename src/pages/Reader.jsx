@@ -12,7 +12,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import ePub, { EpubCFI } from 'epubjs';
 import { getShelfItem, getShelfBlob, updateProgress, listBookmarks, addBookmark, removeBookmark, listNotes, saveNote, removeNote } from '../lib/shelf';
 import { usePrefs, READER_THEMES, READER_FONTS } from '../lib/prefs';
-import { LiquidSpring, isTouch, prefersReduced } from '../lib/motion';
+import { isTouch, prefersReduced } from '../lib/motion';
 import { txtToEpub } from '../reader/txt';
 import { searchBook } from '../reader/search';
 import { useReadingClock } from '../lib/readstats';
@@ -21,6 +21,7 @@ import { haptic, onBackButton, setImmersive, isIOS, mobileUI } from '../lib/nati
 import { acctKey } from '../lib/accounts';
 import { applyReaderFont, READER_FONT_STACKS } from '../reader/typography.js';
 import '../styles/reader.css';
+import { LiquidTabs, Clock, swipeDir } from '../reader/chrome.jsx';
 
 const flatten = (items, depth = 0) => items.flatMap(item => [{ ...item, depth }, ...flatten(item.subitems || [], depth + 1)]);
 const cfiCmp = new EpubCFI();
@@ -29,15 +30,6 @@ const EASE = 'cubic-bezier(.16,1,.3,1)';
 // 点按不算、翻页也不算，什么都不发生，得「用点力」划长一点。现在看松手前 ~100ms 的速度：过了 SLOP、够快就翻；
 // 慢慢拖过 DIST 也翻；往回甩（速度和位移反方向）= 改主意，弹回
 const SLOP = 8;      // 动过这么多像素才算拖动（再小是点按）
-const FLING = .2;    // 松手速度（px/ms，= 200px/s）超过这个算「拨」。浏览器会把点按容差里的移动合并掉，轻拨 20px 往往只来一两个触点，门槛不能高
-const DIST = 40;     // 慢慢拖，超过这个距离松手也翻
-/** 往哪翻：1 下一页、-1 上一页、0 弹回。track：[[x, 时间]...] 最近的触点 */
-function swipeDir(dx, track, x, t) {
-  const from = track.find(([, tt]) => t - tt <= 100);   // 松手前 100ms 内最早的点；手指停住不动再松手就没有，速度算 0
-  const v = from && t - from[1] >= 8 ? (x - from[0]) / (t - from[1]) : 0;
-  if (Math.abs(v) >= FLING) return Math.sign(v) === Math.sign(dx) ? -Math.sign(dx) : 0;
-  return Math.abs(dx) >= DIST ? -Math.sign(dx) : 0;
-}
 // 划线四色：金、绯、青、紫（和整站点缀色一致）
 const INKS = { gold: '#e2b45c', rose: '#ff8f80', jade: '#7fd4a8', lilac: '#b9a8f0' };
 const hlStyle = (color, dark) => ({ fill: INKS[color] || INKS.gold, 'fill-opacity': dark ? '0.32' : '0.42', 'mix-blend-mode': dark ? 'screen' : 'multiply' });
@@ -67,52 +59,6 @@ function applyTheme(rendition, prefs) {
     '::selection': { background: 'rgba(233,203,139,.35)' },
   });
   rendition.getContents().forEach(contents => { applyReaderFont(contents, prefs.readerFont); });
-}
-
-/** 液态分段选择：选中态是一滴会流动的玻璃（左右两条边各挂一根弹簧，前沿先冲、后沿慢半拍） */
-function LiquidTabs({ items, value, onChange, className = '' }) {
-  const track = useRef(null), thumb = useRef(null), spring = useRef(null), raf = useRef(0);
-  const index = items.findIndex(i => i.id === value);
-  useEffect(() => {
-    const el = track.current?.querySelectorAll('[data-seg]')[index];
-    const th = thumb.current;
-    if (!th) return;
-    if (!el) { th.style.opacity = '0'; return; }
-    th.style.opacity = '1';
-    const target = { left: el.offsetLeft, right: el.offsetLeft + el.offsetWidth };
-    if (mobileUI || !spring.current || prefersReduced()) {   // 手机：滑块的移动交给 CSS 过渡（mobile.css，带回弹）
-      spring.current = new LiquidSpring(target);
-      th.style.width = `${target.right - target.left}px`; th.style.transform = `translate3d(${target.left}px,0,0)`;
-      return;
-    }
-    spring.current.setTarget(target);
-    let last = 0;
-    const tick = now => {
-      const dt = Math.min(.05, last ? (now - last) / 1000 : .016); last = now;
-      const s = spring.current, moving = s.step(dt), base = target.right - target.left;
-      th.style.width = `${base}px`;
-      th.style.transform = `translate3d(${s.left}px,0,0) scale(${Math.max(8, s.right - s.left) / base},${s.squash})`;
-      if (moving) raf.current = requestAnimationFrame(tick);
-    };
-    cancelAnimationFrame(raf.current); raf.current = requestAnimationFrame(tick);
-  }, [index]);
-  useEffect(() => () => cancelAnimationFrame(raf.current), []);
-  return (
-    <div ref={track} className={`liquid-tabs ${className}`} role="tablist">
-      <span ref={thumb} className="liquid-tabs-thumb" aria-hidden="true" />
-      {items.map(it => (
-        <button key={it.id} data-seg role="tab" aria-selected={it.id === value} className={it.id === value ? 'on' : ''} onClick={() => onChange(it.id === value ? '' : it.id)}>
-          {it.icon && <Icon name={it.icon} size={20} />}<span>{it.label}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Clock() {
-  const [t, setT] = useState(() => new Date());
-  useEffect(() => { const i = setInterval(() => setT(new Date()), 30000); return () => clearInterval(i); }, []);
-  return <span className="num">{t.toTimeString().slice(0, 5)}</span>;
 }
 
 export default function Reader() {

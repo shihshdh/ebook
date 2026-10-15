@@ -27,7 +27,7 @@ registerHooks({ resolve(specifier, context, next) {
 const originalFetch = globalThis.fetch;
 const natives = {};
 for (const platform of ['web', 'tauri', 'capacitor']) {
-  globalThis.window = platform === 'tauri' ? { __TAURI_INTERNALS__: {} } : platform === 'capacitor' ? { Capacitor: { isNativePlatform: () => true } } : {};
+  globalThis.window = platform === 'tauri' ? { __TAURI_INTERNALS__: {} } : platform === 'capacitor' ? { Capacitor: { isNativePlatform: () => true, getPlatform: () => 'android' } } : {};
   natives[platform] = (await import(`../src/lib/native.js?test=${platform}`)).nativeRequest;
 }
 delete globalThis.window;

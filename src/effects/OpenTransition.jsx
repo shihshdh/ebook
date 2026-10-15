@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useUI } from '../lib/ui.jsx';
 import { getPrefs, READER_THEMES } from '../lib/prefs.js';
 import { prefersReduced } from '../lib/motion.js';
+import { comicShelfLocation } from '../comic/book.js';
 import { mobileUI } from '../lib/native.js';
 
 export default function OpenTransition() {
@@ -16,7 +17,12 @@ export default function OpenTransition() {
   useEffect(() => {
     if (!opening) return;
     const el = layer.current;
-    const go = () => navigate(`/read/${encodeURIComponent(opening.item.id)}`);
+    const go = () => {
+      if (opening.item.ext === 'comic') {
+        const { pathname, state } = comicShelfLocation(opening.item, opening.item.openAt);
+        navigate(pathname, { state });
+      } else navigate(`/read/${encodeURIComponent(opening.item.id)}`);
+    };
     if (!el || prefersReduced()) { go(); endOpening(); return; }
     if (mobileUI) {
       // 手机：封面原地放大铺满屏幕（iOS 的缩放转场），只动 transform / opacity，交给合成线程；

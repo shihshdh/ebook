@@ -22,6 +22,7 @@
     "@capacitor/haptics": "^6.0.3",
     "@tauri-apps/api": "^2.12.1",
     "@tauri-apps/plugin-http": "^2.8.0",
+    "crypto-js": "^4.2.0",
     "epubjs": "^0.3.93",
     "jszip": "^3.10.2",
     "opencc-js": "^1.4.2",

@@ -47,7 +47,7 @@ export const acctKey = (key, id = currentId) => (id === DEFAULT_ID ? key : `${ke
 export const acctDB = (id = currentId) => (id === DEFAULT_ID ? 'librarium' : `librarium@${id}`);
 
 /** 跟着账户走的 localStorage 键（导出、删除账户时按这张表处理） */
-export const ACCOUNT_KEYS = ['librarium.prefs', 'librarium.theme', 'librarium.search', 'librarium.plugins', 'librarium.tocPinned'];
+export const ACCOUNT_KEYS = ['librarium.prefs', 'librarium.theme', 'librarium.search', 'librarium.plugins', 'librarium.tocPinned', 'librarium.comic.reader'];
 
 export const listAccounts = () => read().list;
 export const getAccount = (id = currentId) => read().list.find(a => a.id === id) || null;

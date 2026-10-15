@@ -12,6 +12,8 @@ import { useTheme } from '../lib/theme.js';
 import { useSources, searchSources, useUsableSourceCount } from '../lib/legado.js';
 import { pool } from '../lib/pool.js';
 import { enabledPlugins, pluginById } from '../plugins/registry.js';
+import { comicSupported, useComicSources } from '../comic/sources.js';
+import { comicBook } from '../comic/book.js';
 
 // ④ Prism 玻璃折射（ASTRA 负责）；文件没到位时退回静态标题
 function PrismFallback({ title, lead, children }) {
@@ -66,7 +68,7 @@ const ResultRow = memo(function ResultRow({ b, i, onOpen }) {
         <span className="result-body">
           <strong className="serif">{b.title}</strong>
           {b.alt && <small className="muted">{b.alt}</small>}
-          <span className="result-meta">{[b.author, b.source === 'legado' ? '' : b.publisher, b.status].filter(Boolean).join(' · ')}</span>
+          <span className="result-meta">{[b.source === 'comic' ? '漫画' : '', b.author, b.source === 'legado' || b.source === 'comic' ? '' : b.publisher, b.status].filter(Boolean).join(' · ')}</span>
           {b.tags.length > 0
             ? <span className="result-tags">{b.illustrated && <span className="tag tag-gold">插图版</span>}{b.tags.slice(0, 4).map(t => <span key={t} className="tag">{t}</span>)}</span>
             : b.description && <small className="muted result-intro">{b.description.length > 60 ? b.description.slice(0, 60) + '…' : b.description}</small>}
@@ -76,7 +78,7 @@ const ResultRow = memo(function ResultRow({ b, i, onOpen }) {
       </button>
     </li>
   );
-}, (a, z) => a.i === z.i && a.onOpen === z.onOpen && a.b.id === z.b.id && a.b.downloads.length === z.b.downloads.length);
+}, (a, z) => a.i === z.i && a.onOpen === z.onOpen && a.b.id === z.b.id && a.b.downloads.length === z.b.downloads.length && a.b.comics?.length === z.b.comics?.length);
 
 // 结果行里所有书共用的字：标签、出版社和状态、来源那一行。空闲时按结果行的样式先排一遍（lib/glyph-warm.js 的 warmIdle）——
 // 打出第一个字那帧，看得见的几行里约四成的字就是它们（字形第一次以某个字重 × 字号出现要现算）。书名、作者每本不一样，排不过来。
@@ -208,41 +210,55 @@ export default function Search() {
   // 不跟着每次按键去请求别人的网站：停顿一下（两个字以上）再搜，或者按回车
   const sources = useSources();
   const active = useMemo(() => enabledPlugins().some(p => p.id === 'legado') ? (sources || []).filter(e => e.enabled) : [], [sources]);
-  const [remote, setRemote] = useState(null);   // { q, items: [{entry, item}], done, total, errors, running }
+  // 漫画源（Venera）：和书源一起现搜，结果并进同一个搜索池（漫画和小说不合并，见 lib/pool.js）
+  const comicList = useComicSources();
+  const comicActive = useMemo(() => (comicSupported ? (comicList || []).filter(e => e.enabled) : []), [comicList]);
+  const remoteCount = active.length + comicActive.length;
+  const [remote, setRemote] = useState(null);   // { q, items: [{entry, item}], comics: [Book], done, total, errors, running }
   const remoteRun = useRef(null), remoteQ = useRef('');   // remoteQ：正在搜 / 已经搜过的词，自动搜索的定时器靠它避免重复发请求
   const runRemote = async (raw) => {
     const term = raw.trim();
-    if (!term || !active.length) return;
+    if (!term || !remoteCount) return;
     remoteQ.current = term;
     remoteRun.current?.abort();
     const ctl = new AbortController();
     remoteRun.current = ctl;
-    let st = { q: term, items: [], done: 0, total: active.length, errors: [], running: true };
+    let st = { q: term, items: [], comics: [], done: 0, total: remoteCount, errors: [], running: true };
     setRemote(st);
-    await searchSources(term, {
-      signal: ctl.signal,
-      onResult: ({ entry, items, error }) => {
-        st = { ...st, done: st.done + 1, items: [...st.items, ...items.map(item => ({ entry, item }))], errors: error ? [...st.errors, { name: entry.source.bookSourceName, error }] : st.errors };
-        setRemote(st);
-      },
-    });
+    await Promise.all([
+      active.length && searchSources(term, {
+        signal: ctl.signal,
+        onResult: ({ entry, items, error }) => {
+          st = { ...st, done: st.done + 1, items: [...st.items, ...items.map(item => ({ entry, item }))], errors: error ? [...st.errors, { name: entry.source.bookSourceName, error }] : st.errors };
+          setRemote(st);
+        },
+      }),
+      comicActive.length && import('../comic/library.js').then(m => m.searchComics(term, {
+        signal: ctl.signal,
+        onResult: ({ source, comics, error }) => {
+          const books = comics.map(comic => comicBook({ sourceId: source.id, sourceName: source.name, comic }));
+          st = { ...st, done: st.done + 1, comics: [...st.comics, ...books], errors: error ? [...st.errors, { name: source.name, error }] : st.errors };
+          setRemote(st);
+        },
+      })).catch(() => {}),
+    ]);
     if (!ctl.signal.aborted) setRemote({ ...st, running: false });
   };
   useEffect(() => { if (remote && remote.q !== q.trim()) { remoteRun.current?.abort(); remoteQ.current = ''; setRemote(null); } }, [q]);
   useEffect(() => () => remoteRun.current?.abort(), []);
   useEffect(() => {
     const term = q.trim();
-    if ([...term].length < 2 || !active.length || remoteQ.current === term) return;
+    if ([...term].length < 2 || !remoteCount || remoteQ.current === term) return;
     const t = setTimeout(() => { if (remoteQ.current !== term) runRemote(term); }, 900);
     return () => clearTimeout(t);
-  }, [q, active.length]);
+  }, [q, remoteCount]);
   // 搜索池：书目和书源不分开，同一本书合成一条（lib/pool.js）
   const byParam = params.get('by') || '';
   const pooled = useMemo(() => {
     const term = dq.trim();
     // 首页推荐点进来的带着作者（?by=），只对那个书名有效
     const by = term === urlQ ? byParam : '';
-    return term ? pool(results, remote?.q === term ? remote.items : [], term, (b) => pluginById[b.source]?.short || '书目', by) : [];
+    return term ? pool(results, remote?.q === term ? remote.items : [], term, (b) => pluginById[b.source]?.short || '书目', by, remote?.q === term ? remote.comics : []) : [];
   }, [results, remote, dq, urlQ, byParam]);   // 不看整个 params：搜索框同步到地址栏时它会换，这里不用跟着重算
   // 结果分批挂：先 30 条，滚到附近再补 30 条（一次铺上百行，排版那一帧要几十毫秒）；每批里再分帧挂（见 ResultList）
   const [limit, setLimit] = useState(30);
@@ -260,7 +276,7 @@ export default function Search() {
   return (
     <div className="page search-page">
       <Suspense fallback={<PrismFallback title={['找一本', '今晚的书。']}>{box}</PrismFallback>}>
-        <PrismGlass key={theme} title={['找一本', '今晚的书。']} lead={lib.books.length ? `在 ${lib.books.length.toLocaleString()} 本书${usableSources ? `和 ${usableSources} 个书源` : ''}里检索书名、别名和作者` : ''} height={q ? 'min(46vh, 420px)' : undefined}>
+        <PrismGlass key={theme} title={['找一本', '今晚的书。']} lead={lib.books.length ? `在 ${lib.books.length.toLocaleString()} 本书${usableSources ? `、${usableSources} 个书源` : ''}${comicActive.length ? `和 ${comicActive.length} 个漫画源` : ''}里检索书名、别名和作者` : ''} height={q ? 'min(46vh, 420px)' : undefined}>
           {box}
         </PrismGlass>
       </Suspense>
@@ -284,15 +300,15 @@ export default function Search() {
         <section className="results">
           <p className="muted results-count" role="status">
             {pooled.length
-              ? <>找到 <span className="num">{pooled.length}</span> 本</>
-              : remote?.running || (!remote && active.length > 0 && [...q.trim()].length >= 2) ? '正在搜…' : '没找到。换个写法，或者试试作者名。'}
-            {remote && <> · {remote.running ? `正在搜 ${remote.done} / ${remote.total} 个书源` : `搜了 ${remote.total} 个书源`}</>}
-            {!remote && active.length > 0 && [...q.trim()].length < 2 && <> · <button className="btn btn-ghost sm" onClick={() => runRemote(q)}>也在 {active.length} 个书源里搜</button></>}
+              ? <>找到 <span className="num">{pooled.length}</span> 本{remote?.comics?.length > 0 && <>，其中漫画 <span className="num">{pooled.filter(b => b.source === 'comic').length}</span> 部</>}</>
+              : remote?.running || (!remote && remoteCount > 0 && [...q.trim()].length >= 2) ? '正在搜…' : '没找到。换个写法，或者试试作者名。'}
+            {remote && <> · {remote.running ? `正在搜 ${remote.done} / ${remote.total} 个源` : `搜了 ${remote.total} 个源`}</>}
+            {!remote && remoteCount > 0 && [...q.trim()].length < 2 && <> · <button className="btn btn-ghost sm" onClick={() => runRemote(q)}>也在 {remoteCount} 个源里搜</button></>}
           </p>
           <ResultList books={pooled} term={dq.trim()} limit={limit} onOpen={open} onMore={loadMore} />
           {remote?.errors.length > 0 && (
             <details className="remote-errors">
-              <summary className="muted">{remote.errors.length} 个书源没搜成</summary>
+              <summary className="muted">{remote.errors.length} 个源没搜成</summary>
               <ul>{remote.errors.map((e, i) => <li key={i}>{e.name}：{e.error}</li>)}</ul>
             </details>
           )}
