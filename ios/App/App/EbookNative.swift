@@ -40,7 +40,59 @@ class EbookViewController: CAPBridgeViewController {
         bridge?.registerPluginInstance(EbookNative())
         webView.scrollView.alwaysBounceHorizontal = false
         webView.scrollView.keyboardDismissMode = .interactive
+        #if DEBUG
+        scheduleBridgeSelfTest()
+        #endif
     }
+
+    #if DEBUG
+    // 调试版自检（scripts/smoke-ios.sh 用，正式包里没有）：带 -EBOOK_BRIDGE_SELFTEST 启动时，主页面、一个 sandbox iframe
+    // （和漫画源的沙箱一样只给 allow-scripts）、一个普通 iframe，各自直接往 webkit.messageHandlers.bridge 发一次
+    // EbookNative.bridgeProbe。原生侧记下真正被调到几次，连同各层看到的东西写到 Documents/bridge-selftest.json：
+    // 主页面要调得到（证明自检本身有效），两个子 frame 必须一次都调不到，防护标记也只有主页面有
+    private func scheduleBridgeSelfTest() {
+        guard ProcessInfo.processInfo.arguments.contains("-EBOOK_BRIDGE_SELFTEST") else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8) { [weak self] in
+            self?.webView?.evaluateJavaScript(EbookViewController.selfTestScript) { _, _ in }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak self] in
+                self?.webView?.evaluateJavaScript("JSON.stringify(window.__ebookProbe || null)") { result, error in
+                    let report: [String: Any] = [
+                        "hits": EbookNative.probeHits,
+                        "js": (result as? String) ?? "",
+                        "error": error.map { String(describing: $0) } ?? ""
+                    ]
+                    guard let data = try? JSONSerialization.data(withJSONObject: report, options: [.prettyPrinted]),
+                          let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+                    try? data.write(to: dir.appendingPathComponent("bridge-selftest.json"))
+                }
+            }
+        }
+    }
+
+    private static let selfTestScript = """
+    (function () {
+      var probe = window.__ebookProbe = { main: '', mainGuard: String(window.__EBOOK_BRIDGE_GUARD__), frames: {} };
+      window.addEventListener('message', function (e) { if (e.data && e.data.probe) probe.frames[e.data.probe] = e.data; });
+      function call(from) {
+        window.webkit.messageHandlers.bridge.postMessage({ type: 'message', pluginId: 'EbookNative', methodName: 'bridgeProbe', callbackId: 'probe-' + from, options: { from: from } });
+      }
+      try { call('main'); probe.main = 'sent'; } catch (e) { probe.main = String(e); }
+      function child(name, sandboxed) {
+        var f = document.createElement('iframe');
+        if (sandboxed) f.setAttribute('sandbox', 'allow-scripts');
+        f.style.display = 'none';
+        f.srcdoc = '<script>var r = { probe: "' + name + '", guard: String(window.__EBOOK_BRIDGE_GUARD__), bridge: typeof (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge), capacitor: typeof window.Capacitor };'
+          + 'try { window.webkit.messageHandlers.bridge.postMessage({ type: "message", pluginId: "EbookNative", methodName: "bridgeProbe", callbackId: "probe-' + name + '", options: { from: "' + name + '" } }); r.sent = "sent"; } catch (e) { r.sent = String(e); }'
+          + 'parent.postMessage(r, "*");</script>';
+        document.body.appendChild(f);
+      }
+      child('sandbox', true);
+      child('iframe', false);
+      return 'started';
+    })();
+    """
+    #endif
+
     override var prefersHomeIndicatorAutoHidden: Bool { immersive }
     override var prefersStatusBarHidden: Bool { immersive }
 }
@@ -81,20 +133,35 @@ enum EbookFiles {
 public class EbookNative: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDelegate {
     public let identifier = "EbookNative"
     public let jsName = "EbookNative"
-    public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "ready", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setBars", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "setImmersive", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "consumeFile", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "beginSave", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "appendSave", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "endSave", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "openWeb", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "openLanzou", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "haptic", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "prepareHaptics", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "accessibility", returnType: CAPPluginReturnPromise)
-    ]
+    public let pluginMethods: [CAPPluginMethod] = {
+        var methods = [
+            CAPPluginMethod(name: "ready", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "setBars", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "setImmersive", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "consumeFile", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "beginSave", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "appendSave", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "endSave", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "openWeb", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "openLanzou", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "haptic", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "prepareHaptics", returnType: CAPPluginReturnPromise),
+            CAPPluginMethod(name: "accessibility", returnType: CAPPluginReturnPromise)
+        ]
+        #if DEBUG
+        methods.append(CAPPluginMethod(name: "bridgeProbe", returnType: CAPPluginReturnPromise))
+        #endif
+        return methods
+    }()
+    #if DEBUG
+    // 原生桥自检的探针（只在调试版里，见 EbookViewController.scheduleBridgeSelfTest）：记下从哪一层调到了几次
+    static var probeHits: [String: Int] = [:]
+    @objc func bridgeProbe(_ call: CAPPluginCall) {
+        let from = call.getString("from") ?? "?"
+        DispatchQueue.main.async { EbookNative.probeHits[from, default: 0] += 1 }
+        call.resolve()
+    }
+    #endif
     private var observer: NSObjectProtocol?
     private var a11yObservers: [NSObjectProtocol] = []
     // Feedback generators are created lazily on the main thread and kept prepared,

@@ -41,7 +41,7 @@ jobs:
           if-no-files-found: error
           retention-days: 30
       - name: Launch on an iPhone simulator
-        timeout-minutes: 8
+        timeout-minutes: 12
         run: bash scripts/smoke-ios.sh
       - uses: actions/upload-artifact@v4
         if: always()
@@ -50,4 +50,5 @@ jobs:
           path: |
             release/ios-first-launch.png
             release/ios-processes.txt
+            release/ios-bridge-selftest.json
           if-no-files-found: warn

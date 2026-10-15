@@ -51,3 +51,23 @@ const running=readFileSync("release/ios-processes.txt","utf8").split("\n")
 .some(line=>/^\d+\s/.test(line) && line.includes("app.librarium.reader"));
 if(!running) throw new Error("EBOOK exited after launch");
 console.log("EBOOK is running on the iPhone simulator");'
+
+# 原生桥自检（调试版才有，见 ios/App/App/EbookNative.swift 的 scheduleBridgeSelfTest）：
+# 主页面、sandbox iframe（同漫画源沙箱）、普通 iframe 各自直接调一次原生桥，原生侧记下真正调到几次。
+# 主页面要调得到，子 frame 必须一次都调不到——漫画源的脚本跑在子 frame 里，这一条是 iPhone 开放漫画源的前提
+timed 30 xcrun simctl terminate "$DEVICE" app.librarium.reader || true
+timed 60 xcrun simctl launch "$DEVICE" app.librarium.reader -EBOOK_BRIDGE_SELFTEST
+DATA="$(xcrun simctl get_app_container "$DEVICE" app.librarium.reader data)"
+for _ in $(seq 1 30); do [[ -f "$DATA/Documents/bridge-selftest.json" ]] && break; sleep 2; done
+cp "$DATA/Documents/bridge-selftest.json" release/ios-bridge-selftest.json
+node --input-type=module -e '
+import {readFileSync} from "node:fs";
+const r=JSON.parse(readFileSync("release/ios-bridge-selftest.json","utf8"));
+const hits=r.hits||{}, js=JSON.parse(r.js||"null")||{};
+console.log(JSON.stringify({hits, js, error:r.error}, null, 1));
+if(!(hits.main>=1)) throw new Error("self-test invalid: the main frame could not reach the native bridge");
+if(!js.frames?.sandbox || !js.frames?.iframe) throw new Error("self-test invalid: child frames did not report back");
+if(hits.sandbox || hits.iframe) throw new Error("a child frame reached the native bridge");
+if(js.mainGuard!=="main-frame") throw new Error("the main frame has no bridge guard marker");
+for(const k of ["sandbox","iframe"]) if(js.frames[k].guard==="main-frame") throw new Error(k+" frame sees the bridge guard marker");
+console.log("Native bridge: main frame reachable, sandbox and iframe blocked (bridge visible to them: "+js.frames.sandbox.bridge+")");'
