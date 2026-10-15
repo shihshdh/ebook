@@ -49,7 +49,9 @@ class EbookViewController: CAPBridgeViewController {
     #if DEBUG
     // 界面巡检通道（scripts/ios-tour.mjs 用，正式包里没有）：带 -EBOOK_TOUR 启动时，每半秒看一眼 Documents/tour/，
     // 有 cmd-<n>.js 就当 async 函数体在主页面里跑（可以 await），返回值或出错写到 res-<n>.json，然后等 cmd-<n+1>.js。
-    // 巡检脚本每一步跑完用 simctl 截整屏（带状态栏、灵动岛、Home 横条），步骤全在脚本里，改步骤不用重编原生
+    // 巡检脚本每一步跑完用 simctl 截整屏（带状态栏、灵动岛、Home 横条），步骤全在脚本里，改步骤不用重编原生。
+    // 只用 evaluateJavaScript：async 的结果先放进页面里的 window.__tour[n]，再每半秒取一次。不用 callAsyncJavaScript——
+    // 它的 Swift 写法（Result 回调、.page）要链接 libswiftWebKit.dylib，iOS 18.5 模拟器里没有这个库，App 一启动就被 dyld 拒掉
     private var tourStep = 0
     private var tourBusy = false
     private func startTour() {
@@ -59,20 +61,24 @@ class EbookViewController: CAPBridgeViewController {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
             guard let self = self, let webView = self.webView else { timer.invalidate(); return }
-            if self.tourBusy { return }
             let step = self.tourStep
+            if self.tourBusy {
+                // 等着的那一步跑完没有：跑完了就把 {ok, value | error} 原样写成 res-<n>.json
+                webView.evaluateJavaScript("(function(){var t=window.__tour&&window.__tour[\(step)];if(!t)return null;delete window.__tour[\(step)];return JSON.stringify(t);})()") { result, _ in
+                    guard let json = result as? String, self.tourBusy, self.tourStep == step else { return }
+                    try? json.write(to: dir.appendingPathComponent("res-\(step).json"), atomically: true, encoding: .utf8)
+                    self.tourStep = step + 1
+                    self.tourBusy = false
+                }
+                return
+            }
             guard let body = try? String(contentsOf: dir.appendingPathComponent("cmd-\(step).js"), encoding: .utf8) else { return }
             self.tourBusy = true
-            webView.callAsyncJavaScript(body, arguments: [:], in: nil, in: .page) { result in
-                var out: [String: Any] = ["step": step]
-                switch result {
-                case .success(let value):
-                    out["ok"] = true
-                    out["value"] = (value as? String) ?? ((value is NSNull) ? "" : String(describing: value))
-                case .failure(let error):
-                    out["ok"] = false
-                    out["error"] = String(describing: error)
-                }
+            let run = "window.__tour=window.__tour||{};(async()=>{\n\(body)\n})().then(function(v){window.__tour[\(step)]={ok:true,value:v===undefined?null:v};},function(e){window.__tour[\(step)]={ok:false,error:String(e&&e.stack||e)};});0;"
+            webView.evaluateJavaScript(run) { _, error in
+                // 语法错这类，脚本根本没跑起来：直接记失败，接着等下一步
+                guard let error = error, self.tourStep == step else { return }
+                let out: [String: Any] = ["step": step, "ok": false, "error": String(describing: error)]
                 if let data = try? JSONSerialization.data(withJSONObject: out) {
                     try? data.write(to: dir.appendingPathComponent("res-\(step).json"), options: .atomic)
                 }

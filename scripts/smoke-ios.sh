@@ -46,6 +46,17 @@ cleanup() {
   rm -rf "$SMOKE_DIR"
 }
 trap cleanup EXIT
+# 模拟器刚开机时 simctl launch 偶尔卡住不返回（还在数据迁移、SpringBoard 没缓过来）：超时就结束掉、歇 10 秒再试，最多三次
+launch() {
+  local attempt
+  for attempt in 1 2 3; do
+    if timed 90 xcrun simctl launch "$@"; then return 0; fi
+    echo "启动第 $attempt 次没成功，重试"
+    timed 30 xcrun simctl terminate "$DEVICE" app.librarium.reader || true
+    sleep 10
+  done
+  return 1
+}
 export EBOOK_SIM_SDK="$(xcrun --sdk iphonesimulator --show-sdk-version)"
 RUNTIME="$(xcrun simctl list runtimes -j | node -e '
 let s=""; process.stdin.on("data", c=>s+=c); process.stdin.on("end",()=>{
@@ -63,7 +74,7 @@ timed 60 xcrun simctl boot "$DEVICE"
 timed 180 xcrun simctl bootstatus "$DEVICE" -b
 timed 120 xcrun simctl install "$DEVICE" "$SMOKE_DIR/DerivedData/Build/Products/Debug-iphonesimulator/App.app"
 mkdir -p release/ios-diag
-timed 60 xcrun simctl launch --stdout="$PWD/release/ios-diag/app-stdout.txt" --stderr="$PWD/release/ios-diag/app-stderr.txt" \
+launch --stdout="$PWD/release/ios-diag/app-stdout.txt" --stderr="$PWD/release/ios-diag/app-stderr.txt" \
   "$DEVICE" app.librarium.reader
 sleep 15
 mkdir -p release
@@ -80,7 +91,7 @@ console.log("EBOOK is running on the iPhone simulator");'
 # 主页面、sandbox iframe（同漫画源沙箱）、普通 iframe 各自直接调一次原生桥，原生侧记下真正调到几次。
 # 主页面要调得到，子 frame 必须一次都调不到——漫画源的脚本跑在子 frame 里，这一条是 iPhone 开放漫画源的前提
 timed 30 xcrun simctl terminate "$DEVICE" app.librarium.reader || true
-timed 60 xcrun simctl launch "$DEVICE" app.librarium.reader -EBOOK_BRIDGE_SELFTEST
+launch "$DEVICE" app.librarium.reader -EBOOK_BRIDGE_SELFTEST
 DATA="$(xcrun simctl get_app_container "$DEVICE" app.librarium.reader data)"
 for _ in $(seq 1 30); do [[ -f "$DATA/Documents/bridge-selftest.json" ]] && break; sleep 2; done
 cp "$DATA/Documents/bridge-selftest.json" release/ios-bridge-selftest.json

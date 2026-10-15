@@ -26,6 +26,17 @@ drop() {
   fi
 }
 trap 'drop; rm -rf "$WORK"' EXIT
+# 模拟器刚开机时 simctl launch 偶尔卡住不返回（还在数据迁移、SpringBoard 没缓过来）：超时就结束掉、歇 10 秒再试，最多三次
+launch() {
+  local attempt
+  for attempt in 1 2 3; do
+    if timed 90 xcrun simctl launch "$@"; then return 0; fi
+    echo "启动第 $attempt 次没成功，重试"
+    timed 30 xcrun simctl terminate "$DEVICE" app.librarium.reader || true
+    sleep 10
+  done
+  return 1
+}
 export EBOOK_SIM_SDK="$(xcrun --sdk iphonesimulator --show-sdk-version)"
 RUNTIME="$(xcrun simctl list runtimes -j | node -e '
 let s=""; process.stdin.on("data", c=>s+=c); process.stdin.on("end",()=>{
@@ -52,7 +63,7 @@ tour() {   # 名字 设备类型 外观
   timed 30 xcrun simctl status_bar "$DEVICE" override --time 9:41 --dataNetwork wifi --wifiMode active --wifiBars 3 \
     --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100 || true
   timed 120 xcrun simctl install "$DEVICE" "$APP"
-  timed 60 xcrun simctl launch "$DEVICE" app.librarium.reader -EBOOK_TOUR
+  launch "$DEVICE" app.librarium.reader -EBOOK_TOUR
   echo "== $name ($type, $appearance)"
   if ! timed 900 node scripts/ios-tour.mjs "$DEVICE" "$OUT/$name" "$appearance"; then
     FAILED=1
