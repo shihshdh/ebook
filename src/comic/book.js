@@ -5,11 +5,11 @@
 //   comics: 同一部漫画在哪几个源里有（搜索池按书名把不同源的合成一条），第一个是封面和默认打开的那个
 export const isComic = (b) => b?.source === 'comic';
 
-/** @param {{ sourceId: string, sourceName: string, comic: { id, title, subtitle, cover, tags, description } }} hit */
+/** @param {{ sourceId: string, sourceName: string, comic: { id, title, titleOrig?, subtitle, cover, tags, description } }} hit  titleOrig：外文源翻译前的原名 */
 export function comicBook({ sourceId, sourceName, comic }) {
   return {
     id: `comic:${sourceId}:${comic.id}`, source: 'comic',
-    title: comic.title, alt: '', author: comic.subtitle || '', publisher: sourceName, status: '', animated: false,
+    title: comic.title, alt: comic.titleOrig || '', author: comic.subtitle || '', publisher: sourceName, status: '', animated: false,
     tags: (comic.tags || []).slice(0, 4), description: comic.description || '', length: '', updated: '', illustrated: false,
     coverSrc: comic.cover || '', downloads: [],
     comics: [{ sourceId, sourceName, comicId: comic.id, cover: comic.cover || '', title: comic.title }],

@@ -20,6 +20,7 @@ import { build } from 'esbuild';
 import { DOMParser } from 'linkedom';
 import { decodeBytes, declaredCharset } from '../src/lib/charset.js';
 import { comicSkipReason, checkUrl, isPrivateHost } from '../src/comic/policy.js';
+import { isForeign, isForeignSource, splitChapter, bestLanguage, localizeComics, localizeDetails } from '../src/comic/translate.js';
 import { registerHooks } from 'node:module';
 
 // nativeRequest 的 raw 模式要按三个平台测：只在测试里把原生插件换成假的（同 legado-test.mjs）
@@ -319,6 +320,35 @@ test('白名单：成人站、没审过的不收', () => {
   for (const key of ['copy_manga', 'baozi', 'manga_dex', 'ManHuaGui', 'komga']) assert.equal(comicSkipReason({ key, name: key }), '', key);
   for (const [key, name] of [['jm', '禁漫天堂'], ['wnacg', '紳士漫畫'], ['hitomi', 'hitomi.la'], ['picacg', 'Picacg'], ['mh18', '18漫画'], ['hcomic', 'H-Comic'], ['mxs', '漫小肆'], ['new_site', '新站']])
     assert.notEqual(comicSkipReason({ key, name }), '', key);
+});
+
+test('翻译：外文才翻、章节号本地改、MangaDex 挑语言、认不准的语言留原文', async () => {
+  assert.equal(isForeign('推しの子'), true); assert.equal(isForeign('Chainsaw Man'), true); assert.equal(isForeign('나 혼자만 레벨업'), true);
+  assert.equal(isForeign('咒術迴戰'), false); assert.equal(isForeign('BLUE LOCK (藍色監獄)'), false); assert.equal(isForeign('2024'), false);
+  assert.equal(isForeignSource('venera:manga_dex'), true); assert.equal(isForeignSource('copy_manga'), false);
+  assert.deepEqual(splitChapter('Vol.2 Ch.5 - Fight'), { head: '第2卷 第5话', rest: 'Fight' });
+  assert.deepEqual(splitChapter('第3話 はじまり'), { head: '第3话', rest: 'はじまり' });
+  assert.deepEqual(splitChapter('1: Ryomen Sukuna'), { head: '第1话', rest: 'Ryomen Sukuna' });
+  const d = bestLanguage({ chapters: [
+    { id: 'a', title: '1: A Dog', group: 'Volume 1 - EN' }, { id: 'b', title: '2: Pochita', group: 'Volume 1 - EN' },
+    { id: 'c', title: '1: 狗与电锯', group: 'Volume 1 - CN' }, { id: 'd', title: '1: 狗與電鋸', group: 'Volume 1 - TW' }, { id: 'e', title: '3: Tokyo', group: 'No Volume - EN' }] });
+  assert.deepEqual(d.chapters.map(c => [c.id, c.group, c.title]), [['c', '第1卷', '第1话 狗与电锯'], ['b', '第1卷', '第2话 Pochita'], ['e', '未分卷', '第3话 Tokyo']]);
+  // 假的翻译接口：英文日文照表翻，罗马字报成印尼语
+  const sent = [];
+  const fake = { 'Chainsaw Man': ['en', '电锯人'], 'Pochita': ['en', '波奇塔'], 'Tokyo': ['en', '东京'], 'Kaguya-sama wa Kokurasetai': ['id', '辉夜大人和小藏队'], 'A devil hunter.': ['en', '一个恶魔猎人。'] };
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { const texts = JSON.parse(init.body); sent.push(...texts); return { ok: true, json: async () => texts.map(t => ({ detectedLanguage: { language: fake[t]?.[0] || 'en' }, translations: [{ text: fake[t]?.[1] || t }] })) }; };
+  try {
+    const list = [{ id: 1, title: 'Chainsaw Man', description: 'A devil hunter.', tags: ['Gore', 'Action'] }, { id: 2, title: 'Kaguya-sama wa Kokurasetai', tags: [] }, { id: 3, title: '咒术回战', tags: [] }];
+    const md = await localizeComics(list, 'manga_dex');
+    assert.deepEqual(md.map(c => [c.title, c.titleOrig || '']), [['电锯人', 'Chainsaw Man'], ['Kaguya-sama wa Kokurasetai', ''], ['咒术回战', '']]);
+    assert.equal(md[0].description, '一个恶魔猎人。');
+    assert.deepEqual(md[0].tags, ['血腥', '动作']);   // 标签走对照表，不送去机翻
+    assert.ok(!sent.includes('Gore') && !sent.includes('咒术回战'));
+    assert.strictEqual(await localizeComics(list, 'copy_manga'), list);   // 中文源原样
+    const det = await localizeDetails({ title: 'Chainsaw Man', description: '', tags: [['Status', ['completed']]], chapters: [{ id: 'b', title: '2: Pochita', group: 'Volume 1 - EN' }, { id: 'e', title: '3: Tokyo', group: 'No Volume - EN' }] }, 'venera:manga_dex');
+    assert.deepEqual([det.title, det.tags, det.chapters.map(c => c.title)], ['电锯人', [['状态', ['已完结']]], ['第2话 波奇塔', '第3话 东京']]);
+  } finally { globalThis.fetch = realFetch; }
 });
 
 // ---------- 真实源（--live）----------

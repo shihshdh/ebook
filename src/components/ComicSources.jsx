@@ -9,6 +9,8 @@ import {
   REPOS, comicSupported, comicUnsupportedWhy, useComicSources, fetchIndex, newer, installSource, checkUpdates, setComicSourceEnabled, removeComicSource,
   sourceSettings, setSourceSetting, runSettingCallback, testComicSources, previewOf,
 } from '../comic/sources.js';
+import { translateOn, setTranslateOn } from '../comic/translate.js';
+import { forgetComicLists } from '../comic/catalog.js';
 import '../styles/comic.css';
 
 const repoName = (id) => REPOS.find(r => r.id === id)?.name || id;
@@ -143,6 +145,21 @@ function Catalog({ installed }) {
   );
 }
 
+/** 外文漫画翻成中文的开关（comic/translate.js）。改了以后探索书单重拉，详情下次打开生效 */
+function TranslateSwitch() {
+  const [on, setOn] = useState(translateOn);
+  const flip = () => { setTranslateOn(!on); setOn(!on); forgetComicLists(); };
+  return (
+    <div className="cs-translate">
+      <div>
+        <strong>外文漫画翻成中文</strong>
+        <small className="muted">英文、日文、韩文源的书名、简介、标签、章节名自动翻译，原名留在「又名」里；图里的对白不翻。</small>
+      </div>
+      <button className={`switch ${on ? 'on' : ''}`} role="switch" aria-checked={on} aria-label="外文漫画翻成中文" onClick={flip}><i /></button>
+    </div>
+  );
+}
+
 export default function ComicSources() {
   const list = useComicSources();
   const { toast } = useUIActions();
@@ -206,6 +223,7 @@ export default function ComicSources() {
       {!comicSupported && <p className="bs-empty muted">{comicUnsupportedWhy}</p>}
       {comicSupported && catalog && <Catalog installed={list} />}
       {comicSupported && list && !list.length && !catalog && <p className="bs-empty muted">没有漫画源了。点「更多源」，从 Venera 的源仓库里挑。</p>}
+      {comicSupported && list?.length > 0 && <TranslateSwitch />}
       {comicSupported && list?.length > 0 && (
         <ol className="bs-list">
           {list.map(e => <SourceRow key={e.id} e={e} open={open === e.id} onToggle={() => setOpen(o => (o === e.id ? '' : e.id))} />)}

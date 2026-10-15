@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react';
 import { listComicSources, withSource } from './sources.js';
 import { comicBook } from './book.js';
 import { FAMOUS } from './famous.js';
+import { localizeComics } from './translate.js';
 import { normTitle } from '../lib/pool.js';
 
 // 世界 → 分类名里出现这些就算（繁简、日文、英文的写法都有）
@@ -161,7 +162,7 @@ function load(key) {
     // 谁先回来先显示：每找到一部名作、每回来一个源就重新排一遍
     await Promise.all([
       ...famous.map(async (f, i) => { picks[i] = await findFamous(f, sources).catch(() => null); if (picks[i]) show(); }),
-      ...got.map(async (g) => { g.comics = await fromSource(g.source, key); show(); }),
+      ...got.map(async (g) => { g.comics = await localizeComics(await fromSource(g.source, key), g.source.key); show(); }),
     ]);
     entry.done = true;
     emit();

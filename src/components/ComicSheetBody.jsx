@@ -39,7 +39,7 @@ export default function ComicSheetBody({ book, onRead }) {
   const list = useMemo(() => chapters.map((x, i) => ({ ...x, i })), [chapters]);
   const ordered = reverse ? [...list].reverse() : list;
   const groups = [...new Set(ordered.map(x => x.group))];
-  const read = (i, page = 0) => onRead(readPath(c.sourceId, c.comicId, i), { title: d?.title || book.title, cover: d?.cover || c.cover, page, at: Date.now() });
+  const read = (i, page = 0) => onRead(readPath(c.sourceId, c.comicId, i), { title: book.title || d?.title, cover: d?.cover || c.cover, page, at: Date.now() });
   const tags = book.tags.length ? [] : (d?.tags || []).flatMap(([, vs]) => vs).slice(0, 8);
 
   return (
@@ -62,7 +62,7 @@ export default function ComicSheetBody({ book, onRead }) {
         <div className="cs-read-row">
           <button className="btn btn-ghost" disabled={onShelf || adding} onClick={async () => {
             setAdding(true); setShelfError('');
-            try { await ensureComicShelf({ ...c, title: d?.title || book.title, cover: d?.cover || c.cover, author: book.author }); }
+            try { await ensureComicShelf({ ...c, title: book.title || d?.title, cover: d?.cover || c.cover, author: book.author }); }
             catch (e) { setShelfError(e.message || '没加上，请重试'); }
             finally { setAdding(false); }
           }}>{onShelf ? '已在书架' : adding ? '正在加入…' : '加入书架'}</button>

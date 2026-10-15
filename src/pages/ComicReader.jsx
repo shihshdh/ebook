@@ -86,7 +86,7 @@ export default function ComicReader() {
 
   const chapters = useMemo(() => (details ? chaptersOf(details) : []), [details]);
   const chapter = chapters[at];
-  const title = details?.title || state?.title || '';
+  const title = state?.title || details?.title || '';   // 打开时带来的书名优先（名作用名单里的简体写法），源里的原名只是兜底
   const cover = details?.cover || state?.cover || '';
 
   useEffect(() => { setImmersive(true); return () => setImmersive(false); }, []);
@@ -102,7 +102,7 @@ export default function ComicReader() {
     (async () => {
       const d = await comicDetails(sourceId, comicId);
       if (!alive) return;
-      await ensureComicShelf({ sourceId, sourceName, comicId, title: d.title || state?.title || '', cover: d.cover || state?.cover || '' });
+      await ensureComicShelf({ sourceId, sourceName, comicId, title: state?.title || d.title || '', cover: d.cover || state?.cover || '' });
       if (!alive) return;
       setDetails(d);
       const list = chaptersOf(d), c = list[at];

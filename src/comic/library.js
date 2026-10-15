@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { idbGet, idbSet } from '../lib/idb.js';
 import { listComicSources, withSource } from './sources.js';
 import { fetchImage } from './images.js';
+import { localizeComics, localizeDetails } from './translate.js';
 
 // ---------- 地址 ----------
 export { readPath } from './book.js';
@@ -44,7 +45,8 @@ export async function searchComics(keyword, { signal, onResult, timeout = 20000,
           const options = box.meta.searchOptions.map(o => o.default);
           return (await box.call('search', [keyword, options, 1, null], { signal, timeout })).comics;
         });
-        if (!signal?.aborted) onResult?.({ source, comics });
+        const list = await localizeComics(comics, e.key);   // 外文源的书名、简介翻成中文（translate.js）
+        if (!signal?.aborted) onResult?.({ source, comics: list });
       } catch (err) {
         if (!signal?.aborted) onResult?.({ source, comics: [], error: /超时|timed? ?out/i.test(err?.message) ? '超时' : (err?.message || '出错了').slice(0, 60) });
       }
@@ -65,7 +67,7 @@ const remember = (map, key, load) => {
 };
 /** @returns {Promise<{title, subtitle, cover, description, tags: [string, string[]][], chapters: {id, title, group}[], single, updateTime}>} */
 export const comicDetails = (sourceId, comicId) => remember(details, `${sourceId}|${comicId}`,
-  () => withSource(sourceId, box => box.call('info', [comicId], { timeout: 30000 })));
+  () => withSource(sourceId, box => box.call('info', [comicId], { timeout: 30000 })).then(d => localizeDetails(d, sourceId)));
 /** 某一话的图片地址。epId 为 null：整本一卷 */
 export const chapterImages = (sourceId, comicId, epId) => remember(episodes, `${sourceId}|${comicId}|${epId}`,
   () => withSource(sourceId, box => box.call('ep', [comicId, epId], { timeout: 30000 })).then(r => r.images));
