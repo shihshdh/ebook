@@ -135,8 +135,11 @@
 | 94 | 搜索池：漫画和轻小说一起搜、一起列 | Claude | 完成 | 搜「葬送的芙莉莲」：4 秒内漫画出来，三个源的同一部合成一条，排在同名小说后面 | 漫画不和小说合并；`src/lib/pool.js` |
 | 95 | 漫画详情（同一个详情面板）+ 阅读器（条漫 / 翻页 / 从右往左） | Claude | 完成 | 详情自动跳过没章节的源；阅读器刷新后接着上次那张；方向键、滚轮翻页；Esc 退出 | `src/components/ComicSheetBody.jsx`、`src/pages/ComicReader.jsx` |
 | 96 | Windows：沙箱碰不到原生桥（实测） | Claude | 完成 | 从沙箱发 toggle_maximize 不生效、从主页面发生效；沙箱里 XHR 公网 / ipc:// / 局域网全被拦 | `chrome.webview` 删掉；`__TAURI_INTERNALS__` 删不掉但调不通 |
-| 97 | 安卓验收漫画源 | ASTRA | 阻塞 | 见 ASTRA_TASKS_R7 R7-1 | debug APK 已打出；模拟器工具 / 镜像从 Google 下载超时，没有设备 |
-| 98 | iPhone 原生桥只认主 frame + 主页面标记，iPhone 开放漫画源 | ASTRA | 完成（代码）/ 待 CI | 静态检查 4/4；390 宽模拟截图 | 真机 / 模拟器验收要推送后跑 ios.yml |
+| 97 | 安卓验收漫画源 | Claude | 完成 | API 34 模拟器（腾讯镜像下的系统镜像）装 debug APK：探索「漫画」名作书墙 39 部 → 详情 134 话 → 加入书架 → 阅读器出图 → 目录 → 书架「看到 1卷 第 3 张」→ 搜「咒术回战」漫画 84 部；无横向溢出、无报错 | 原阻塞是 Google 下载超时；系统镜像改从 mirrors.cloud.tencent.com/AndroidSDK 下（23MB/s），AVD 手写 config.ini |
+| 98 | iPhone 原生桥只认主 frame + 主页面标记，iPhone 开放漫画源 | ASTRA → Claude | 完成 | ios.yml 冒烟里的原生桥自检（调试版 -EBOOK_BRIDGE_SELFTEST）：主页面调到 1 次；sandbox iframe、普通 iframe 都发了但原生一次没收到；防护标记只在主页面 | `EbookNative.swift` bridgeProbe / scheduleBridgeSelfTest，`scripts/smoke-ios.sh` 判定 |
 | 99 | 默认漫画源体检脚本 | ASTRA | 完成 | `node scripts/comic-defaults-check.mjs` | 报告 `docs/ASTRA_COMIC_DEFAULTS_R7.md` |
 | 100 | 漫画阅读器和小说同一套界面、手势、面板 | ASTRA | 完成 | 电脑 / 390 宽各五个面板和小说同位置对照（`docs/screenshots/comic/r8-*`） | `src/reader/chrome.jsx` 两个阅读器共用 |
 | 101 | 漫画加入书架（自动加入、进度、继续阅读、书签、账户备份） | ASTRA → Claude | 完成 | 真实源：加入 → 读到第 7 张 → 书架「看到 第1话 第 7 张」→ 点开接着读 | 漫画进度按话说（Claude 收尾） |
+| 102 | 漫画探索先放名作（东京喰种、咒术回战等 43 部） | Claude | 完成 | 清缓存打开「漫画」：约 20 秒 43 部全排在书墙最前（拷贝 13、包子 30），各世界先放自己的名作，拼贴封面也是名作；书名统一简体 | 用户：「漫画推荐给我放点出名的」。`src/comic/famous.js` 名单 + `catalog.js` 按书名搜（简体源先、一部最多试 4 个源、本机记 7 天） |
+| 103 | 外文漫画翻成中文（书名、简介、标签、章节名；对白不翻） | Claude | 完成 | 搜「Chainsaw Man」：MangaDex「チェンソーマン カラー版」→「电锯人彩色版」，详情标签「获奖作品 / 血腥 / 已完结 / 画师」，247 话里中文汉化优先、没汉化的英文话「第230话 性别与选择」；拷贝漫画的「LOST MAN」不动；comic-test 13/13 | 用户选「先只翻文字」。微软 Edge 免 key 接口；只翻外文源；MangaDex 每话挑一种语言；插件页开关。对白翻译的候选（manga-image-translator 自建 / 看图大模型）见对话记录，以后再做 |
+| 104 | iOS 模拟器界面巡检（SE / 16 Pro / 16 Pro Max + 深色） | Claude | 进行中 | ios.yml 的 tour 任务逐屏截整屏图 | 调试版 -EBOOK_TOUR 文件通道 + `scripts/ios-tour.mjs`。第一次跑发现调试版一启动就闪退（冒烟也挂），正在用崩溃报告查 |
