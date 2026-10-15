@@ -1,4 +1,4 @@
-import { Suspense, memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, memo, startTransition, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { acctKey } from '../lib/accounts.js';
 import Cover from '../components/Cover.jsx';
@@ -225,12 +225,19 @@ export default function Search() {
     remoteRun.current = ctl;
     let st = { q: term, items: [], comics: [], done: 0, total: remoteCount, errors: [], running: true };
     setRemote(st);
+    // 两百多个书源、十个漫画源陆续回来：每回来一个就重算一遍搜索池、重排列表，结果一多每次几十毫秒，二十来秒里两百多次，
+    // 手机上滑结果、打字都卡。攒着，最多 250ms 合并一次，放进 transition（打字、滑动优先）
+    let timer = 0;
+    const push = () => {
+      if (timer) return;
+      timer = setTimeout(() => { timer = 0; if (!ctl.signal.aborted) startTransition(() => setRemote(st)); }, 250);
+    };
     await Promise.all([
       active.length && searchSources(term, {
         signal: ctl.signal,
         onResult: ({ entry, items, error }) => {
           st = { ...st, done: st.done + 1, items: [...st.items, ...items.map(item => ({ entry, item }))], errors: error ? [...st.errors, { name: entry.source.bookSourceName, error }] : st.errors };
-          setRemote(st);
+          push();
         },
       }),
       comicActive.length && import('../comic/library.js').then(m => m.searchComics(term, {
@@ -238,10 +245,11 @@ export default function Search() {
         onResult: ({ source, comics, error }) => {
           const books = comics.map(comic => comicBook({ sourceId: source.id, sourceName: source.name, comic }));
           st = { ...st, done: st.done + 1, comics: [...st.comics, ...books], errors: error ? [...st.errors, { name: source.name, error }] : st.errors };
-          setRemote(st);
+          push();
         },
       })).catch(() => {}),
     ]);
+    clearTimeout(timer);
     if (!ctl.signal.aborted) setRemote({ ...st, running: false });
   };
   useEffect(() => { if (remote && remote.q !== q.trim()) { remoteRun.current?.abort(); remoteQ.current = ''; setRemote(null); } }, [q]);

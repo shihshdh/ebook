@@ -74,8 +74,11 @@ tour() {   # 名字 设备类型 外观
   fi
   drop
 }
-tour se com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation light
-tour 16pro com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro light
-tour 16promax com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max light
-tour 16pro-dark com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro dark
+# 不带参数：四台依次走；带名字（CI 里每台一个任务并行跑）：只走那一台。一台机器上连开几台模拟器，后面的常常整个卡死
+ONLY="${1:-}"
+want() { [[ -z "$ONLY" || "$ONLY" == "$1" ]]; }
+want se && tour se com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation light
+want 16pro && tour 16pro com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro light
+want 16promax && tour 16promax com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max light
+want 16pro-dark && tour 16pro-dark com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro dark
 exit $FAILED

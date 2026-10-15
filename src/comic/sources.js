@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react';
 import { idbDel, idbGet, idbSet } from '../lib/idb.js';
 import { getText, repoFileUrls } from '../lib/net.js';
-import { isIOS, isNative } from '../lib/native.js';
+import { isIOS, isNative, mobileUI } from '../lib/native.js';
 import { comicSkipReason, isSelfHosted } from './policy.js';
 
 export const REPOS = [
@@ -172,8 +172,15 @@ function remember(id, key, value) {
 }
 
 // ---------- 沙箱 ----------
-const MAX_LIVE = 6;
+// 同时开着的沙箱：每个都是一个 iframe（源脚本 + 兼容层常驻内存）。iOS 的 WKWebView 内存上限低（超了整页白屏重载），
+// 手机上少开；闲着超过一分钟（电脑三分钟）的关掉，要用再开（开一个几十毫秒）
+const MAX_LIVE = isIOS ? 3 : mobileUI ? 4 : 6;
+const IDLE_MS = mobileUI ? 60000 : 180000;
 const live = new Map();   // id → { box: Promise<Sandbox>, sandbox?: Sandbox, used, leases }
+if (typeof window !== 'undefined') setInterval(() => {
+  const now = Date.now();
+  for (const [k, h] of live) if (!h.leases && h.sandbox && !h.sandbox.busy && now - h.used > IDLE_MS) closeSource(k);
+}, 30000);
 
 // 开太多时关掉最久没用、而且空闲的那个：正在用的（有人租着、有调用没回来、有图在下）不关，宁可暂时多开几个
 function evict(keep) {

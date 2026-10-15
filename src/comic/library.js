@@ -9,6 +9,8 @@ import { idbGet, idbSet } from '../lib/idb.js';
 import { listComicSources, withSource } from './sources.js';
 import { fetchImage } from './images.js';
 import { loadCover, saveCover } from './cover-cache.js';
+import { calm } from '../lib/calm.js';
+import { isIOS, mobileUI } from '../lib/native.js';
 import { localizeComics, localizeDetails } from './translate.js';
 
 // ---------- 地址 ----------
@@ -32,7 +34,9 @@ function limiter(max) {
   });
 }
 // 正文图和封面各排各的队：搜索结果、探索页一下要几十张封面，慢的站一张要等十几秒，不能把正在看的那一页堵在后面
-const pageSlot = limiter(4), coverSlot = limiter(6);
+// 手机上并发调低：漫画源的沙箱（源脚本、解析网页、取图回调）和页面挤在同一个主线程上，iOS 的 WKWebView 尤其如此。
+// 正文图同时 3 张（正在看的那张排在最前，见 pageURL 的 front），封面同时 3 张（封面大多已经存在本机，cover-cache.js）
+const pageSlot = limiter(mobileUI ? 3 : 4), coverSlot = limiter(mobileUI ? 3 : 6);
 
 // ---------- 搜 ----------
 /** 在启用的漫画源里搜。每个源一有结果就 onResult({ source: {id, name, key}, comics, error })，全部结束后 resolve */
@@ -109,7 +113,8 @@ function noteCover(sourceId, ok) {
 }
 
 const covers = new Map();   // key → Promise<blob 地址>，Map 的顺序就是最近用过的顺序
-const MAX_COVERS = 300;
+// 内存里留着的封面（blob 地址）：iOS 的 WKWebView 内存上限低，超了整页白屏重载；本机存着（cover-cache.js），放掉了再要也快
+const MAX_COVERS = isIOS ? 120 : mobileUI ? 180 : 300;
 /** 封面（走源的 onThumbnailLoad），blob 地址缓存着，不要自己 revoke */
 export function coverURL(sourceId, url) {
   if (!url) return Promise.reject(new Error('没有封面'));
@@ -120,7 +125,8 @@ export function coverURL(sourceId, url) {
   p = loadCover(key).then(saved => {
     if (saved) return saved;
     if (coversBlocked(sourceId)) throw new Error('这个源的封面取不到');
-    const net = coverSlot(() => withSource(sourceId, box => fetchImage(box, url, { thumb: true })));
+    // 封面经源下载：用户的手停下来再开工（lib/calm.js），滑书墙、拖光盘时不往那几帧里塞活
+    const net = coverSlot(() => calm().then(() => withSource(sourceId, box => fetchImage(box, url, { thumb: true }))));
     net.then(blob => { noteCover(sourceId, true); saveCover(key, blob); }, (err) => { if (!/取消|abort/i.test(err?.message || '')) noteCover(sourceId, false); });
     return net;
   }).then(blob => URL.createObjectURL(blob));

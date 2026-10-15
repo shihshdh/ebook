@@ -53,10 +53,15 @@ jobs:
             release/ios-bridge-selftest.json
             release/ios-diag/
           if-no-files-found: warn
-  # 界面巡检：和打包并行，在 SE / 16 Pro / 16 Pro Max 模拟器（外加深色模式）里把各屏走一遍截图
+  # 界面巡检：和打包并行，在 SE / 16 Pro / 16 Pro Max 模拟器（外加深色模式）里把各屏走一遍截图。
+  # 每台一个任务：一台机器上连开几台模拟器，第三台起常常整个卡死
   tour:
     runs-on: macos-15
-    timeout-minutes: 50
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [se, 16pro, 16promax, 16pro-dark]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -67,13 +72,13 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Sync web assets into the iOS project
         run: npm run ios:sync
-      - name: Walk through the app on iPhone simulators
-        timeout-minutes: 42
-        run: bash scripts/tour-ios.sh
+      - name: Walk through the app on an iPhone simulator
+        timeout-minutes: 22
+        run: bash scripts/tour-ios.sh ${{ matrix.device }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: EBOOK-iOS-tour
+          name: EBOOK-iOS-tour-${{ matrix.device }}
           path: release/ios-tour/
           if-no-files-found: warn
           retention-days: 14

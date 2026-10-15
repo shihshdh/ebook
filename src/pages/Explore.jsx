@@ -70,6 +70,10 @@ export default function Explore() {
   });
   const setKind = (k) => { setKindState(k); try { localStorage.setItem(KIND_KEY, k); } catch {} };
   const comic = kind === 'comic';
+  // 看过的那一半留着，切换只是显示 / 隐藏（hidden = display: none，不排版不绘制）：以前切一下就把另一半整个卸掉，
+  // 切回来从头挂载、排版，手机上每切一次卡 0.2 秒
+  const [seen, setSeen] = useState(() => ({ novel: !comic, comic }));
+  useEffect(() => { setSeen(s => (s[kind] ? s : { ...s, [kind]: true })); }, [kind]);
 
   // 每个世界的拼贴：该题材的精选（近年佳作）在前的 14 本
   const collage = useMemo(() => Object.fromEntries(WORLDS.map(w => {
@@ -114,14 +118,17 @@ export default function Explore() {
     </div>
   );
 
-  if (comic) return (
-    <div className="page explore explore-comic">
+  const comicPane = (seen.comic || comic) && (
+    <div className="page explore explore-comic" hidden={!comic}>
       <Suspense fallback={null}><ComicExplore active={active} onChange={pickWorld} tabs={kindTabs} /></Suspense>
     </div>
   );
+  if (!seen.novel && !(!comic)) return comicPane;
 
   return (
-    <div className="page explore">
+    <>
+    {comicPane}
+    <div className="page explore" hidden={comic}>
       <WorldSwitch worlds={WORLDS} active={active} total={lib.books.filter(isLightNovel).length} collage={collage} onSettle={onSettle} onChange={pickWorld} />
 
       <div className="filters">
@@ -154,5 +161,6 @@ export default function Explore() {
       {lib.status === 'error' && <p className="center-note">{lib.message}</p>}
       <MasonryWall books={books} flip={flip} onOpen={openBook} />
     </div>
+    </>
   );
 }

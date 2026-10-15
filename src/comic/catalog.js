@@ -13,6 +13,8 @@ import { FAMOUS, TOP_RATED } from './famous.js';
 import SEED from './famous-seed.js';
 import { localizeComics } from './translate.js';
 import { coversBlocked } from './library.js';
+import { calm } from '../lib/calm.js';
+import { mobileUI } from '../lib/native.js';
 import { normTitle } from '../lib/pool.js';
 
 // 世界 → 分类名里出现这些就算（繁简、日文、英文的写法都有）
@@ -31,7 +33,9 @@ function limiter(max) {
   const next = () => { while (running < max && queue.length) { const { job, resolve, reject } = queue.shift(); running++; job().then(resolve, reject).finally(() => { running--; next(); }); } };
   return (job) => new Promise((resolve, reject) => { queue.push({ job, resolve, reject }); next(); });
 }
-const slot = limiter(4);
+const pool4 = limiter(mobileUI ? 2 : 4);   // 手机上同时两个（沙箱和页面挤一个主线程，iOS 尤其）
+// 探索书单、分类：用户的手停下来再开工（lib/calm.js）
+const slot = (job) => pool4(() => calm().then(job));
 
 /** 各源的列表交错合并：第 1 个源的第 1 本、第 2 个源的第 1 本……同名（作者对得上或没写）的合成一条。
  *  封面取不到的源（包子漫画）排在后面一轮：书墙前几屏都是有封面的；它的书和前面同名的照样并进去（多一个可换的源） */
@@ -93,7 +97,7 @@ async function fromSource(source, key) {
 // 包子漫画排到后面：书全，但封面图床把我们整个拦了（Cloudflare 403），名作要是从它那儿找的，书墙、光盘上全是没图的书衣
 const PREFER = ['copy_manga', 'manhuaren', 'ManHuaGui', 'goda', 'mycomic', 'Komiic', 'baozi', 'ykmh', 'ccc', 'manga_dex'];
 const FAMOUS_KEY = 'comic:famous', DAY = 864e5, HIT_DAYS = 7, MISS_DAYS = 1, TRIES = 6, SEARCH_TIMEOUT = 12000, SIG_V = 2, SEED_DAYS = 120;
-const famousSlot = limiter(4);   // 和探索页、世界分类各排各的队：名作要先出来
+const famousSlot = limiter(mobileUI ? 2 : 4);   // 和探索页、世界分类各排各的队：名作要先出来
 // 同一个源同时最多搜两部、每次搜完歇 250 毫秒：几十部一起搜，拷贝漫画会限流（返回状态码 210），被拒的那几部就找不到了。
 // 先按源排队、轮到了再占全局名额（反过来的话，排队等拷贝漫画的占着全局名额，别的源也动不了）
 const perSource = new Map();
@@ -131,14 +135,14 @@ function findFamous(f, sources) {
     const names = namesOf(f);
     let failed = false;
     // 整个一次（开沙箱 + 搜）最多 25 秒：有的源沙箱一直起不来，没有这个兜底就永远卡在这一部上
-    const once = (source) => famousSlot(() => Promise.race([
+    const once = (source) => famousSlot(() => calm().then(() => Promise.race([
       withSource(source.id, async box => {
         if (!box.meta.search) return [];
         const options = box.meta.searchOptions.map(o => o.default);
         return (await box.call('search', [f.q || f.title, options, 1, null], { timeout: SEARCH_TIMEOUT })).comics;
       }),
       pause(SEARCH_TIMEOUT + 6000).then(() => { throw new Error('超时'); }),
-    ]));
+    ])));
     // 出错多半是限流：歇一下在原位再试一次（重新排队就排到几十部后面去了）
     // 排到了再看一眼：排队这会儿这个源已经连着出错了，就别再试（不然排在它后面的几十部一个个慢慢失败）
     const search = (source) => sourceSlot(source.id)(async () => {
@@ -267,16 +271,36 @@ export function useComicList(key) {
 }
 
 /** 世界的拼贴封面：后台把五个世界的书单都拉一遍（同时 4 个请求），拉到哪个显示哪个 */
+// 以前一打开漫画标签就给五个世界各自去所有源拉分类和书单（上百次沙箱调用、解析网页），只为了这块平时裁着的拼贴，
+// 打开标签那几秒明显掉帧。现在拼贴用这个世界的高分神作和名作（多半是随包附带的查找结果，不联网），
+// 进过的世界书单拉过了，名作不够 14 张时拿书单补
 export function useComicCollage(worlds, on) {
+  const [picks, setPicks] = useState({});
   const [, bump] = useState(0);
+  const epoch = useCoverEpoch();
   useEffect(() => {
     if (!on) return;
+    let live = true;
+    (async () => {
+      const sources = (await listComicSources()).filter(e => e.enabled);
+      const out = {};
+      for (const w of worlds) {
+        const front = frontList(w.id);
+        const hits = await Promise.all(front.map(f => findFamous(f, sources).catch(() => null)));
+        out[w.id] = front.map((f, i) => hits[i] && pickBook(f, hits[i])).filter(Boolean);
+      }
+      if (live) setPicks(out);
+    })().catch(() => {});
+    // 书单拉好了（用户进了某个世界）也刷新一下拼贴
     const fn = () => bump(n => n + 1);
-    const entries = worlds.map(w => load(w.id));
+    const entries = worlds.map(w => lists.get(w.id)).filter(Boolean);
     entries.forEach(e => e.subs.add(fn));
-    return () => entries.forEach(e => e.subs.delete(fn));
-  }, [on]);
-  return Object.fromEntries(worlds.map(w => [w.id, lists.get(w.id)?.books.slice(0, 14) || []]));
+    return () => { live = false; entries.forEach(e => e.subs.delete(fn)); };
+  }, [on, epoch]);
+  return Object.fromEntries(worlds.map(w => {
+    const seen = new Set(), all = [...(picks[w.id] || []), ...(lists.get(w.id)?.books || [])];
+    return [w.id, all.filter(b => !seen.has(b.id) && seen.add(b.id)).slice(0, 14)];
+  }));
 }
 
 /** 漫画源有开关变化（插件页）：书单作废，下次重拉 */
