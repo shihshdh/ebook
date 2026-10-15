@@ -134,7 +134,8 @@ public class EbookNative: CAPPlugin, CAPBridgedPlugin, UIDocumentPickerDelegate 
     public let identifier = "EbookNative"
     public let jsName = "EbookNative"
     public let pluginMethods: [CAPPluginMethod] = {
-        var methods = [
+        // 显式标类型：CAPPluginMethod 的构造器返回隐式解包可选值，不标会推断成 [CAPPluginMethod?]
+        var methods: [CAPPluginMethod] = [
             CAPPluginMethod(name: "ready", returnType: CAPPluginReturnPromise),
             CAPPluginMethod(name: "setBars", returnType: CAPPluginReturnPromise),
             CAPPluginMethod(name: "setImmersive", returnType: CAPPluginReturnPromise),
