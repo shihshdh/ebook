@@ -42,10 +42,46 @@ class EbookViewController: CAPBridgeViewController {
         webView.scrollView.keyboardDismissMode = .interactive
         #if DEBUG
         scheduleBridgeSelfTest()
+        startTour()
         #endif
     }
 
     #if DEBUG
+    // 界面巡检通道（scripts/ios-tour.mjs 用，正式包里没有）：带 -EBOOK_TOUR 启动时，每半秒看一眼 Documents/tour/，
+    // 有 cmd-<n>.js 就当 async 函数体在主页面里跑（可以 await），返回值或出错写到 res-<n>.json，然后等 cmd-<n+1>.js。
+    // 巡检脚本每一步跑完用 simctl 截整屏（带状态栏、灵动岛、Home 横条），步骤全在脚本里，改步骤不用重编原生
+    private var tourStep = 0
+    private var tourBusy = false
+    private func startTour() {
+        guard ProcessInfo.processInfo.arguments.contains("-EBOOK_TOUR"),
+              let docs = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let dir = docs.appendingPathComponent("tour")
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] timer in
+            guard let self = self, let webView = self.webView else { timer.invalidate(); return }
+            if self.tourBusy { return }
+            let step = self.tourStep
+            guard let body = try? String(contentsOf: dir.appendingPathComponent("cmd-\(step).js"), encoding: .utf8) else { return }
+            self.tourBusy = true
+            webView.callAsyncJavaScript(body, arguments: [:], in: nil, in: .page) { result in
+                var out: [String: Any] = ["step": step]
+                switch result {
+                case .success(let value):
+                    out["ok"] = true
+                    out["value"] = (value as? String) ?? ((value is NSNull) ? "" : String(describing: value))
+                case .failure(let error):
+                    out["ok"] = false
+                    out["error"] = String(describing: error)
+                }
+                if let data = try? JSONSerialization.data(withJSONObject: out) {
+                    try? data.write(to: dir.appendingPathComponent("res-\(step).json"), options: .atomic)
+                }
+                self.tourStep = step + 1
+                self.tourBusy = false
+            }
+        }
+    }
+
     // 调试版自检（scripts/smoke-ios.sh 用，正式包里没有）：带 -EBOOK_BRIDGE_SELFTEST 启动时，主页面、一个 sandbox iframe
     // （和漫画源的沙箱一样只给 allow-scripts）、一个普通 iframe，各自直接往 webkit.messageHandlers.bridge 发一次
     // EbookNative.bridgeProbe。原生侧记下真正被调到几次，连同各层看到的东西写到 Documents/bridge-selftest.json：

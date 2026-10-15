@@ -52,3 +52,27 @@ jobs:
             release/ios-processes.txt
             release/ios-bridge-selftest.json
           if-no-files-found: warn
+  # 界面巡检：和打包并行，在 SE / 16 Pro / 16 Pro Max 模拟器（外加深色模式）里把各屏走一遍截图
+  tour:
+    runs-on: macos-15
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Sync web assets into the iOS project
+        run: npm run ios:sync
+      - name: Walk through the app on iPhone simulators
+        timeout-minutes: 42
+        run: bash scripts/tour-ios.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: EBOOK-iOS-tour
+          path: release/ios-tour/
+          if-no-files-found: warn
+          retention-days: 14
