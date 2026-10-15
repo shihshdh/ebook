@@ -71,8 +71,14 @@ async function step(name, body, { settle = 1200, timeout } = {}) {
   return r;
 }
 
-// App 起来、首页渲染出来
-await run('boot', `return await until(() => document.querySelector('.route.is-active') && 'ready', 60000);`, 90000);
+// App 起来、首页渲染出来；起不来（闪退、通道没开）就别一屏屏干等了
+const boot = await run('boot', `return await until(() => document.querySelector('.route.is-active') && 'ready', 60000);`, 90000);
+if (!boot.ok) {
+  try { execFileSync('xcrun', ['simctl', 'io', device, 'screenshot', join(out, '00-boot-failed.png')], { stdio: 'ignore' }); } catch { /* 截不到就算了 */ }
+  writeFileSync(join(out, 'tour.json'), JSON.stringify([boot], null, 1));
+  console.log('App 没起来：' + boot.error);
+  process.exit(1);
+}
 
 if (appearance === 'dark') {
   await step('home', `location.hash = '#/'; await sleep(1500); scrollTo(0, 0); return 1;`);

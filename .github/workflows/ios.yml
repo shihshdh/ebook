@@ -51,6 +51,7 @@ jobs:
             release/ios-first-launch.png
             release/ios-processes.txt
             release/ios-bridge-selftest.json
+            release/ios-diag/
           if-no-files-found: warn
   # 界面巡检：和打包并行，在 SE / 16 Pro / 16 Pro Max 模拟器（外加深色模式）里把各屏走一遍截图
   tour:

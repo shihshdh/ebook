@@ -54,7 +54,13 @@ tour() {   # 名字 设备类型 外观
   timed 120 xcrun simctl install "$DEVICE" "$APP"
   timed 60 xcrun simctl launch "$DEVICE" app.librarium.reader -EBOOK_TOUR
   echo "== $name ($type, $appearance)"
-  timed 900 node scripts/ios-tour.mjs "$DEVICE" "$OUT/$name" "$appearance" || FAILED=1
+  if ! timed 900 node scripts/ios-tour.mjs "$DEVICE" "$OUT/$name" "$appearance"; then
+    FAILED=1
+    # App 起不来时留下崩溃报告和系统日志
+    mkdir -p "$OUT/$name"
+    cp ~/Library/Logs/DiagnosticReports/App*.ips "$OUT/$name/" 2>/dev/null || true
+    xcrun simctl spawn "$DEVICE" log show --last 5m --style compact --predicate 'process == "App"' > "$OUT/$name/app.log" 2>&1 || true
+  fi
   drop
 }
 tour se com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generation light

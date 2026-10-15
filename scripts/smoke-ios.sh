@@ -16,7 +16,20 @@ PY
 }
 SMOKE_DIR="$(mktemp -d "${TMPDIR:-/tmp}/ebook-ios-smoke.XXXXXX")"
 DEVICE=''
+# 失败时（App 闪退、自检没出结果）把模拟器的崩溃报告和 App 最后几分钟的系统日志收进 release/ios-diag/，跟产物一起上传
+diag() {
+  mkdir -p release/ios-diag
+  cp ~/Library/Logs/DiagnosticReports/App*.ips release/ios-diag/ 2>/dev/null || true
+  if [[ -n "$DEVICE" ]]; then
+    xcrun simctl spawn "$DEVICE" log show --last 5m --style compact       --predicate 'process == "App" OR (process == "runningboardd" AND eventMessage CONTAINS "librarium")' > release/ios-diag/app.log 2>&1 || true
+  fi
+  ls -la release/ios-diag
+  grep -m5 -E '"exception"|"termination"|"type"' release/ios-diag/*.ips 2>/dev/null || true
+  tail -40 release/ios-diag/app.log 2>/dev/null || true
+}
 cleanup() {
+  local status=$?
+  if [[ $status -ne 0 ]]; then diag; fi
   if [[ -n "$DEVICE" ]]; then
     timed 30 xcrun simctl shutdown "$DEVICE" || true
     timed 30 xcrun simctl delete "$DEVICE" || true
