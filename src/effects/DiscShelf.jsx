@@ -268,7 +268,9 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
       </button>,
     );
   }
-  const quote = (book.description || '').replace(/…$/, '').split(/[。！？]/)[0];
+  // 有推荐语（blurb，漫画页「高分神作」自己写的那句）就用它，没有才从简介里摘第一句
+  const quote = book.blurb || (book.description || '').replace(/…$/, '').split(/[。！？]/)[0];
+  const comic = book.source === 'comic';
 
   return (
     <section className="discshelf" aria-roledescription="轮播" aria-label="新书光盘架">
@@ -279,7 +281,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
           {/* 没有数据的行不显示，免得一排"—" */}
           {[
             ['作者', book.author],
-            ['文库', book.publisher],
+            ['文库', !comic && book.publisher],   // 漫画的 publisher 是源的名字，界面上不露源
             ['状态', [book.status, book.animated && '已动画化'].filter(Boolean).join(' · ')],
             ['字数', book.length],
             ['插图', book.illustrated && '有插图重制版'],
@@ -294,12 +296,12 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
         {discs}
       </div>
       <div className="disc-quotes" key={'q' + book.id}>
-        {quote && <blockquote>“{quote}。”<cite>— 简介</cite></blockquote>}
+        {quote && <blockquote>“{quote}。”<cite>— {book.blurb ? '推荐语' : '简介'}</cite></blockquote>}
         {book.tags.length > 0 && <blockquote>“{book.tags.slice(0, 4).join(' · ')}”<cite>— 标签</cite></blockquote>}
       </div>
       <div className="disc-footer">
         <button type="button" className="btn btn-gold" onClick={(e) => onOpen(book, e.currentTarget)} {...pressBook(book)}>
-          {book.illustrated ? '看看插图版' : '查看这本'} <Icon name="arrow" size={16} />
+          {book.illustrated ? '看看插图版' : comic ? '看看这部' : '查看这本'} <Icon name="arrow" size={16} />
         </button>
         <p className="disc-hint">滚动、拖动或用方向键翻阅</p>
         <p className="disc-counter num" aria-label={`第 ${at + 1} 本，共 ${n} 本`}><strong>{pad(at + 1)}</strong><span>/ {pad(n)}</span></p>

@@ -19,6 +19,11 @@ DEVICE=''
 # 失败时（App 闪退、自检没出结果）把模拟器的崩溃报告和 App 最后几分钟的系统日志收进 release/ios-diag/，跟产物一起上传
 diag() {
   mkdir -p release/ios-diag
+  # 卡在启动（simctl launch 不返回、主线程堵住）时：抓 App 进程的调用栈（模拟器里的 App 就是宿主机上的一个进程）
+  local pid
+  pid="$(pgrep -f '/App.app/App$' | head -1 || true)"
+  if [[ -n "$pid" ]]; then sample "$pid" 3 -file release/ios-diag/sample.txt > /dev/null 2>&1 || true; fi
+  ps -axo pid,stat,etime,%cpu,command | grep -E 'App.app/App|SpringBoard|launchd_sim' | grep -v grep > release/ios-diag/ps.txt || true
   cp ~/Library/Logs/DiagnosticReports/App*.ips release/ios-diag/ 2>/dev/null || true
   if [[ -n "$DEVICE" ]]; then
     xcrun simctl spawn "$DEVICE" log show --last 5m --style compact       --predicate 'process == "App" OR (process == "runningboardd" AND eventMessage CONTAINS "librarium")' > release/ios-diag/app.log 2>&1 || true
@@ -26,6 +31,10 @@ diag() {
   ls -la release/ios-diag
   grep -m5 -E '"exception"|"termination"|"type"' release/ios-diag/*.ips 2>/dev/null || true
   tail -40 release/ios-diag/app.log 2>/dev/null || true
+  cat release/ios-diag/ps.txt 2>/dev/null || true
+  tail -30 release/ios-diag/app-stdout.txt release/ios-diag/app-stderr.txt 2>/dev/null || true
+  # 主线程栈的前几十行就够看出堵在哪
+  grep -m1 -A60 'DispatchQueue_1' release/ios-diag/sample.txt 2>/dev/null | head -60 || true
 }
 cleanup() {
   local status=$?
@@ -53,7 +62,9 @@ xcodebuild -workspace ios/App/App.xcworkspace -scheme App -configuration Debug \
 timed 60 xcrun simctl boot "$DEVICE"
 timed 180 xcrun simctl bootstatus "$DEVICE" -b
 timed 120 xcrun simctl install "$DEVICE" "$SMOKE_DIR/DerivedData/Build/Products/Debug-iphonesimulator/App.app"
-timed 60 xcrun simctl launch "$DEVICE" app.librarium.reader
+mkdir -p release/ios-diag
+timed 60 xcrun simctl launch --stdout="$PWD/release/ios-diag/app-stdout.txt" --stderr="$PWD/release/ios-diag/app-stderr.txt" \
+  "$DEVICE" app.librarium.reader
 sleep 15
 mkdir -p release
 timed 60 xcrun simctl io "$DEVICE" screenshot release/ios-first-launch.png

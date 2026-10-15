@@ -1,6 +1,7 @@
 // 探索页「漫画」标签的书单。不分源：所有打开的漫画源混在一起，界面上不出现源的名字（详情里才看得到）。
 //
-//   名作：最前面先放大家都听过的那几十部（famous.js：东京喰种、咒术回战……），按书名到打开的源里搜，哪个源有用哪个
+//   名作：最前面先放高分神作（血之辙、再见绘梨……）和大家都听过的那几十部（东京喰种、咒术回战……），见 famous.js；
+//         按书名到打开的源里搜，哪个源有用哪个
 //   全部：名作，然后是各源探索页（推荐、热门、最新……）的第一页，各源轮流交错排（不让一个源刷屏），同名的合成一条（同搜索池）
 //   世界：这个世界的名作，然后奇幻 / 校园 / 科幻 / 恋爱 / 悬疑（和轻小说同一套 WORLDS）——在每个源的分类里找名字对得上的那个
 //         （奇幻 ← 奇幻、魔幻、玄幻、异世界……），各取第一页，同样交错合并
@@ -8,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { listComicSources, withSource } from './sources.js';
 import { comicBook } from './book.js';
-import { FAMOUS } from './famous.js';
+import { FAMOUS, TOP_RATED } from './famous.js';
 import { localizeComics } from './translate.js';
 import { normTitle } from '../lib/pool.js';
 
@@ -84,8 +85,14 @@ async function fromSource(source, key) {
 // 不认「海贼王同人」这种沾边的。搜到的在本机记 7 天，没搜到的记 1 天（打开的源变了就重搜），第二次打开直接出来
 const PREFER = ['copy_manga', 'baozi', 'goda', 'mycomic', 'ManHuaGui', 'manhuaren', 'ykmh', 'Komiic', 'ccc', 'manga_dex'];
 const FAMOUS_KEY = 'comic:famous', DAY = 864e5, HIT_DAYS = 7, MISS_DAYS = 1, TRIES = 4, SEARCH_TIMEOUT = 15000;
-const famousSlot = limiter(3);   // 和探索页、世界分类各排各的队：名作要先出来
-const shaky = new Set();         // 这次运行里搜出过错的源
+const famousSlot = limiter(4);   // 和探索页、世界分类各排各的队：名作要先出来
+// 同一个源同时最多搜两部、每次搜完歇 250 毫秒：几十部一起搜，拷贝漫画会限流（返回状态码 210），被拒的那几部就找不到了。
+// 先按源排队、轮到了再占全局名额（反过来的话，排队等拷贝漫画的占着全局名额，别的源也动不了）
+const perSource = new Map();
+const sourceSlot = (id) => { if (!perSource.has(id)) perSource.set(id, limiter(2)); return perSource.get(id); };
+const pause = (ms) => new Promise(r => setTimeout(r, ms));
+const errors = new Map();        // 源 → 这次运行里连着出错几次；连错两次才往后挪（偶尔一次限流不算）
+const shaky = { has: (id) => (errors.get(id) || 0) >= 2 };
 const namesOf = (f) => new Set([f.title, ...(f.alias || [])].map(normTitle).filter(Boolean));
 let famousCache;
 const cacheOf = () => {
@@ -93,37 +100,90 @@ const cacheOf = () => {
   return famousCache;
 };
 const remember = (title, value) => { cacheOf()[title] = value; try { localStorage.setItem(FAMOUS_KEY, JSON.stringify(famousCache)); } catch { /* 存不下就下次再搜 */ } };
-// PREFER 里写的是源的 key（id 是「venera:copy_manga」这样带仓库前缀的）
-const rank = (s) => (shaky.has(s.id) ? 100 : 0) + (PREFER.includes(s.key) ? PREFER.indexOf(s.key) : PREFER.length);
+// PREFER 里写的是源的 key（id 是「venera:copy_manga」这样带仓库前缀的）。
+// 要核作者的（byRe）先找搜索结果里带作者的源（拷贝漫画、Komiic、MangaDex），包子这些不写作者的找了也不收
+const WITH_AUTHOR = ['copy_manga', 'Komiic', 'manga_dex'];
+const rank = (s, f) => (shaky.has(s.id) ? 100 : 0) + (f?.byRe && !WITH_AUTHOR.includes(s.key) ? 50 : 0)
+  + (PREFER.includes(s.key) ? PREFER.indexOf(s.key) : PREFER.length);
 
 const finding = new Map();   // 书名 → Promise<{ sourceId, sourceName, comic } | null>
 function findFamous(f, sources) {
   if (finding.has(f.title)) return finding.get(f.title);
   const job = (async () => {
-    const ids = sources.map(s => s.id), was = cacheOf()[f.title], now = Date.now();
-    if (was?.sourceId && ids.includes(was.sourceId) && now - was.at < HIT_DAYS * DAY) return was;
-    if (was?.miss && was.sources === ids.join() && now - was.at < MISS_DAYS * DAY) return null;
+    // sig：名单里这一条的写法（搜的词、别名、作者核对）。改了名单，本机记着的旧结果就作废（不然认错的那本要用满 7 天）
+    const ids = sources.map(s => s.id), was = cacheOf()[f.title], now = Date.now(), sig = [f.q || '', ...(f.alias || []), String(f.byRe || '')].join('|');
+    const same = was?.sig === sig;
+    if (same && was.sourceId && ids.includes(was.sourceId) && now - was.at < HIT_DAYS * DAY) return was;
+    if (same && was.miss && was.sources === ids.join() && now - was.at < MISS_DAYS * DAY) return null;
     const names = namesOf(f);
-    for (const source of [...sources].sort((a, b) => rank(a) - rank(b)).slice(0, TRIES)) {
+    let failed = false;
+    // 整个一次（开沙箱 + 搜）最多 25 秒：有的源沙箱一直起不来，没有这个兜底就永远卡在这一部上
+    const once = (source) => famousSlot(() => Promise.race([
+      withSource(source.id, async box => {
+        if (!box.meta.search) return [];
+        const options = box.meta.searchOptions.map(o => o.default);
+        return (await box.call('search', [f.q || f.title, options, 1, null], { timeout: SEARCH_TIMEOUT })).comics;
+      }),
+      pause(SEARCH_TIMEOUT + 10000).then(() => { throw new Error('超时'); }),
+    ]));
+    // 出错多半是限流：歇一下在原位再试一次（重新排队就排到几十部后面去了）
+    const search = (source) => sourceSlot(source.id)(async () => {
+      try { return await once(source); }
+      catch { await pause(3000); return await once(source); }
+      finally { await pause(250); }
+    });
+    for (const source of [...sources].sort((a, b) => rank(a, f) - rank(b, f)).slice(0, TRIES)) {
       try {
-        const comics = await famousSlot(() => withSource(source.id, async box => {
-          if (!box.meta.search) return [];
-          const options = box.meta.searchOptions.map(o => o.default);
-          return (await box.call('search', [f.title, options, 1, null], { timeout: SEARCH_TIMEOUT })).comics;
-        }));
-        const comic = comics.find(c => names.has(normTitle(c.title)));
+        const comics = await search(source);
+        errors.set(source.id, 0);
+        // 名单写了 byRe 的（书名太常见）还要作者对得上，源里没写作者的也不收（包子漫画有同名的国漫「冥王」「乒乓」）
+        const comic = comics.find(c => names.has(normTitle(c.title)) && (!f.byRe || f.byRe.test(c.subtitle || '')));
         if (comic) {
-          const hit = { at: now, sourceId: source.id, sourceName: source.name, comic: { id: comic.id, title: comic.title, subtitle: comic.subtitle || '', cover: comic.cover || '', tags: (comic.tags || []).slice(0, 4), description: String(comic.description || '').slice(0, 300) } };
+          const hit = { at: now, sig, sourceId: source.id, sourceName: source.name, comic: { id: comic.id, title: comic.title, subtitle: comic.subtitle || '', cover: comic.cover || '', tags: (comic.tags || []).slice(0, 4), description: String(comic.description || '').slice(0, 300) } };
           remember(f.title, hit);
           return hit;
         }
-      } catch { shaky.add(source.id); }
+      } catch { failed = true; errors.set(source.id, (errors.get(source.id) || 0) + 1); }
     }
-    remember(f.title, { at: now, miss: true, sources: ids.join() });
+    // 中途有源出错（限流、超时）的不记「没找到」：下次打开再搜
+    if (!failed) remember(f.title, { at: now, sig, miss: true, sources: ids.join() });
     return null;
   })();
   finding.set(f.title, job);
   return job;
+}
+
+// 书名用名单里的简体写法（繁体源里是「東京喰種」「BLUE LOCK (藍色監獄)」），源里的原名留作别名；
+// 高分神作再带上中文作者名和推荐语（blurb，光盘架上那句）
+function pickBook(f, p) {
+  const b = comicBook({ sourceId: p.sourceId, sourceName: p.sourceName, comic: p.comic });
+  if (b.title !== f.title) { b.alt = b.title; b.title = f.title; }
+  if (f.by) b.author = f.by;
+  if (f.note) b.blurb = f.note;
+  return b;
+}
+
+/** 高分神作 + 名作，去掉重名的（「钢之炼金术师」这种两边都有的只留高分那条）。key：'all' 或世界 id */
+function frontList(key) {
+  const seen = new Set();
+  return [...TOP_RATED, ...FAMOUS].filter(f => (key === 'all' || f.world === key) && !seen.has(f.title) && seen.add(f.title));
+}
+
+/** 漫画页顶上的「高分神作」光盘架：按名单顺序，找到一部显示一部（和书单共用同一份查找，不会搜两遍） */
+export function useTopRated(on) {
+  const [books, setBooks] = useState([]);
+  useEffect(() => {
+    if (!on) return;
+    let live = true;
+    (async () => {
+      const sources = (await listComicSources()).filter(e => e.enabled);
+      const picks = TOP_RATED.map(() => null);
+      const show = () => { if (live) setBooks(TOP_RATED.map((f, i) => picks[i] && pickBook(f, picks[i])).filter(Boolean)); };
+      await Promise.all(TOP_RATED.map(async (f, i) => { picks[i] = await findFamous(f, sources).catch(() => null); if (picks[i]) show(); }));
+    })().catch(() => {});
+    return () => { live = false; };
+  }, [on]);
+  return books;
 }
 
 /** 名作在前（按 famous.js 的顺序），后面接探索页的；探索页里同名的并进名作那一条（多一个可换的源），不再单列 */
@@ -132,9 +192,7 @@ function compose(famous, picks, got) {
   famous.forEach((f, i) => {
     const p = picks[i];
     if (!p) return;
-    // 书名用名单里的简体写法（繁体源里是「東京喰種」「BLUE LOCK (藍色監獄)」），源里的原名留作别名
-    const b = comicBook({ sourceId: p.sourceId, sourceName: p.sourceName, comic: p.comic });
-    if (b.title !== f.title) { b.alt = b.title; b.title = f.title; }
+    const b = pickBook(f, p);
     front.push(b);
     for (const n of namesOf(f).add(normTitle(b.title))) byName.set(n, b);
   });
@@ -157,7 +215,7 @@ function load(key) {
   (async () => {
     const sources = (await listComicSources()).filter(e => e.enabled);
     const got = sources.map(source => ({ source, comics: [] }));
-    const famous = FAMOUS.filter(f => key === 'all' || f.world === key), picks = famous.map(() => null);
+    const famous = frontList(key), picks = famous.map(() => null);
     const show = () => { entry.books = compose(famous, picks, got); emit(); };
     // 谁先回来先显示：每找到一部名作、每回来一个源就重新排一遍
     await Promise.all([

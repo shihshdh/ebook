@@ -49,3 +49,33 @@ export const FAMOUS = [
   { title: '某科学的超电磁炮', alias: ['科學超電磁砲', '某科學的超電磁砲'], world: 'scifi' },
   { title: '好想告诉你', alias: ['好想告訴你', '只想告诉你'], world: 'campus' },
 ];
+
+// 高分神作：口碑最好的那一批，放在漫画页最显眼的地方（ComicExplore 顶上的光盘架），书墙最前面也先放它们。
+//   note  光盘下面那句推荐语（自己写的，不是源里的简介）
+//   by    作者（中文名，显示用）；byRe 核对作者用——书名太常见的（「怪物」「乒乓」「冥王」）不核作者会认错书
+//         （包子漫画里就有同名的国漫「冥王」「乒乓」「火鸟」）。写了 byRe 的，源里搜出来没写作者的也不收
+//   q     搜的词（书名里带标点、太短的另给一个）
+export const TOP_RATED = [
+  { title: '血之辙', alias: ['血之轍', '血の轍'], by: '押见修造', byRe: /押[见見]/, world: 'mystery', note: '一个过分爱儿子的母亲，押见修造的心理恐怖代表作' },
+  { title: '再见绘梨', alias: ['再見繪梨', 'さよなら絵梨', '再见了绘梨', '永别了绘梨', '告别绘梨'], by: '藤本树', world: 'campus', note: '用手机拍下的一部电影，分不清哪里是真、哪里是戏' },
+  { title: '蓦然回首', alias: ['驀然回首', 'LOOK BACK', 'ルックバック'], by: '藤本树', world: 'campus', note: '两个一起画漫画的女孩，写给所有创作的人' },
+  { title: '浪客行', alias: ['VAGABOND'], by: '井上雄彦', byRe: /井上/, world: 'fantasy', note: '井上雄彦画宫本武藏，水墨一样的画面' },
+  { title: '怪物', alias: ['MONSTER', '怪物MONSTER'], q: 'MONSTER', by: '浦泽直树', byRe: /浦[泽沢澤]/, world: 'mystery', note: '天才外科医生救活的少年，长大后成了怪物' },
+  { title: '冥王', alias: ['PLUTO', '冥王PLUTO', 'PLUTO冥王'], q: 'PLUTO', by: '浦泽直树', byRe: /浦[泽沢澤]|手[冢塚]/, world: 'scifi', note: '浦泽直树重写手冢治虫的《铁臂阿童木》' },
+  { title: '20世纪少年', alias: ['20世紀少年', '二十世纪少年'], by: '浦泽直树', world: 'mystery', note: '儿时写下的「预言书」，一件一件成了真' },
+  { title: '虫师', alias: ['蟲師', '虫師'], by: '漆原友纪', world: 'fantasy', note: '银古与「虫」，一个个安静的山野故事' },
+  { title: '3月的狮子', alias: ['3月的獅子', '三月的狮子', '三月的獅子'], by: '羽海野千花', world: 'campus', note: '孤独的少年棋士，和川本家三姐妹的温暖' },
+  { title: '少女终末旅行', alias: ['少女終末旅行'], by: 'つくみず', world: 'scifi', note: '文明熄灭之后，两个女孩在废墟里慢慢走' },
+  { title: '地。关于地球的运动', alias: ['地。～关于地球的运动～', '地。-关于地球的运动-', '地。關於地球的運動', '地。～關於地球的運動～', 'チ。地球の運動について'], q: '地球的运动', by: '鱼丰', world: 'scifi', note: '为了地动说，一代代人把性命交了出去' },
+  { title: '来自深渊', alias: ['來自深淵', 'メイドインアビス'], by: '土笔章人', world: 'fantasy', note: '可爱画风下，最残酷的一场深渊冒险' },
+  { title: '晚安布布', alias: ['晚安，布布', 'おやすみプンプン'], by: '浅野一二〇', world: 'campus', note: '画成一只小鸟的少年，平凡又沉重的一生' },
+  { title: '乒乓', alias: ['ピンポン', 'PING PONG', '乒乓pingpong', '乒乓PINGPONG'], by: '松本大洋', byRe: /松本/, world: 'campus', note: '松本大洋笔下的乒乓、天才和少年' },
+  { title: '宝石之国', alias: ['寶石之國'], by: '市川春子', world: 'fantasy', note: '宝石做成的人们，在月人的掠夺里找寻自己' },
+  { title: '剑风传奇', alias: ['劍風傳奇', '烙印战士', '烙印戰士', '烙印勇士', 'BERSERK'], q: '烙印战士', by: '三浦建太郎', byRe: /三浦/, world: 'fantasy', note: '黑暗奇幻的高峰，格斯与命运的抗争' },
+  { title: '火之鸟', alias: ['火之鳥', '火鸟', '火鳥'], by: '手冢治虫', byRe: /手[冢塚]/, world: 'scifi', note: '手冢治虫的毕生之作，跨越古今的生命史诗' },
+  { title: '恶之华', alias: ['惡之華', '恶之花'], by: '押见修造', byRe: /押[见見]/, world: 'campus', note: '偷走体操服的那一天起，青春滑向了深渊' },
+  { title: '炎拳', alias: ['FIRE PUNCH'], by: '藤本树', world: 'fantasy', note: '永不熄灭的火焰与复仇，藤本树的第一部长篇' },
+  { title: '海街diary', alias: ['海街日记', '海街日記', '海街DIARY'], by: '吉田秋生', world: 'romance', note: '镰仓老屋里，四姐妹的四季日常' },
+  { title: '棋魂', alias: ['棋靈王', 'ヒカルの碁'], by: '小畑健', world: 'campus', note: '千年棋魂附身的小学生，走上围棋之路' },
+  { title: '镖人', alias: ['鏢人'], by: '许先哲', world: 'fantasy', note: '大漠里的镖师，国漫武侠的高峰' },
+];

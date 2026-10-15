@@ -5,12 +5,13 @@ import { useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import WorldSwitch from '../effects/WorldSwitch.jsx';
 import MasonryWall from '../effects/MasonryWall.jsx';
+import DiscShelf from '../effects/DiscShelf.jsx';
 import Cover from './Cover.jsx';
 import { useUIActions } from '../lib/ui.jsx';
 import { WORLDS } from '../lib/library.js';
 import { comicSupported, comicUnsupportedWhy, useComicSources } from '../comic/sources.js';
 import { useComicProgress } from '../comic/library.js';
-import { useComicCollage, useComicList } from '../comic/catalog.js';
+import { useComicCollage, useComicList, useTopRated } from '../comic/catalog.js';
 import { comicBook } from '../comic/book.js';
 import '../styles/comic.css';
 
@@ -23,6 +24,7 @@ export default function ComicExplore({ active, onChange, tabs }) {
   const all = useComicList(on ? 'all' : null);
   const collage = useComicCollage(WORLDS, on);
   const recent = useComicProgress();
+  const top = useTopRated(on && !active);
   const world = WORLDS.find(w => w.id === active);
   const settle = useCallback(() => {}, []);
 
@@ -46,6 +48,13 @@ export default function ComicExplore({ active, onChange, tabs }) {
           <p className="muted">漫画源都关着。</p>
           <Link className="btn btn-ghost sm" to="/plugins#comicsources">去插件页打开</Link>
         </div>
+      )}
+
+      {/* 高分神作：漫画页最显眼的位置，和首页「细腻之选」同一种光盘架（名单见 comic/famous.js 的 TOP_RATED） */}
+      {on && !active && top.length > 0 && (
+        <section className="cx-top">
+          <DiscShelf books={top} eyebrow="高分神作 · MASTERPIECES" onOpen={(b, el) => openBook(b, el)} />
+        </section>
       )}
 
       {on && !active && recent?.length > 0 && (

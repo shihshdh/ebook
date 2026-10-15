@@ -129,3 +129,6 @@
 
 .ui-mobile .comic-reader2 .rd-menu-trigger { width: 44px; height: 44px; }
 .ui-mobile .comicsources :is(.cs-input, select) { min-height: 44px; font-size: 16px; }
+/* 漫画页顶上的「高分神作」光盘架（DiscShelf，同首页「细腻之选」） */
+.cx-top { margin: 4px 0 clamp(36px, 6vw, 72px); }
+.ui-mobile .cx-top { margin-bottom: 30px; }
