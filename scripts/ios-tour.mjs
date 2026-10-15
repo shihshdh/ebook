@@ -81,7 +81,10 @@ if (!boot.ok) {
 }
 
 if (appearance === 'dark') {
-  await step('home', `location.hash = '#/'; await sleep(1500); scrollTo(0, 0); return 1;`);
+  // 模拟器已经切到深色：外观选「跟随系统」，App 跟着变深色
+  await step('appearance-system', `location.hash = '#/plugins'; await until(() => $('.seg-wide .chip'));
+    byText('.seg-wide .chip', /跟随系统/)?.click(); await sleep(800); return document.documentElement.getAttribute('data-theme');`);
+  await step('home', `location.hash = '#/'; await sleep(1500); scrollTo(0, 0); return document.documentElement.getAttribute('data-theme');`);
   await step('explore-comic', `location.hash = '#/explore'; await until(() => $('.route.is-active .explore-kind')); byText('.route.is-active .explore-kind .chip', /^漫画$/)?.click();
     return await until(() => $$('.route.is-active .explore-comic .mw-tile').length > 4, 90000) && $$('.route.is-active .explore-comic .mw-tile').length;`, { settle: 3000 });
   await step('comic-sheet', `$('.route.is-active .explore-comic .mw-tile')?.click(); return await until(() => $$('.sheet .cx-chapter-list li').length, 60000);`, { settle: 2000 });

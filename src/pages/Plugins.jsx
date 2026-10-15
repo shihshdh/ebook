@@ -12,7 +12,7 @@ import { loadLibrary, useLibrary } from '../lib/library.js';
 import { useShelf } from '../lib/useShelf.js';
 import { platform, mobileOS, supportsPackageUpdate } from '../lib/native.js';
 import { useUIActions } from '../lib/ui.jsx';
-import { useTheme } from '../lib/theme.js';
+import { useThemePref } from '../lib/theme.js';
 
 /** 手动检查更新：有新版就在当前页弹出更新卡片 */
 function CheckUpdate() {
@@ -39,7 +39,7 @@ export default function Plugins() {
   const { toast } = useUIActions();
   const [on, setOn] = useState(() => new Set(enabledPlugins().map(p => p.id)));
   const [refreshing, setRefreshing] = useState(false);
-  const [theme, setTheme] = useTheme();
+  const [theme, setTheme] = useThemePref();
   const sources = useSources();
   // 顶栏头像菜单「管理账户」跳过来：滚到账户那一节
   const { hash } = useLocation();
@@ -106,9 +106,9 @@ export default function Plugins() {
         <h2 className="serif">账户</h2>
         <AccountPanel />
         <h2 className="serif">外观</h2>
-        <p className="muted">浅色是白天的象牙纸，深色是夜里的黑金。阅读器的纸张颜色在书里单独设置。</p>
+        <p className="muted">浅色是白天的象牙纸，深色是夜里的黑金；「跟随系统」随手机、电脑的深色模式自动切换。阅读器的纸张颜色在书里单独设置。</p>
         <div className="seg seg-wide" role="radiogroup" aria-label="外观">
-          {[['light', '浅色'], ['dark', '深色']].map(([id, label]) => (
+          {[['light', '浅色'], ['dark', '深色'], ['system', '跟随系统']].map(([id, label]) => (
             <button key={id} className="chip" role="radio" aria-checked={theme === id} aria-pressed={theme === id} onClick={() => setTheme(id)}>{label}</button>
           ))}
         </div>

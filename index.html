@@ -10,7 +10,7 @@
     <link rel="preconnect" href="https://lain.bgm.tv" />
     <link rel="preconnect" href="https://api.bgm.tv" />
     <!-- 首帧前定好明暗，避免先闪一下另一种底色 -->
-    <script>try{var a=(JSON.parse(localStorage.getItem('librarium.accounts')||'null')||{}).current,k='librarium.theme'+(a&&a!=='default'?'@'+a:'');document.documentElement.setAttribute('data-theme',localStorage.getItem(k)==='dark'?'dark':'light')}catch(e){document.documentElement.setAttribute('data-theme','light')}</script>
+    <script>try{var a=(JSON.parse(localStorage.getItem('librarium.accounts')||'null')||{}).current,k='librarium.theme'+(a&&a!=='default'?'@'+a:'');var v=localStorage.getItem(k);if(v==='system')v=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',v==='dark'?'dark':'light')}catch(e){document.documentElement.setAttribute('data-theme','light')}</script>
     <title>EBOOK</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   </head>
