@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { idbGet, idbSet } from '../lib/idb.js';
 import { listComicSources, withSource } from './sources.js';
 import { fetchImage } from './images.js';
+import { loadCover, saveCover } from './cover-cache.js';
 import { localizeComics, localizeDetails } from './translate.js';
 
 // ---------- 地址 ----------
@@ -82,6 +83,31 @@ export function pageURL(sourceId, url, { comicId, epId, signal, front } = {}) {
     .then(blob => URL.createObjectURL(blob));
 }
 
+// 封面好不好取，按源记：有的源图床把我们整个拦掉（包子漫画的 static-tw.baozimh.com 一律 Cloudflare 403，加什么请求头都没用）。
+// 一个源连着失败 3 张、一张没成过，就记成「封面取不到」，本机记 3 天（期间不再去取，省得占着排队名额）：
+// 同一部漫画有别的源时封面用别的源的（comicCover）、找名作时它排到后面、探索书墙里它的书往后放（comic/catalog.js）
+const COVER_BAD = 'comic:cover-bad', BAD_DAYS = 3;
+const coverStats = new Map();   // 源 → { ok, fail }
+let badCovers;
+const badMap = () => {
+  if (!badCovers) { try { badCovers = JSON.parse(localStorage.getItem(COVER_BAD)) || {}; } catch { badCovers = {}; } }
+  return badCovers;
+};
+const saveBad = () => { try { localStorage.setItem(COVER_BAD, JSON.stringify(badCovers)); } catch { /* 存不下就只管这次 */ } };
+/** 这个源的封面现在取不到（记着的 3 天内） */
+export function coversBlocked(sourceId) { const at = badMap()[sourceId]; return !!at && Date.now() - at < BAD_DAYS * 864e5; }
+function noteCover(sourceId, ok) {
+  const s = coverStats.get(sourceId) || { ok: 0, fail: 0 };
+  if (ok) s.ok++; else s.fail++;
+  coverStats.set(sourceId, s);
+  const m = badMap();
+  if (ok && m[sourceId]) { delete m[sourceId]; saveBad(); }
+  else if (!ok && !s.ok && s.fail >= 3 && !coversBlocked(sourceId)) {
+    m[sourceId] = Date.now(); saveBad();
+    window.dispatchEvent(new CustomEvent('librarium:comic-covers', { detail: sourceId }));   // 书单换掉这个源的名作（catalog.js）
+  }
+}
+
 const covers = new Map();   // key → Promise<blob 地址>，Map 的顺序就是最近用过的顺序
 const MAX_COVERS = 300;
 /** 封面（走源的 onThumbnailLoad），blob 地址缓存着，不要自己 revoke */
@@ -90,7 +116,14 @@ export function coverURL(sourceId, url) {
   const key = `${sourceId}|${url}`;
   let p = covers.get(key);
   if (p) { covers.delete(key); covers.set(key, p); return p; }
-  p = coverSlot(() => withSource(sourceId, box => fetchImage(box, url, { thumb: true }))).then(blob => URL.createObjectURL(blob));
+  // 先看本机存着没有（cover-cache.js），没有才排队经源下载；下好的存起来
+  p = loadCover(key).then(saved => {
+    if (saved) return saved;
+    if (coversBlocked(sourceId)) throw new Error('这个源的封面取不到');
+    const net = coverSlot(() => withSource(sourceId, box => fetchImage(box, url, { thumb: true })));
+    net.then(blob => { noteCover(sourceId, true); saveCover(key, blob); }, (err) => { if (!/取消|abort/i.test(err?.message || '')) noteCover(sourceId, false); });
+    return net;
+  }).then(blob => URL.createObjectURL(blob));
   p.catch(() => covers.delete(key));
   covers.set(key, p);
   while (covers.size > MAX_COVERS) {
@@ -99,6 +132,16 @@ export function coverURL(sourceId, url) {
     old.then(u => URL.revokeObjectURL(u), () => {});
   }
   return p;
+}
+
+/** 一部漫画的封面：几个源里都有时一个个试，封面取不到的源放最后（搜索池、名作并进来的源都在 book.comics 里） */
+export async function comicCover(book) {
+  const list = (book?.comics || []).filter(c => c.cover)
+    .map((c, i) => ({ c, i, bad: coversBlocked(c.sourceId) ? 1 : 0 })).sort((a, b) => a.bad - b.bad || a.i - b.i);
+  for (const { c } of list) {
+    try { return await coverURL(c.sourceId, c.cover); } catch { /* 换下一个源 */ }
+  }
+  throw new Error('没有取得到的封面');
 }
 
 // ---------- 进度 ----------

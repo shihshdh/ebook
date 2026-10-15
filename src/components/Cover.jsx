@@ -40,6 +40,8 @@ const Cover = memo(forwardRef(function Cover({ book, className = '', alt, eager 
     if (!sizeRO) watched.current.size(jacketScale(180));
     return () => { startIO.unobserve(el); nearIO.unobserve(el); sizeRO?.unobserve(el); watch.delete(el); };
   }, [eager]);
+  // eager 后来才变成 true（光盘翻到跟前）也要马上去取：useState(eager) 只认第一次，光盘上又常常等不到进视口的判定，盘就一直没图
+  useEffect(() => { if (eager) { setVisible(true); watched.current.near = true; } }, [eager]);
   const near = () => watched.current.near;
   const { url, real, onError } = useCover(book, visible, near, scale);
   const j = !real && book ? jacketPalette(book) : null;

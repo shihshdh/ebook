@@ -199,10 +199,10 @@ export function useCover(book, visible = true, near, scale = 0) {
     // 本地书没有可查的书名；公版古籍去 Bangumi 只会搜到同名动画/漫画的图，统一用生成的书衣
     if (!book || own || !visible || book.source === 'local' || book.source === 'public') return;
     let alive = true, retry = 0;
-    // 漫画：封面要带源给的防盗链请求头，只能经那个源的沙箱去取（comic/library.js，按需加载）；取不到就是生成的书衣
+    // 漫画：封面要带源给的防盗链请求头，只能经那个源的沙箱去取（comic/library.js，按需加载）。几个源里都有的一个个试
+    // （有的源图床整个被拦，比如包子漫画）；都取不到才是生成的书衣
     if (book.source === 'comic') {
-      const c = book.comics?.[0];
-      if (c && src) import('../comic/library.js').then(m => m.coverURL(c.sourceId, src)).then(u => { if (alive) setFound(u); }, () => {});
+      if (book.comics?.some(c => c.cover)) import('../comic/library.js').then(m => m.comicCover(book)).then(u => { if (alive) setFound(u); }, () => {});
       return () => { alive = false; };
     }
     const later = () => { if (attempt < 3) retry = setTimeout(() => { if (alive) setAttempt(a => a + 1); }, 6000); };

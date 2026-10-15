@@ -10,7 +10,9 @@ import { useEffect, useState } from 'react';
 import { listComicSources, withSource } from './sources.js';
 import { comicBook } from './book.js';
 import { FAMOUS, TOP_RATED } from './famous.js';
+import SEED from './famous-seed.js';
 import { localizeComics } from './translate.js';
+import { coversBlocked } from './library.js';
 import { normTitle } from '../lib/pool.js';
 
 // 世界 → 分类名里出现这些就算（繁简、日文、英文的写法都有）
@@ -31,22 +33,27 @@ function limiter(max) {
 }
 const slot = limiter(4);
 
-/** 各源的列表交错合并：第 1 个源的第 1 本、第 2 个源的第 1 本……同名（作者对得上或没写）的合成一条 */
+/** 各源的列表交错合并：第 1 个源的第 1 本、第 2 个源的第 1 本……同名（作者对得上或没写）的合成一条。
+ *  封面取不到的源（包子漫画）排在后面一轮：书墙前几屏都是有封面的；它的书和前面同名的照样并进去（多一个可换的源） */
 function blend(perSource) {
-  const out = [], byTitle = new Map(), max = Math.max(0, ...perSource.map(s => s.comics.length));
-  for (let i = 0; i < max; i++) {
-    for (const { source, comics } of perSource) {
-      const comic = comics[i];
-      if (!comic) continue;
-      const b = comicBook({ sourceId: source.id, sourceName: source.name, comic }), k = normTitle(b.title);
-      const same = k && byTitle.get(k);
-      if (same) {
-        if (!same.comics.some(c => c.sourceId === source.id)) { same.comics.push(b.comics[0]); same.poolSources.push(source.name); }
-        if (!same.description && b.description) same.description = b.description;
-        continue;
+  const out = [], byTitle = new Map();
+  const rounds = [perSource.filter(s => !coversBlocked(s.source.id)), perSource.filter(s => coversBlocked(s.source.id))];
+  for (const group of rounds) {
+    const max = Math.max(0, ...group.map(s => s.comics.length));
+    for (let i = 0; i < max; i++) {
+      for (const { source, comics } of group) {
+        const comic = comics[i];
+        if (!comic) continue;
+        const b = comicBook({ sourceId: source.id, sourceName: source.name, comic }), k = normTitle(b.title);
+        const same = k && byTitle.get(k);
+        if (same) {
+          if (!same.comics.some(c => c.sourceId === source.id)) { same.comics.push(b.comics[0]); same.poolSources.push(source.name); }
+          if (!same.description && b.description) same.description = b.description;
+          continue;
+        }
+        if (k) byTitle.set(k, b);
+        out.push(b);
       }
-      if (k) byTitle.set(k, b);
-      out.push(b);
     }
   }
   return out;
@@ -83,8 +90,9 @@ async function fromSource(source, key) {
 // ---------- 名作 ----------
 // 先搜简体中文的源，这次运行里出过错、超时的源往后挪；一部最多试 4 个源。书名要对得上（famous.js 里写了繁体和别名），
 // 不认「海贼王同人」这种沾边的。搜到的在本机记 7 天，没搜到的记 1 天（打开的源变了就重搜），第二次打开直接出来
-const PREFER = ['copy_manga', 'baozi', 'goda', 'mycomic', 'ManHuaGui', 'manhuaren', 'ykmh', 'Komiic', 'ccc', 'manga_dex'];
-const FAMOUS_KEY = 'comic:famous', DAY = 864e5, HIT_DAYS = 7, MISS_DAYS = 1, TRIES = 4, SEARCH_TIMEOUT = 15000;
+// 包子漫画排到后面：书全，但封面图床把我们整个拦了（Cloudflare 403），名作要是从它那儿找的，书墙、光盘上全是没图的书衣
+const PREFER = ['copy_manga', 'manhuaren', 'ManHuaGui', 'goda', 'mycomic', 'Komiic', 'baozi', 'ykmh', 'ccc', 'manga_dex'];
+const FAMOUS_KEY = 'comic:famous', DAY = 864e5, HIT_DAYS = 7, MISS_DAYS = 1, TRIES = 6, SEARCH_TIMEOUT = 12000, SIG_V = 2, SEED_DAYS = 120;
 const famousSlot = limiter(4);   // 和探索页、世界分类各排各的队：名作要先出来
 // 同一个源同时最多搜两部、每次搜完歇 250 毫秒：几十部一起搜，拷贝漫画会限流（返回状态码 210），被拒的那几部就找不到了。
 // 先按源排队、轮到了再占全局名额（反过来的话，排队等拷贝漫画的占着全局名额，别的源也动不了）
@@ -93,6 +101,7 @@ const sourceSlot = (id) => { if (!perSource.has(id)) perSource.set(id, limiter(2
 const pause = (ms) => new Promise(r => setTimeout(r, ms));
 const errors = new Map();        // 源 → 这次运行里连着出错几次；连错两次才往后挪（偶尔一次限流不算）
 const shaky = { has: (id) => (errors.get(id) || 0) >= 2 };
+let turn = 0;                    // 第几部：起点轮流换（见 findFamous）
 const namesOf = (f) => new Set([f.title, ...(f.alias || [])].map(normTitle).filter(Boolean));
 let famousCache;
 const cacheOf = () => {
@@ -103,7 +112,7 @@ const remember = (title, value) => { cacheOf()[title] = value; try { localStorag
 // PREFER 里写的是源的 key（id 是「venera:copy_manga」这样带仓库前缀的）。
 // 要核作者的（byRe）先找搜索结果里带作者的源（拷贝漫画、Komiic、MangaDex），包子这些不写作者的找了也不收
 const WITH_AUTHOR = ['copy_manga', 'Komiic', 'manga_dex'];
-const rank = (s, f) => (shaky.has(s.id) ? 100 : 0) + (f?.byRe && !WITH_AUTHOR.includes(s.key) ? 50 : 0)
+const rank = (s, f) => (shaky.has(s.id) ? 100 : 0) + (coversBlocked(s.id) ? 70 : 0) + (f?.byRe && !WITH_AUTHOR.includes(s.key) ? 50 : 0)
   + (PREFER.includes(s.key) ? PREFER.indexOf(s.key) : PREFER.length);
 
 const finding = new Map();   // 书名 → Promise<{ sourceId, sourceName, comic } | null>
@@ -111,9 +120,13 @@ function findFamous(f, sources) {
   if (finding.has(f.title)) return finding.get(f.title);
   const job = (async () => {
     // sig：名单里这一条的写法（搜的词、别名、作者核对）。改了名单，本机记着的旧结果就作废（不然认错的那本要用满 7 天）
-    const ids = sources.map(s => s.id), was = cacheOf()[f.title], now = Date.now(), sig = [f.q || '', ...(f.alias || []), String(f.byRe || '')].join('|');
+    const ids = sources.map(s => s.id), was = cacheOf()[f.title], now = Date.now(), sig = [SIG_V, f.q || '', ...(f.alias || []), String(f.byRe || '')].join('|');
     const same = was?.sig === sig;
-    if (same && was.sourceId && ids.includes(was.sourceId) && now - was.at < HIT_DAYS * DAY) return was;
+    // 记着的那个源封面取不到了：重新找一个（封面好的源排在前面）
+    if (same && was.sourceId && ids.includes(was.sourceId) && !coversBlocked(was.sourceId) && now - was.at < HIT_DAYS * DAY) return was;
+    // 随包附带的那份（scripts/comic-famous-seed.mjs 生成）：新装的人第一次打开不用等现找
+    const seeded = SEED.hits[f.title];
+    if (seeded && seeded.sig === sig && ids.includes(seeded.sourceId) && !coversBlocked(seeded.sourceId) && now - SEED.at < SEED_DAYS * DAY) return seeded;
     if (same && was.miss && was.sources === ids.join() && now - was.at < MISS_DAYS * DAY) return null;
     const names = namesOf(f);
     let failed = false;
@@ -124,15 +137,26 @@ function findFamous(f, sources) {
         const options = box.meta.searchOptions.map(o => o.default);
         return (await box.call('search', [f.q || f.title, options, 1, null], { timeout: SEARCH_TIMEOUT })).comics;
       }),
-      pause(SEARCH_TIMEOUT + 10000).then(() => { throw new Error('超时'); }),
+      pause(SEARCH_TIMEOUT + 6000).then(() => { throw new Error('超时'); }),
     ]));
     // 出错多半是限流：歇一下在原位再试一次（重新排队就排到几十部后面去了）
+    // 排到了再看一眼：排队这会儿这个源已经连着出错了，就别再试（不然排在它后面的几十部一个个慢慢失败）
     const search = (source) => sourceSlot(source.id)(async () => {
+      if (shaky.has(source.id)) throw new Error('这个源这次连着出错');
       try { return await once(source); }
-      catch { await pause(3000); return await once(source); }
+      catch (err) { if (shaky.has(source.id)) throw err; await pause(3000); return await once(source); }
       finally { await pause(250); }
     });
-    for (const source of [...sources].sort((a, b) => rank(a, f) - rank(b, f)).slice(0, TRIES)) {
+    const order = [...sources].sort((a, b) => rank(a, f) - rank(b, f));
+    // 起点轮流从前几个（封面好、没出错的）源里换：几十部一起找时别全挤在拷贝漫画上（它会限流）。要核作者的不轮，先找带作者的源
+    const healthy = order.filter(s => !shaky.has(s.id) && !coversBlocked(s.id)).length, k = Math.min(4, healthy);
+    if (!f.byRe && k > 1) order.unshift(...order.splice(turn++ % k, 1));
+    let tried = 0;
+    for (const source of order) {
+      if (tried >= TRIES) break;
+      // 这次运行里连着出错的源不再去找：坏掉的源一次要等十几秒才报错，排着队的几十部全被它拖住
+      if (shaky.has(source.id)) { failed = true; continue; }
+      tried++;
       try {
         const comics = await search(source);
         errors.set(source.id, 0);
@@ -172,6 +196,7 @@ function frontList(key) {
 /** 漫画页顶上的「高分神作」光盘架：按名单顺序，找到一部显示一部（和书单共用同一份查找，不会搜两遍） */
 export function useTopRated(on) {
   const [books, setBooks] = useState([]);
+  const epoch = useCoverEpoch();
   useEffect(() => {
     if (!on) return;
     let live = true;
@@ -182,7 +207,7 @@ export function useTopRated(on) {
       await Promise.all(TOP_RATED.map(async (f, i) => { picks[i] = await findFamous(f, sources).catch(() => null); if (picks[i]) show(); }));
     })().catch(() => {});
     return () => { live = false; };
-  }, [on]);
+  }, [on, epoch]);
   return books;
 }
 
@@ -256,3 +281,21 @@ export function useComicCollage(worlds, on) {
 
 /** 漫画源有开关变化（插件页）：书单作废，下次重拉 */
 export function forgetComicLists() { lists.clear(); categories.clear(); finding.clear(); }
+
+// 某个源的封面刚被认定取不到（comic/library.js 的 noteCover）：从它那儿找的名作重新找（缓存里那几条会被跳过），
+// 书单按「封面好的源在前」重排一次。一般在打开漫画页的头几秒（连着 3 张封面失败）发生，每个源每次运行最多一次
+let coverEpoch = 0;
+const epochSubs = new Set();
+function useCoverEpoch() {
+  const [, bump] = useState(0);
+  useEffect(() => { const fn = () => bump(n => n + 1); epochSubs.add(fn); return () => epochSubs.delete(fn); }, []);
+  return coverEpoch;
+}
+if (typeof window !== 'undefined') {
+  window.addEventListener('librarium:comic-covers', () => {
+    const subs = [...lists.values()].flatMap(e => [...e.subs]);
+    finding.clear(); lists.clear(); coverEpoch++;
+    subs.forEach(fn => fn());
+    epochSubs.forEach(fn => fn());
+  });
+}
