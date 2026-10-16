@@ -1,8 +1,12 @@
 {
-  "version": "0.3.18",
-  "notes": "安卓版本更新改为默认浏览器下载 APK，下载后手动安装。",
+  "version": "0.4.0",
+  "notes": "探索页新增「漫画」：高分神作和名作推荐，搜索时漫画和小说一起出来，加入书架、阅读体验和轻小说一样；外文漫画的书名、简介、章节名自动翻成中文",
+  "windows": {
+    "file": "EBOOK_0.4.0_x64-setup.exe",
+    "sha256": "56e85f53fa99f743027a8e06b231e9bc45fc09de05716baa1f2ef5565ec1aa40"
+  },
   "android": {
-    "file": "EBOOK_0.3.18.apk",
-    "sha256": "631a38bbb04fa1c549e3f9ff4015545272286044367afabc1764099fa0e75b67"
+    "file": "EBOOK_0.4.0.apk",
+    "sha256": "92423c1a17b7c61635dcca85b6566aac1134971bf65cedb4e397e3308466f45f"
   }
 }
