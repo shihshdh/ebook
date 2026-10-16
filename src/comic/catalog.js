@@ -34,8 +34,14 @@ function limiter(max) {
   return (job) => new Promise((resolve, reject) => { queue.push({ job, resolve, reject }); next(); });
 }
 const pool4 = limiter(mobileUI ? 2 : 4);   // 手机上同时两个（沙箱和页面挤一个主线程，iOS 尤其）
-// 探索书单、分类：用户的手停下来再开工（lib/calm.js）
-const slot = (job) => pool4(() => calm().then(job));
+// 漫画那半看不见（切到轻小说、探索页不在前台）时，书单和名作查找先停着，显示出来再接着（ComicExplore 报给这里）。
+// 不然切到轻小说滑书墙、去首页书架，漫画源还在后台拉书单、解析网页，挤的是同一个主线程
+let paneShown = false;
+const paneWaiters = [];
+export function setComicPaneShown(v) { paneShown = v; if (v) paneWaiters.splice(0).forEach(fn => fn()); }
+const whenShown = () => (paneShown ? Promise.resolve() : new Promise(r => paneWaiters.push(r)));
+// 探索书单、分类：漫画那半看得见、用户的手停下来再开工（lib/calm.js）
+const slot = (job) => pool4(() => whenShown().then(() => calm()).then(job));
 
 /** 各源的列表交错合并：第 1 个源的第 1 本、第 2 个源的第 1 本……同名（作者对得上或没写）的合成一条。
  *  封面取不到的源（包子漫画）排在后面一轮：书墙前几屏都是有封面的；它的书和前面同名的照样并进去（多一个可换的源） */
@@ -135,7 +141,7 @@ function findFamous(f, sources) {
     const names = namesOf(f);
     let failed = false;
     // 整个一次（开沙箱 + 搜）最多 25 秒：有的源沙箱一直起不来，没有这个兜底就永远卡在这一部上
-    const once = (source) => famousSlot(() => calm().then(() => Promise.race([
+    const once = (source) => famousSlot(() => whenShown().then(() => calm()).then(() => Promise.race([
       withSource(source.id, async box => {
         if (!box.meta.search) return [];
         const options = box.meta.searchOptions.map(o => o.default);

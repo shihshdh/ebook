@@ -1,25 +1,34 @@
 // 探索页的「漫画」标签：和轻小说同一套界面——题材世界（WorldSwitch）+ 瀑布流书墙（MasonryWall）。
 // 书单不分源，所有打开的漫画源混在一起（comic/catalog.js），界面上不写源的名字。
 // 点开和搜索结果一样进详情面板（BookSheet → ComicSheetBody）。探索页按需加载这一块，只看小说的人不背。
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import WorldSwitch from '../effects/WorldSwitch.jsx';
 import MasonryWall from '../effects/MasonryWall.jsx';
 import DiscShelf from '../effects/DiscShelf.jsx';
 import Cover from './Cover.jsx';
 import { useUIActions } from '../lib/ui.jsx';
+import { usePageActive } from '../lib/pageActive.js';
 import { WORLDS } from '../lib/library.js';
 import { comicSupported, comicUnsupportedWhy, useComicSources } from '../comic/sources.js';
 import { useComicProgress } from '../comic/library.js';
-import { useComicCollage, useComicList, useTopRated } from '../comic/catalog.js';
+import { setComicPaneShown, useComicCollage, useComicList, useTopRated } from '../comic/catalog.js';
 import { comicBook } from '../comic/book.js';
 import '../styles/comic.css';
 
-export default function ComicExplore({ active, onChange, tabs }) {
+export default function ComicExplore({ active, onChange, tabs, shown = true }) {
   const { openBook } = useUIActions();
   const sources = useComicSources();
+  // 真被看到过才开工：App 空闲时会预渲染后台页（探索页上次停在漫画就挂上这里），以前一挂上书单、名作、封面就全开工，
+  // 用户还在首页、书架，主线程却被漫画源的沙箱占着。看到过一次以后就一直开着（书单留着，切走再回来不重拉）
+  const pageActive = usePageActive();
+  const [seenOnce, setSeenOnce] = useState(pageActive);
+  useEffect(() => { if (pageActive) setSeenOnce(true); }, [pageActive]);
+  // 漫画那半看不见时，后台书单、名作查找先停着（comic/catalog.js）
+  useEffect(() => { setComicPaneShown(pageActive && shown); }, [pageActive, shown]);
+  useEffect(() => () => setComicPaneShown(false), []);
   const enabled = (sources || []).filter(e => e.enabled);
-  const on = comicSupported && enabled.length > 0;
+  const on = comicSupported && enabled.length > 0 && seenOnce;
   const list = useComicList(on ? active || 'all' : null);
   const all = useComicList(on ? 'all' : null);
   const collage = useComicCollage(WORLDS, on);

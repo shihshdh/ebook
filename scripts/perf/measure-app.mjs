@@ -19,6 +19,8 @@ try {
     await p.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
     await p.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   }
+  // KIND=novel / comic：探索页先停在哪一边（和没有漫画的老版本对比切页、探索滚动时用 novel，否则一进探索就是漫画页）
+  if (process.env.KIND) await p.eval(`localStorage.setItem('librarium.explore.kind', ${JSON.stringify(process.env.KIND)}), 1`);
   await p.eval(`location.hash = '#/'; location.reload(); 1`);
   for (let i = 0; i < 80; i++) { await sleep(500); if (await p.eval(`!!document.querySelector('.discshelf .disc') && !document.querySelector('.splash')`).catch(() => false)) break; }
   await sleep(1500);

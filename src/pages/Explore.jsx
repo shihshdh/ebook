@@ -120,7 +120,7 @@ export default function Explore() {
 
   const comicPane = (seen.comic || comic) && (
     <div className="page explore explore-comic" hidden={!comic}>
-      <Suspense fallback={null}><ComicExplore active={active} onChange={pickWorld} tabs={kindTabs} /></Suspense>
+      <Suspense fallback={null}><ComicExplore active={active} onChange={pickWorld} tabs={kindTabs} shown={comic} /></Suspense>
     </div>
   );
   if (!seen.novel && !(!comic)) return comicPane;
