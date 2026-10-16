@@ -94,7 +94,9 @@ export function prepareSearch(books) {
   if (typeof requestIdleCallback !== 'function') return () => {};
   let i = 0, id = 0;
   const work = (deadline) => {
-    while (i < books.length && deadline.timeRemaining() > 1) foldedOf(books[i++]);
+    // 一段最多 5ms：页面静止时一次空闲有 50ms，排满了手指落下要等它（见 lib/glyph-warm.js 的 idlePump）
+    const t0 = performance.now();
+    while (i < books.length && deadline.timeRemaining() > 1 && (i & 63 || performance.now() - t0 < 5)) foldedOf(books[i++]);
     id = i < books.length ? requestIdleCallback(work) : 0;
   };
   id = requestIdleCallback(work);

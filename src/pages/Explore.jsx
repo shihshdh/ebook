@@ -33,7 +33,9 @@ export function prepareWorlds(books, done) {
   let stopped = false, h = 0;
   const next = (deadline) => {
     if (stopped) return;
-    while (pages.length < WORLDS.length && (deadline.timeRemaining() > 4 || !pages.length)) {
+    // 一次空闲至少算一个世界，之后超过 5ms 就让出来（页面静止时一次空闲有 50ms，算满了手指落下要等它）
+    const t0 = performance.now();
+    while (pages.length < WORLDS.length && (!pages.length || (deadline.timeRemaining() > 4 && performance.now() - t0 < 5))) {
       const w = WORLDS[pages.length];
       const list = searchBooks(books, '', { tags: [w.tag] });
       list.sort((a, b) => worldScore(b, w.id) - worldScore(a, w.id));

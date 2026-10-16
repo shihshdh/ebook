@@ -3,6 +3,10 @@
 // 用法：WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS=--remote-debugging-port=9223 打开客户端（正式版：src-tauri/target/release/EBOOK.exe），
 //       node scripts/perf/measure-app.mjs <out.json> [mobile|desktop] [场景,场景] [端口 9223]
 // mobile：390×844、DPR 3、CPU 降速 4 倍、触屏（同 measure.mjs 的手机路径）
+// 启动参数还要带上 --disable-features=CalculateNativeWinOcclusion --disable-backgrounding-occluded-windows --disable-renderer-backgrounding：
+//   窗口被别的窗口挡住（从后台脚本启动、或者人正在用电脑）时 WebView2 会降帧甚至停帧，同一场景一轮 400 帧、一轮 4000 帧、一轮 0 帧。
+// 量「手机」时再加 --disable-renderer-accessibility：电脑上有程序用 UI 自动化读窗口时，WebView2 的无障碍树是开着的，
+//   每次提交多出一大截（4 倍降速下几十毫秒），手机上不开读屏就没有这份开销。开着的那组也要量，保证 Windows 不变差。
 import { connect, sleep } from './cdp.mjs';
 import { writeFileSync } from 'node:fs';
 

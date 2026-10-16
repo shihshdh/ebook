@@ -62,12 +62,15 @@ function build() {
 // 空闲预热：一批到处都会用到的字（比如搜索结果行的标签、出版社、状态）按指定样式先排一遍。
 // 和按下时的预热共用屏幕外那个盒子；只在 requestIdleCallback 里一小段一小段地排（这一段空闲用完就停、下次空闲接着排），
 // 不和滚动、动画、按下时的预热抢主线程。衬线字要先用 loadSerif 把分片下好再交给它：没下好的分片会被排字触发下载（见开头）
+// 每段最多排 BUDGET 毫秒：页面静止时浏览器一次给 50ms 空闲，以前排满才停，这期间手指落下（滑书墙、切轻小说 / 漫画）
+// 要等它排完才响应（4 倍降速下一段 35–55ms，切到漫画那一下书名全是新字，连着跑一秒多）
 const idleJobs = [];
 let idleScheduled = false;
 const whenIdle = (fn) => (window.requestIdleCallback ? requestIdleCallback(fn) : setTimeout(() => fn({ timeRemaining: () => 4 }), 200));
 function idlePump(deadline) {
   idleScheduled = false;
-  while (idleJobs.length && deadline.timeRemaining() > 2) {
+  const t0 = performance.now();
+  while (idleJobs.length && deadline.timeRemaining() > 2 && performance.now() - t0 < BUDGET) {
     const job = idleJobs[0];
     job.el.textContent = job.chars.splice(0, CHUNK).join('');
     void job.el.offsetWidth;   // 当场排掉：字形数据就是这时候算的
@@ -127,6 +130,7 @@ function prepare(deadline) {
     if (!faces.length) { faces = null; preparing = false; return; }   // 字体 CSS 还没到：下次按下再排上
     table = new Uint16Array(0x10000);
   }
+  const t0 = performance.now();
   while (filled < faces.length) {
     const k = filled + 1;
     for (const part of faces[filled].unicodeRange.split(',')) {
@@ -137,7 +141,7 @@ function prepare(deadline) {
       if (b >= 0x10000) wide.push([Math.max(a, 0x10000), b, k]);
     }
     filled++;
-    if (deadline.timeRemaining() < 1) break;
+    if (deadline.timeRemaining() < 1 || performance.now() - t0 > BUDGET) break;   // 同 idlePump：一段不超过 BUDGET
   }
   if (filled < faces.length) idle(prepare);
   else { preparing = false; if (!slots) build(); }   // 屏幕外的盒子也趁空闲建好，第一次按下不用现建
