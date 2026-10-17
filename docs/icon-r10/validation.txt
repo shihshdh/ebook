@@ -1,0 +1,70 @@
+src-tauri/icons/128x128.png | 128 × 128 | alpha min 255
+src-tauri/icons/128x128@2x.png | 256 × 256 | alpha min 255
+src-tauri/icons/32x32.png | 32 × 32 | alpha min 255
+src-tauri/icons/64x64.png | 64 × 64 | alpha min 255
+src-tauri/icons/android/mipmap-hdpi/ic_launcher.png | 72 × 72 | alpha min 255
+src-tauri/icons/android/mipmap-hdpi/ic_launcher_foreground.png | 162 × 162 | alpha min 0
+src-tauri/icons/android/mipmap-hdpi/ic_launcher_round.png | 72 × 72 | alpha min 0
+src-tauri/icons/android/mipmap-mdpi/ic_launcher.png | 48 × 48 | alpha min 255
+src-tauri/icons/android/mipmap-mdpi/ic_launcher_foreground.png | 108 × 108 | alpha min 0
+src-tauri/icons/android/mipmap-mdpi/ic_launcher_round.png | 48 × 48 | alpha min 0
+src-tauri/icons/android/mipmap-xhdpi/ic_launcher.png | 96 × 96 | alpha min 255
+src-tauri/icons/android/mipmap-xhdpi/ic_launcher_foreground.png | 216 × 216 | alpha min 0
+src-tauri/icons/android/mipmap-xhdpi/ic_launcher_round.png | 96 × 96 | alpha min 0
+src-tauri/icons/android/mipmap-xxhdpi/ic_launcher.png | 144 × 144 | alpha min 255
+src-tauri/icons/android/mipmap-xxhdpi/ic_launcher_foreground.png | 324 × 324 | alpha min 0
+src-tauri/icons/android/mipmap-xxhdpi/ic_launcher_round.png | 144 × 144 | alpha min 0
+src-tauri/icons/android/mipmap-xxxhdpi/ic_launcher.png | 192 × 192 | alpha min 255
+src-tauri/icons/android/mipmap-xxxhdpi/ic_launcher_foreground.png | 432 × 432 | alpha min 0
+src-tauri/icons/android/mipmap-xxxhdpi/ic_launcher_round.png | 192 × 192 | alpha min 0
+src-tauri/icons/icon.png | 512 × 512 | alpha min 255
+src-tauri/icons/ios/AppIcon-20x20@1x.png | 20 × 20 | alpha min 255
+src-tauri/icons/ios/AppIcon-20x20@2x-1.png | 40 × 40 | alpha min 255
+src-tauri/icons/ios/AppIcon-20x20@2x.png | 40 × 40 | alpha min 255
+src-tauri/icons/ios/AppIcon-20x20@3x.png | 60 × 60 | alpha min 255
+src-tauri/icons/ios/AppIcon-29x29@1x.png | 29 × 29 | alpha min 255
+src-tauri/icons/ios/AppIcon-29x29@2x-1.png | 58 × 58 | alpha min 255
+src-tauri/icons/ios/AppIcon-29x29@2x.png | 58 × 58 | alpha min 255
+src-tauri/icons/ios/AppIcon-29x29@3x.png | 87 × 87 | alpha min 255
+src-tauri/icons/ios/AppIcon-40x40@1x.png | 40 × 40 | alpha min 255
+src-tauri/icons/ios/AppIcon-40x40@2x-1.png | 80 × 80 | alpha min 255
+src-tauri/icons/ios/AppIcon-40x40@2x.png | 80 × 80 | alpha min 255
+src-tauri/icons/ios/AppIcon-40x40@3x.png | 120 × 120 | alpha min 255
+src-tauri/icons/ios/AppIcon-512@2x.png | 1024 × 1024 | alpha min 255
+src-tauri/icons/ios/AppIcon-60x60@2x.png | 120 × 120 | alpha min 255
+src-tauri/icons/ios/AppIcon-60x60@3x.png | 180 × 180 | alpha min 255
+src-tauri/icons/ios/AppIcon-76x76@1x.png | 76 × 76 | alpha min 255
+src-tauri/icons/ios/AppIcon-76x76@2x.png | 152 × 152 | alpha min 255
+src-tauri/icons/ios/AppIcon-83.5x83.5@2x.png | 167 × 167 | alpha min 255
+src-tauri/icons/Square107x107Logo.png | 107 × 107 | alpha min 255
+src-tauri/icons/Square142x142Logo.png | 142 × 142 | alpha min 255
+src-tauri/icons/Square150x150Logo.png | 150 × 150 | alpha min 255
+src-tauri/icons/Square284x284Logo.png | 284 × 284 | alpha min 255
+src-tauri/icons/Square30x30Logo.png | 30 × 30 | alpha min 255
+src-tauri/icons/Square310x310Logo.png | 310 × 310 | alpha min 255
+src-tauri/icons/Square44x44Logo.png | 44 × 44 | alpha min 255
+src-tauri/icons/Square71x71Logo.png | 71 × 71 | alpha min 255
+src-tauri/icons/Square89x89Logo.png | 89 × 89 | alpha min 255
+src-tauri/icons/StoreLogo.png | 50 × 50 | alpha min 255
+android/app/src/main/res/mipmap-hdpi/ic_launcher.png | 72 × 72 | alpha min 255
+android/app/src/main/res/mipmap-hdpi/ic_launcher_foreground.png | 162 × 162 | alpha min 0
+android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png | 72 × 72 | alpha min 0
+android/app/src/main/res/mipmap-mdpi/ic_launcher.png | 48 × 48 | alpha min 255
+android/app/src/main/res/mipmap-mdpi/ic_launcher_foreground.png | 108 × 108 | alpha min 0
+android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png | 48 × 48 | alpha min 0
+android/app/src/main/res/mipmap-xhdpi/ic_launcher.png | 96 × 96 | alpha min 255
+android/app/src/main/res/mipmap-xhdpi/ic_launcher_foreground.png | 216 × 216 | alpha min 0
+android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png | 96 × 96 | alpha min 0
+android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png | 144 × 144 | alpha min 255
+android/app/src/main/res/mipmap-xxhdpi/ic_launcher_foreground.png | 324 × 324 | alpha min 0
+android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png | 144 × 144 | alpha min 0
+android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png | 192 × 192 | alpha min 255
+android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png | 432 × 432 | alpha min 0
+android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png | 192 × 192 | alpha min 0
+ios/App/App/Assets.xcassets/AppIcon.appiconset/AppIcon-512@2x.png | 1024 × 1024 | alpha min 255
+src-tauri/app-icon.png | 1024 × 1024
+docs/icon-r10/a-1024.png | 1024 × 1024
+docs/icon-r10/b-1024.png | 1024 × 1024
+docs/icon-r10/c-1024.png | 1024 × 1024
+ICO sizes: 16, 24, 32, 48, 64, 256
+PASS: PNG dimensions, opaque backgrounds, adaptive 66dp safe circle, ICO 16/32, ICNS header.

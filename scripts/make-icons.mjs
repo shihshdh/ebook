@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const full = join(root, 'public/app-icon.svg');
 const fg = join(root, 'public/app-icon-fg.svg');
-const BG = '#0d0b09';   // 自适应图标的底色 = 图标暖黑底
+const BG = '#246B60';   // 自适应图标的底色 = 图标纯色松绿底
 const png = (svg, size) => sharp(svg, { density: 384 }).resize(size, size).png({ compressionLevel: 9 });
 
 // 桌面：1024 源图，交给 tauri icon 出 ico / 各尺寸 png
