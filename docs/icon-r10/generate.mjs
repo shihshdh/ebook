@@ -11,8 +11,9 @@ const concepts=[
 ];
 const svg=(c,foreground=false)=>`<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">${foreground?'':`<rect width="1024" height="1024" fill="${c.bg}"/>`}<g fill="${c.fg}"${foreground?' transform="translate(512 512) scale(.72) translate(-512 -512)"':''}>${c.shape}</g></svg>\n`;
 for(const c of concepts){await writeFile(new URL(`${c.id}.svg`,dir),svg(c));await sharp(Buffer.from(svg(c))).png().toFile(fileURLToPath(new URL(`${c.id}-1024.png`,dir)));}
-const c=concepts[0];await out('public/app-icon.svg',svg(c));await out('public/favicon.svg',svg(c));await out('public/app-icon-fg.svg',svg(c,true));
-for(const file of ['scripts/make-icons.mjs','scripts/ios-assets.mjs']){let s=await readFile(new URL(file,root),'utf8');s=s.replaceAll('#0d0b09',c.bg).replace('图标暖黑底','图标纯色松绿底');await out(file,s);}
+const c=concepts.find(x=>x.id==='b');   // 用户选了 B 书签（2026-10-17）
+await out('public/app-icon.svg',svg(c));await out('public/favicon.svg',svg(c));await out('public/app-icon-fg.svg',svg(c,true));
+for(const file of ['scripts/make-icons.mjs','scripts/ios-assets.mjs']){let s=await readFile(new URL(file,root),'utf8');s=s.replaceAll('#0d0b09',c.bg).replaceAll('#246B60',c.bg).replace('图标暖黑底','图标纯色底').replace('图标纯色松绿底','图标纯色底');await out(file,s);}
 // Real Android adaptive viewport: 108dp foreground cropped by a 72dp launcher mask.
 const adaptive=c=>`<svg xmlns="http://www.w3.org/2000/svg" viewBox="170.6667 170.6667 682.6666 682.6666" width="1024" height="1024"><rect x="170" y="170" width="684" height="684" fill="${c.bg}"/><g fill="${c.fg}" transform="translate(512 512) scale(.72) translate(-512 -512)">${c.shape}</g></svg>`;
 let body='<rect width="1600" height="1060" fill="#F3F1EB"/><text x="48" y="55" font-size="28" fill="#202622">EBOOK / ICON STUDY R10</text><g font-size="17" fill="#626760"><text x="310" y="101">1024 source</text><text x="589" y="101">iOS mask</text><text x="851" y="101">Android circle</text><text x="1111" y="101">Android rounded</text><text x="1390" y="101">Windows 32 / 16</text></g>';
