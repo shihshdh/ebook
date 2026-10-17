@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../components/Icon.jsx';
-import { haptic, onBackButton, mobileUI, setImmersive } from '../lib/native.js';
+import { haptic, onBackButton, mobileUI, isIOS, setImmersive } from '../lib/native.js';
 import { acctKey } from '../lib/accounts.js';
 import { useComicSources } from '../comic/sources.js';
 import { comicDetails, chaptersOf, chapterImages, pageURL, getProgress, saveProgress, readPath } from '../comic/library.js';
@@ -23,10 +23,39 @@ import { useReadingClock } from '../lib/readstats.js';
 import { listBookmarks, addBookmark, removeBookmark } from '../lib/shelf.js';
 
 const PREFS = acctKey('librarium.comic.reader');
-const KEEP = 20;     // 当前页前后各留这么多张
-const AHEAD = 4;     // 翻页：往后预取几张
+// WKWebView has a tighter image-memory budget. Keep a small explicit window:
+// Safari 15–17 lack content-visibility; do not rely on it to release images.
+const KEEP = isIOS ? 2 : mobileUI ? 4 : 12;
+const AHEAD = isIOS ? 1 : 3;
 const readPrefs = () => { try { return { mode: 'scroll', rtl: false, theme: 'night', spread: false, ...JSON.parse(localStorage.getItem(PREFS) || '{}') }; } catch { return { mode: 'scroll', rtl: false, theme: 'night', spread: false }; } };
 
+// Decode before committing an image, and keep its geometry after eviction.
+// WKWebView can reject decode() for an otherwise loaded image: load is the
+// fallback, never a retry loop. No createImageBitmap/canvas copy on iOS 15.
+async function preparedPage(url, signal, decode) {
+  const image = new Image();
+  image.decoding = 'async';
+  let abort;
+  try {
+    await new Promise((resolve, reject) => {
+      abort = () => { image.removeAttribute('src'); reject(new DOMException('已取消', 'AbortError')); };
+      image.onload = resolve;
+      image.onerror = () => reject(new Error('图片无法解码'));
+      signal.addEventListener('abort', abort, { once: true });
+      if (signal.aborted) return abort();
+      image.src = url;
+    });
+    if (decode && image.decode) {
+      if (isIOS) await image.decode().catch(() => {});
+      else await image.decode();
+    }
+    if (signal.aborted) throw new DOMException('已取消', 'AbortError');
+    return { url, width: image.naturalWidth, height: image.naturalHeight };
+  } finally {
+    signal.removeEventListener('abort', abort);
+    image.onload = image.onerror = null;
+  }
+}
 export default function ComicReader() {
   const { sourceId = '', comicId = '', index = '0' } = useParams();
   const { state } = useLocation();
@@ -112,6 +141,7 @@ export default function ComicReader() {
       if (!urls.length) throw new Error('这一话没有图片（可能只在官方平台上）');
       // 停在哪：明确要的（上一话翻回来是最后一张）> 进度里记的同一话 > 第一张
       const saved = await getProgress(sourceId, comicId);
+      if (!alive) return;
       // 导航带来的页码只在比记下的进度新时才算（刷新页面时 history 里还留着当初的 page: 0，不能盖掉后来看到的地方）
       const asked = state?.page != null && !(saved?.index === at && saved.at > (state.at || 0));
       const want = asked ? (state.page === -1 ? urls.length - 1 : state.page) : saved?.index === at ? saved.page : 0;
@@ -131,14 +161,29 @@ export default function ComicReader() {
   const epId = chapter?.id ?? null;
   const want = useCallback((i, front = false) => {
     if (!images || i < 0 || i >= images.length || loading.current.has(i)) return;
+    // The visible page gets the bridge/decoder first. Near-viewport observers
+    // must not race it with several speculative images on a cold chapter.
+    if (!front && (!pagesRef.current[curRef.current]?.url || Math.abs(i - curRef.current) > KEEP)) return;
     loading.current.add(i);
     const signal = ctl.current.signal;
-    pageURL(sourceId, images[i], { comicId, epId, signal, front }).then(
-      url => { if (signal.aborted) URL.revokeObjectURL(url); else setPages(p => ({ ...p, [i]: { url } })); },
+    pageURL(sourceId, images[i], { comicId, epId, signal, front }).then(async url => {
+      // Never hold the visible page behind speculative decoding. Commit it
+      // immediately with async decoding; only offscreen pages predecode.
+      try { return front ? { url } : await preparedPage(url, signal, prefs.mode === 'scroll'); }
+      catch (error) { URL.revokeObjectURL(url); throw error; }
+    }).then(
+      entry => {
+        if (signal.aborted || Math.abs(i - curRef.current) > KEEP) {
+          URL.revokeObjectURL(entry.url);
+          if (!signal.aborted) loading.current.delete(i);
+        }
+        else { if (entry.width) ratios.current[i] = entry.height / entry.width; setPages(p => ({ ...p, [i]: entry })); }
+      },
       err => { if (!signal.aborted) setPages(p => ({ ...p, [i]: { error: String(err?.message || '没取到').slice(0, 40) } })); });
-  }, [images, sourceId, comicId, epId]);
+  }, [images, sourceId, comicId, epId, prefs.mode]);
   const again = (i) => { loading.current.delete(i); setPages(p => { const n = { ...p }; delete n[i]; return n; }); want(i, true); };
 
+  const currentReady = !!pages[cur]?.url;
   // 当前页附近的先取；离得远的放掉
   useEffect(() => {
     if (!images) return;
@@ -152,7 +197,7 @@ export default function ComicReader() {
       }
       return changed ? n : p;
     });
-  }, [cur, images, want]);
+  }, [cur, images, want, currentReady]);
 
   // 进度
   useEffect(() => {
@@ -269,7 +314,7 @@ export default function ComicReader() {
 
   const page = (i) => {
     const p = pages[i];
-    if (p?.url) return <img src={p.url} alt={`第 ${i + 1} 张`} draggable="false" onLoad={(e) => { const im = e.currentTarget; if (im.naturalWidth) ratios.current[i] = im.naturalHeight / im.naturalWidth; }} />;
+    if (p?.url) return <img src={p.url} decoding="async" width={p.width} height={p.height} alt={`第 ${i + 1} 张`} draggable="false" onLoad={(e) => { const im = e.currentTarget; if (im.naturalWidth) ratios.current[i] = im.naturalHeight / im.naturalWidth; }} />;
     if (p?.error) return <button className="cr-ph is-error" onClick={(e) => { e.stopPropagation(); again(i); }}>第 {i + 1} 张没取到（{p.error}）· 点一下重试</button>;
     return <span className="cr-ph num">{i + 1}</span>;
   };
@@ -301,7 +346,7 @@ export default function ComicReader() {
         {images && scrollMode && (
           <>
             {images.map((_, i) => (
-              <div key={i} className={`cr-page ${pages[i]?.url ? 'is-loaded' : ratios.current[i] ? 'has-ratio' : ''}`} data-page={i} style={ratios.current[i] && !pages[i]?.url ? { aspectRatio: `1 / ${ratios.current[i]}` } : undefined}>{page(i)}</div>
+              <div key={i} className={`cr-page ${pages[i]?.url ? 'is-loaded' : ratios.current[i] ? 'has-ratio' : ''}`} data-page={i} style={ratios.current[i] ? { aspectRatio: `1 / ${ratios.current[i]}` } : undefined}>{page(i)}</div>
             ))}
             <div className="cr-end">
               <p>{chapter?.title} 完</p>

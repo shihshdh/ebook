@@ -1,0 +1,14 @@
+{
+  "src/pages/ComicReader.jsx": {
+    "baseline": "bfe20251785dcfa9b2aada59739fcccbaa7578427ab0cd933d730a5ddd0eb5bc",
+    "final": "5511dfbac94d806053102d65982fb5a9a5a7611a3635f35f2bebd00cff28efdd"
+  },
+  "src/comic/images.js": {
+    "baseline": "2e853cbe3b067a7d642a9fe53074ec04c9b79fe6a3fc804641a183794b9fb79b",
+    "final": "aaf7637cd5b5c04f7178470ee0ac9d554fe6d65e5977e10840116e9c5b3d8873"
+  },
+  "src/comic/library.js": {
+    "baseline": "2afefb2311da5b5b5119e19e1949f632bdcf0aebcc89e7b54c5832508f3b7423",
+    "final": "6013c59b4d1e41d3221af25515da66ce4fb8421c6c27a31b9222d0238cf71e65"
+  }
+}

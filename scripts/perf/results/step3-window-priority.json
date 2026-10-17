@@ -1,0 +1,682 @@
+{
+  "label": "step3-window-priority",
+  "at": "2026-10-17T03:11:19.779Z",
+  "input": {
+    "width": 2400,
+    "height": 3400,
+    "bytes": 960066,
+    "latency": 80,
+    "listLatency": 160,
+    "pages": 40,
+    "cpu": 4,
+    "viewport": "390x844@3"
+  },
+  "runs": [
+    {
+      "mode": "scroll",
+      "round": 1,
+      "first": 2028,
+      "next": 868,
+      "frames": 1006,
+      "p95": 50,
+      "p99": 100,
+      "max": 166.66600000000108,
+      "over33": 51,
+      "longMax": 152,
+      "longBlocking": 315,
+      "heapBefore": 26427412,
+      "heapAfter": 65231116,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 42015052,
+          "totalSize": 53530624,
+          "documents": 2,
+          "nodes": 595,
+          "jsEventListeners": 326,
+          "urls": 7
+        },
+        {
+          "page": 21,
+          "usedSize": 57345508,
+          "totalSize": 69492736,
+          "documents": 2,
+          "nodes": 598,
+          "jsEventListeners": 352,
+          "urls": 8
+        },
+        {
+          "page": 31,
+          "usedSize": 65218308,
+          "totalSize": 76189696,
+          "documents": 2,
+          "nodes": 586,
+          "jsEventListeners": 288,
+          "urls": 8
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          11010.047999999984
+        ],
+        [
+          "(program) :0",
+          5951.312999999995
+        ],
+        [
+          "O images-DI73S7pm.js:1",
+          790.4010000000002
+        ],
+        [
+          "atob :0",
+          641.8879999999996
+        ],
+        [
+          "(garbage collector) :0",
+          416.4559999999999
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          368.0569999999999
+        ],
+        [
+          "Blob :0",
+          272.79199999999986
+        ],
+        [
+          "requestAnimationFrame :0",
+          120.42699999999999
+        ],
+        [
+          "createObjectURL :0",
+          95.64099999999999
+        ],
+        [
+          "Yf index-Cs4obAJK.js:41",
+          79.362
+        ],
+        [
+          "transaction :0",
+          76.64
+        ],
+        [
+          "setAttribute :0",
+          67.491
+        ],
+        [
+          "removeEventListener :0",
+          61.891000000000005
+        ],
+        [
+          "e library-DFoslVd_.js:1",
+          61.309
+        ],
+        [
+          "Lt ComicReader-CT07eMsH.js:1",
+          54.741
+        ],
+        [
+          "j index-Cs4obAJK.js:39",
+          53.900999999999996
+        ]
+      ],
+      "requests": 39
+    },
+    {
+      "mode": "scroll",
+      "round": 2,
+      "first": 1786,
+      "next": 1637,
+      "frames": 1031,
+      "p95": 33.33300000000054,
+      "p99": 66.66700000000128,
+      "max": 183.33400000000256,
+      "over33": 32,
+      "longMax": 137,
+      "longBlocking": 211,
+      "heapBefore": 29035932,
+      "heapAfter": 67896412,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 43174500,
+          "totalSize": 52776960,
+          "documents": 3,
+          "nodes": 621,
+          "jsEventListeners": 347,
+          "urls": 6
+        },
+        {
+          "page": 21,
+          "usedSize": 56447884,
+          "totalSize": 66158592,
+          "documents": 3,
+          "nodes": 624,
+          "jsEventListeners": 375,
+          "urls": 8
+        },
+        {
+          "page": 31,
+          "usedSize": 67882340,
+          "totalSize": 78143488,
+          "documents": 3,
+          "nodes": 618,
+          "jsEventListeners": 359,
+          "urls": 8
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          11336.73399999999
+        ],
+        [
+          "(program) :0",
+          5159.419000000006
+        ],
+        [
+          "O images-DI73S7pm.js:1",
+          681.404
+        ],
+        [
+          "atob :0",
+          386.40100000000007
+        ],
+        [
+          "(garbage collector) :0",
+          308.55299999999994
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          246.49400000000006
+        ],
+        [
+          "Blob :0",
+          203.53799999999995
+        ],
+        [
+          "requestAnimationFrame :0",
+          124.04500000000002
+        ],
+        [
+          "createObjectURL :0",
+          104.709
+        ],
+        [
+          "(anonymous) ComicReader-CT07eMsH.js:1",
+          53.02
+        ],
+        [
+          "setTimeout :0",
+          52.645
+        ],
+        [
+          "transaction :0",
+          47.74999999999999
+        ],
+        [
+          "setAttribute :0",
+          47.586
+        ],
+        [
+          "put :0",
+          44.764
+        ],
+        [
+          "zg index-Cs4obAJK.js:41",
+          32.73
+        ],
+        [
+          "(anonymous) index-Cs4obAJK.js:38",
+          30.081
+        ]
+      ],
+      "requests": 39
+    },
+    {
+      "mode": "scroll",
+      "round": 3,
+      "first": 2116,
+      "next": 1414,
+      "frames": 1043,
+      "p95": 33.33300000000054,
+      "p99": 66.66699999999946,
+      "max": 100,
+      "over33": 32,
+      "longMax": 71,
+      "longBlocking": 44,
+      "heapBefore": 28961512,
+      "heapAfter": 70550440,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 40561368,
+          "totalSize": 50876416,
+          "documents": 3,
+          "nodes": 595,
+          "jsEventListeners": 312,
+          "urls": 8
+        },
+        {
+          "page": 21,
+          "usedSize": 52016940,
+          "totalSize": 62652416,
+          "documents": 3,
+          "nodes": 591,
+          "jsEventListeners": 284,
+          "urls": 8
+        },
+        {
+          "page": 31,
+          "usedSize": 70484328,
+          "totalSize": 81092608,
+          "documents": 3,
+          "nodes": 609,
+          "jsEventListeners": 380,
+          "urls": 7
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          11564.587999999987
+        ],
+        [
+          "(program) :0",
+          5223.520000000002
+        ],
+        [
+          "O images-DI73S7pm.js:1",
+          470.258
+        ],
+        [
+          "(garbage collector) :0",
+          312.712
+        ],
+        [
+          "atob :0",
+          305.058
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          260.22299999999996
+        ],
+        [
+          "Blob :0",
+          240.13999999999993
+        ],
+        [
+          "requestAnimationFrame :0",
+          165.43400000000005
+        ],
+        [
+          "createObjectURL :0",
+          158.524
+        ],
+        [
+          "transaction :0",
+          59.19099999999999
+        ],
+        [
+          "t index-Cs4obAJK.js:38",
+          52.202000000000005
+        ],
+        [
+          "setTimeout :0",
+          48.035
+        ],
+        [
+          "(anonymous) ComicReader-CT07eMsH.js:1",
+          47.017999999999994
+        ],
+        [
+          "(anonymous) :336",
+          42.552
+        ],
+        [
+          "e library-DFoslVd_.js:1",
+          39.032
+        ],
+        [
+          "(anonymous) index-Cs4obAJK.js:38",
+          35.37499999999999
+        ]
+      ],
+      "requests": 40
+    },
+    {
+      "mode": "page",
+      "round": 1,
+      "first": 2121,
+      "next": 1572,
+      "frames": 670,
+      "p95": 16.66700000000128,
+      "p99": 33.33399999999983,
+      "max": 33.33400000000074,
+      "over33": 0,
+      "longMax": 0,
+      "longBlocking": 0,
+      "heapBefore": 29292064,
+      "heapAfter": 66184220,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 40088772,
+          "totalSize": 50089984,
+          "documents": 3,
+          "nodes": 470,
+          "jsEventListeners": 261,
+          "urls": 8
+        },
+        {
+          "page": 21,
+          "usedSize": 54242548,
+          "totalSize": 64761856,
+          "documents": 3,
+          "nodes": 470,
+          "jsEventListeners": 260,
+          "urls": 8
+        },
+        {
+          "page": 31,
+          "usedSize": 66175524,
+          "totalSize": 76222464,
+          "documents": 3,
+          "nodes": 470,
+          "jsEventListeners": 261,
+          "urls": 8
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          7161.170999999998
+        ],
+        [
+          "(program) :0",
+          2197.641000000001
+        ],
+        [
+          "O images-DI73S7pm.js:1",
+          527.7760000000005
+        ],
+        [
+          "atob :0",
+          343.757
+        ],
+        [
+          "(garbage collector) :0",
+          302.00399999999996
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          262.91099999999994
+        ],
+        [
+          "Blob :0",
+          218.301
+        ],
+        [
+          "requestAnimationFrame :0",
+          186.85
+        ],
+        [
+          "createObjectURL :0",
+          86.997
+        ],
+        [
+          "zg index-Cs4obAJK.js:41",
+          36.348
+        ],
+        [
+          "(anonymous) :0",
+          35.275000000000006
+        ],
+        [
+          "Eg index-Cs4obAJK.js:41",
+          25.49
+        ],
+        [
+          "(anonymous) :336",
+          21.424
+        ],
+        [
+          "postMessage :0",
+          21.229
+        ],
+        [
+          "(anonymous) :366",
+          19.221
+        ],
+        [
+          "Lt ComicReader-CT07eMsH.js:1",
+          18.458
+        ]
+      ],
+      "requests": 37
+    },
+    {
+      "mode": "page",
+      "round": 2,
+      "first": 1748,
+      "next": 1349,
+      "frames": 662,
+      "p95": 33.33299999999963,
+      "p99": 50,
+      "max": 83.33399999999983,
+      "over33": 9,
+      "longMax": 74,
+      "longBlocking": 27,
+      "heapBefore": 57366444,
+      "heapAfter": 61464836,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 41714128,
+          "totalSize": 53006336,
+          "documents": 3,
+          "nodes": 471,
+          "jsEventListeners": 271,
+          "urls": 8
+        },
+        {
+          "page": 21,
+          "usedSize": 54655440,
+          "totalSize": 66334720,
+          "documents": 3,
+          "nodes": 471,
+          "jsEventListeners": 270,
+          "urls": 8
+        },
+        {
+          "page": 31,
+          "usedSize": 61437496,
+          "totalSize": 73818112,
+          "documents": 3,
+          "nodes": 468,
+          "jsEventListeners": 241,
+          "urls": 8
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          7068.8619999999955
+        ],
+        [
+          "(program) :0",
+          2388.5680000000016
+        ],
+        [
+          "O images-DI73S7pm.js:1",
+          511.41600000000005
+        ],
+        [
+          "atob :0",
+          330.3619999999999
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          318.3880000000001
+        ],
+        [
+          "(garbage collector) :0",
+          261.77599999999995
+        ],
+        [
+          "Blob :0",
+          230.667
+        ],
+        [
+          "requestAnimationFrame :0",
+          195.58299999999997
+        ],
+        [
+          "createObjectURL :0",
+          94.103
+        ],
+        [
+          "removeEventListener :0",
+          27.861
+        ],
+        [
+          "postMessage :0",
+          26.391000000000005
+        ],
+        [
+          "Um index-Cs4obAJK.js:18",
+          25.716
+        ],
+        [
+          "revokeObjectURL :0",
+          25.53
+        ],
+        [
+          "Lt ComicReader-CT07eMsH.js:1",
+          23.183
+        ],
+        [
+          "setAttribute :0",
+          22.538000000000004
+        ],
+        [
+          "(anonymous) :336",
+          21.840999999999998
+        ]
+      ],
+      "requests": 37
+    },
+    {
+      "mode": "page",
+      "round": 3,
+      "first": 1870,
+      "next": 1513,
+      "frames": 671,
+      "p95": 16.66700000000128,
+      "p99": 33.33400000000074,
+      "max": 66.66699999999946,
+      "over33": 2,
+      "longMax": 56,
+      "longBlocking": 6,
+      "heapBefore": 25196256,
+      "heapAfter": 70105008,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 35598976,
+          "totalSize": 45588480,
+          "documents": 3,
+          "nodes": 467,
+          "jsEventListeners": 236,
+          "urls": 7
+        },
+        {
+          "page": 21,
+          "usedSize": 50205300,
+          "totalSize": 59998208,
+          "documents": 3,
+          "nodes": 468,
+          "jsEventListeners": 241,
+          "urls": 8
+        },
+        {
+          "page": 31,
+          "usedSize": 70096300,
+          "totalSize": 79728640,
+          "documents": 3,
+          "nodes": 473,
+          "jsEventListeners": 291,
+          "urls": 8
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          7119.29300000001
+        ],
+        [
+          "(program) :0",
+          2491.820999999997
+        ],
+        [
+          "O images-DI73S7pm.js:1",
+          517.7089999999998
+        ],
+        [
+          "(garbage collector) :0",
+          295.87899999999996
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          256.602
+        ],
+        [
+          "atob :0",
+          229.64600000000004
+        ],
+        [
+          "Blob :0",
+          207.86799999999997
+        ],
+        [
+          "requestAnimationFrame :0",
+          169.14700000000002
+        ],
+        [
+          "createObjectURL :0",
+          77.88799999999998
+        ],
+        [
+          "Lt ComicReader-CT07eMsH.js:1",
+          60.398
+        ],
+        [
+          "zg index-Cs4obAJK.js:41",
+          52.13799999999999
+        ],
+        [
+          "revokeObjectURL :0",
+          31.216
+        ],
+        [
+          "(anonymous) :366",
+          26.623
+        ],
+        [
+          "(anonymous) :336",
+          26.468999999999998
+        ],
+        [
+          "setAttribute :0",
+          25.911
+        ],
+        [
+          "Nx index-Cs4obAJK.js:41",
+          24.805999999999997
+        ]
+      ],
+      "requests": 37
+    }
+  ]
+}
