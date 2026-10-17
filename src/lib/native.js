@@ -25,6 +25,16 @@ export const mobileUI = isIOS || mobileOS === 'android';
 const headersOf = (h) => Object.fromEntries(typeof h?.entries === 'function'
   ? [...h.entries()] : Object.entries(h || {}).map(([k, v]) => [k.toLowerCase(), String(v)]));
 
+// Android 原生桥（CapacitorHttp）把二进制当 base64 传回来。以前用 Uint8Array.from(atob(…), c => c.charCodeAt(0))：
+// 每个字节一次 JS 回调，外加一个同样大的临时数组——一张 300KB 的封面几十万次回调（Node 实测 17ms，换成下面 1.7ms，手机上再慢几倍）。
+// 漫画正文图 Codex 第十一轮在 comic/images.js 另走了分块的快路；这里管其余所有原生请求（漫画封面、书源、下载）
+function base64Bytes(data) {
+  const bin = atob(data.replace(/^data:[^,]*,/, '').replace(/\s/g, ''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
 /**
  * 书源需要保留错误页正文，且必须按原始字节而不是桥接默认 UTF-8 解码。
  * raw: true 时不解码，返回 { status, url, headers, bytes }（漫画源要图片字节和响应头）
@@ -55,7 +65,7 @@ export async function nativeRequest({ url, method = 'GET', headers = {}, body, c
           bridgedJson = JSON.stringify(data);
           bytes = new TextEncoder().encode(bridgedJson);
         }
-        else if (typeof data === 'string') bytes = Uint8Array.from(atob(data.replace(/^data:[^,]*,/, '').replace(/\s/g, '')), c => c.charCodeAt(0));
+        else if (typeof data === 'string') bytes = base64Bytes(data);
         else if (data instanceof ArrayBuffer) bytes = new Uint8Array(data);
         else if (ArrayBuffer.isView(data)) bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
         // Capacitor 遇到 application/json 会忽略 responseType 并解析 JSON。
@@ -147,7 +157,9 @@ export async function nativeGetBinary(url, onProgress, { signal, timeout = 20000
     const chunks = [];
     for (let offset = 0; offset < base64.length; offset += 32768) {
       const decoded = atob(base64.slice(offset, offset + 32768));
-      chunks.push(Uint8Array.from(decoded, c => c.charCodeAt(0)));
+      const part = new Uint8Array(decoded.length);
+      for (let i = 0; i < decoded.length; i++) part[i] = decoded.charCodeAt(i);
+      chunks.push(part);
     }
     blob = new Blob(chunks, { type });
   } else throw new Error('原生下载返回了无效的二进制内容');
