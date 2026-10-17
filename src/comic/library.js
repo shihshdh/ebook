@@ -74,7 +74,11 @@ const remember = (map, key, load) => {
 // 详情存在本机（cover-cache.js）：有的源取一次要 3–4 秒（拷贝漫画、漫画柜），点开一部看过 / 找过的漫画不该再干等。
 // 存的有章节就马上用；存了超过 6 小时的，同时在后台重取一份换上（新出的话下次打开就有）。没章节的不存（多半是被下架，下次再试）
 const DETAIL_FRESH = 6 * 3600e3, DETAIL_KEEP = 14 * 864e5;
-const fetchDetails = (sourceId, comicId) => withSource(sourceId, box => box.call('info', [comicId], { timeout: 30000 })).then(d => localizeDetails(d, sourceId));
+// 失败了隔 1.2 秒再试一次：源偶尔一下没响应、拷贝漫画限流（210），一次失败就去别的源找一圈要十几秒
+const fetchDetails = (sourceId, comicId) => {
+  const once = () => withSource(sourceId, box => box.call('info', [comicId], { timeout: 20000 }));
+  return once().catch(() => new Promise(r => setTimeout(r, 1200)).then(once)).then(d => localizeDetails(d, sourceId));
+};
 export const comicDetails = (sourceId, comicId) => remember(details, `${sourceId}|${comicId}`, async () => {
   const key = `${sourceId}|${comicId}`, saved = await loadDetails(key), now = Date.now();
   if (saved && now - saved.at < DETAIL_KEEP && chaptersOf(saved.v).length) {
