@@ -236,3 +236,10 @@ ASTRA 在 Codex 额度用完前完成了 R8-1、R8-2 的代码和 R8-3 ①②，
 ### 收尾检查
 - `npm run build` 通过；`node scripts/comic-test.mjs` 12/12；`node scripts/legado-test.mjs` 96/96；`node --test scripts/ios-comic-bridge-test.mjs` 4/4。
 - 未提交、未推送。
+
+## 第十三轮 · 2026-10-17 · R10 应用图标重新设计
+
+- 三个原创两色几何方案：松绿翻页、陶红书签、紫色漫画分格；选定松绿翻页，去除夜读、金色描边和字母。
+- 三套 1024 原图、iOS/Android 蒙版与 Windows 32/16px 对比见 [ICON_R10.md](ICON_R10.md)。
+- 正式 SVG、favicon、Android 五密度/自适应安全区、Tauri PNG/ICO/ICNS/Appx、iOS 图标均已生成，底色常量同步。
+- 69 项图标输出检查通过，npm run build 通过；仅在 librarium-icon 的 feat/new-icon 本地提交，不推送、不合并、不发版。
