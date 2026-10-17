@@ -1,0 +1,113 @@
+{
+  "results": [
+    {
+      "mode": "light",
+      "background": "rgb(182, 78, 56)",
+      "theme": "light",
+      "duration": "1.4s",
+      "stored": "1",
+      "replay": 0
+    },
+    {
+      "mode": "dark",
+      "background": "rgb(182, 78, 56)",
+      "theme": "dark",
+      "duration": "1.4s",
+      "stored": "1",
+      "replay": 0
+    },
+    {
+      "mode": "system",
+      "background": "rgb(182, 78, 56)",
+      "theme": "dark",
+      "duration": "1.4s",
+      "stored": "1",
+      "replay": 0
+    },
+    {
+      "mode": "reduced",
+      "background": "rgb(182, 78, 56)",
+      "theme": "dark",
+      "duration": "0.5s",
+      "stored": "1",
+      "replay": 0
+    },
+    {
+      "mode": "keyboard",
+      "background": "rgb(182, 78, 56)",
+      "theme": "dark",
+      "duration": "1.4s",
+      "stored": "1",
+      "replay": 0
+    },
+    {
+      "mode": "click",
+      "background": "rgb(182, 78, 56)",
+      "theme": "dark",
+      "duration": "1.4s",
+      "stored": "1",
+      "replay": 0
+    }
+  ],
+  "perf": [
+    {
+      "timing": {
+        "start": 824,
+        "end": 2691.100000000559
+      },
+      "frames": 8,
+      "maxMs": 1093.3,
+      "over33": 7,
+      "intervals": [
+        290,
+        76.59999999999991,
+        33.40000000000009,
+        46.59999999999991,
+        30,
+        270,
+        1093.3,
+        140
+      ]
+    },
+    {
+      "timing": {
+        "start": 634.8999999994412,
+        "end": 2417.5999999996275
+      },
+      "frames": 8,
+      "maxMs": 1059.9999999999998,
+      "over33": 6,
+      "intervals": [
+        246.60000000000002,
+        70,
+        23.399999999999977,
+        53.299999999999955,
+        30,
+        239.9000000000001,
+        1059.9999999999998,
+        133.4000000000001
+      ]
+    },
+    {
+      "timing": {
+        "start": 783,
+        "end": 2550.7999999998137
+      },
+      "frames": 10,
+      "maxMs": 830,
+      "over33": 8,
+      "intervals": [
+        236.70000000000005,
+        66.60000000000002,
+        26.699999999999932,
+        36.700000000000045,
+        20,
+        59.999999999999886,
+        830,
+        283.3000000000002,
+        110,
+        100
+      ]
+    }
+  ]
+}

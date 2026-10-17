@@ -11,6 +11,9 @@
     <link rel="preconnect" href="https://api.bgm.tv" />
     <!-- 首帧前定好明暗，避免先闪一下另一种底色 -->
     <script>try{var a=(JSON.parse(localStorage.getItem('librarium.accounts')||'null')||{}).current,k='librarium.theme'+(a&&a!=='default'?'@'+a:'');var v=localStorage.getItem(k);if(v==='system')v=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.setAttribute('data-theme',v==='dark'?'dark':'light')}catch(e){document.documentElement.setAttribute('data-theme','light')}</script>
+    <!-- Native / pre-React frame share an intentionally empty brand surface. -->
+    <script>try{if(!sessionStorage.getItem('librarium.splash')&&!location.hash.startsWith('#/read'))document.documentElement.setAttribute('data-splash-boot','')}catch(e){document.documentElement.setAttribute('data-splash-boot','')}</script>
+    <style>html[data-splash-boot]::before{content:"";position:fixed;inset:0;z-index:201;background:#B64E38}html[data-splash-boot]{background:#B64E38}html[data-splash-boot]:has(#root > *)::before{display:none}</style>
     <title>EBOOK</title>
     <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
   </head>
