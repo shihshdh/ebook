@@ -1,0 +1,682 @@
+{
+  "label": "baseline",
+  "at": "2026-10-17T03:02:49.378Z",
+  "input": {
+    "width": 2400,
+    "height": 3400,
+    "bytes": 960066,
+    "latency": 80,
+    "listLatency": 160,
+    "pages": 40,
+    "cpu": 4,
+    "viewport": "390x844@3"
+  },
+  "runs": [
+    {
+      "mode": "scroll",
+      "round": 1,
+      "first": 2832,
+      "next": 1384,
+      "frames": 949,
+      "p95": 50,
+      "p99": 350,
+      "max": 866.6670000000013,
+      "over33": 51,
+      "longMax": 815,
+      "longBlocking": 7462,
+      "heapBefore": 39396632,
+      "heapAfter": 61504988,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 35431728,
+          "totalSize": 47964160,
+          "documents": 2,
+          "nodes": 574,
+          "jsEventListeners": 285,
+          "urls": 15
+        },
+        {
+          "page": 21,
+          "usedSize": 53539444,
+          "totalSize": 66224128,
+          "documents": 4,
+          "nodes": 608,
+          "jsEventListeners": 307,
+          "urls": 24
+        },
+        {
+          "page": 31,
+          "usedSize": 61489980,
+          "totalSize": 74358784,
+          "documents": 2,
+          "nodes": 564,
+          "jsEventListeners": 301,
+          "urls": 24
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          12164.031000000014
+        ],
+        [
+          "(anonymous) index-DebORF4z.js:68",
+          6484.661000000004
+        ],
+        [
+          "(program) :0",
+          4438.127999999995
+        ],
+        [
+          "(garbage collector) :0",
+          1244.884000000002
+        ],
+        [
+          "atob :0",
+          537.7439999999999
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          262.68199999999996
+        ],
+        [
+          "requestAnimationFrame :0",
+          136.52300000000002
+        ],
+        [
+          "Blob :0",
+          134.89100000000002
+        ],
+        [
+          "createObjectURL :0",
+          125.777
+        ],
+        [
+          "t index-DebORF4z.js:38",
+          101.93600000000002
+        ],
+        [
+          "getAll :0",
+          66.60399999999998
+        ],
+        [
+          "$s ComicReader-NdfFLRZN.js:1",
+          55.467999999999996
+        ],
+        [
+          "RegExp: \\s :0",
+          54.95399999999999
+        ],
+        [
+          "transaction :0",
+          54.529999999999994
+        ],
+        [
+          "Rs index-DebORF4z.js:38",
+          53.653
+        ],
+        [
+          "B host-57DKWzgR.js:1",
+          51.902
+        ]
+      ],
+      "requests": 45
+    },
+    {
+      "mode": "scroll",
+      "round": 2,
+      "first": 1339,
+      "next": 1812,
+      "frames": 1013,
+      "p95": 33.33300000000054,
+      "p99": 100,
+      "max": 216.66600000000108,
+      "over33": 40,
+      "longMax": 169,
+      "longBlocking": 1485,
+      "heapBefore": 39778752,
+      "heapAfter": 61556532,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 53655444,
+          "totalSize": 64237568,
+          "documents": 3,
+          "nodes": 599,
+          "jsEventListeners": 280,
+          "urls": 15
+        },
+        {
+          "page": 21,
+          "usedSize": 48442436,
+          "totalSize": 60243968,
+          "documents": 3,
+          "nodes": 587,
+          "jsEventListeners": 293,
+          "urls": 25
+        },
+        {
+          "page": 31,
+          "usedSize": 61538984,
+          "totalSize": 73310208,
+          "documents": 3,
+          "nodes": 589,
+          "jsEventListeners": 298,
+          "urls": 24
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          14860.153999999962
+        ],
+        [
+          "(anonymous) index-DebORF4z.js:68",
+          2186.779000000001
+        ],
+        [
+          "(program) :0",
+          2098.9909999999995
+        ],
+        [
+          "(garbage collector) :0",
+          566.7520000000005
+        ],
+        [
+          "atob :0",
+          154.921
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          64.10900000000001
+        ],
+        [
+          "requestAnimationFrame :0",
+          52.94400000000001
+        ],
+        [
+          "Blob :0",
+          43.24000000000001
+        ],
+        [
+          "createObjectURL :0",
+          37.998999999999995
+        ],
+        [
+          "B host-57DKWzgR.js:1",
+          30.778
+        ],
+        [
+          "$s ComicReader-NdfFLRZN.js:1",
+          29.445
+        ],
+        [
+          "Hs index-DebORF4z.js:39",
+          23.603
+        ],
+        [
+          "Rs index-DebORF4z.js:38",
+          22.369
+        ],
+        [
+          "(anonymous) index-DebORF4z.js:38",
+          17.726
+        ],
+        [
+          "transaction :0",
+          16.994
+        ],
+        [
+          "RegExp: \\s :0",
+          15.457
+        ]
+      ],
+      "requests": 48
+    },
+    {
+      "mode": "scroll",
+      "round": 3,
+      "first": 1216,
+      "next": 1078,
+      "frames": 953,
+      "p95": 50,
+      "p99": 166.66600000000017,
+      "max": 350,
+      "over33": 49,
+      "longMax": 376,
+      "longBlocking": 2523,
+      "heapBefore": 37125072,
+      "heapAfter": 80057936,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 53764580,
+          "totalSize": 64237568,
+          "documents": 2,
+          "nodes": 576,
+          "jsEventListeners": 300,
+          "urls": 15
+        },
+        {
+          "page": 21,
+          "usedSize": 48533508,
+          "totalSize": 59981824,
+          "documents": 2,
+          "nodes": 566,
+          "jsEventListeners": 298,
+          "urls": 24
+        },
+        {
+          "page": 31,
+          "usedSize": 80043700,
+          "totalSize": 90370048,
+          "documents": 2,
+          "nodes": 569,
+          "jsEventListeners": 318,
+          "urls": 24
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          14854.246
+        ],
+        [
+          "(anonymous) index-DebORF4z.js:68",
+          2821.8090000000047
+        ],
+        [
+          "(program) :0",
+          1856.0369999999991
+        ],
+        [
+          "(garbage collector) :0",
+          698.4490000000006
+        ],
+        [
+          "atob :0",
+          157.75199999999992
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          107.69499999999998
+        ],
+        [
+          "createObjectURL :0",
+          101.66599999999998
+        ],
+        [
+          "Blob :0",
+          77.52199999999999
+        ],
+        [
+          "requestAnimationFrame :0",
+          47.769000000000005
+        ],
+        [
+          "(anonymous) :336",
+          32.274
+        ],
+        [
+          "RegExp: \\s :0",
+          27.331
+        ],
+        [
+          "B host-57DKWzgR.js:1",
+          26.281
+        ],
+        [
+          "e library-C7oZKGA5.js:1",
+          26.056
+        ],
+        [
+          "(anonymous) :366",
+          20.189999999999998
+        ],
+        [
+          "(anonymous) index-DebORF4z.js:38",
+          20.108
+        ],
+        [
+          "(anonymous) library-C7oZKGA5.js:1",
+          20.086
+        ]
+      ],
+      "requests": 45
+    },
+    {
+      "mode": "page",
+      "round": 1,
+      "first": 1316,
+      "next": 2113,
+      "frames": 396,
+      "p95": 150,
+      "p99": 266.6670000000013,
+      "max": 466.6720000000005,
+      "over33": 62,
+      "longMax": 495,
+      "longBlocking": 3645,
+      "heapBefore": 40168604,
+      "heapAfter": 92965524,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 48126120,
+          "totalSize": 57483264,
+          "documents": 3,
+          "nodes": 467,
+          "jsEventListeners": 237,
+          "urls": 15
+        },
+        {
+          "page": 21,
+          "usedSize": 48307760,
+          "totalSize": 60506112,
+          "documents": 3,
+          "nodes": 467,
+          "jsEventListeners": 231,
+          "urls": 25
+        },
+        {
+          "page": 31,
+          "usedSize": 92960116,
+          "totalSize": 104628224,
+          "documents": 3,
+          "nodes": 467,
+          "jsEventListeners": 235,
+          "urls": 25
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          7161.106000000009
+        ],
+        [
+          "(anonymous) index-DebORF4z.js:68",
+          3670.952999999994
+        ],
+        [
+          "(program) :0",
+          1379.2539999999985
+        ],
+        [
+          "(garbage collector) :0",
+          918.6460000000002
+        ],
+        [
+          "atob :0",
+          253.11400000000006
+        ],
+        [
+          "createObjectURL :0",
+          137.221
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          120.672
+        ],
+        [
+          "Blob :0",
+          87.403
+        ],
+        [
+          "requestAnimationFrame :0",
+          68.967
+        ],
+        [
+          "RegExp: \\s :0",
+          45.172999999999995
+        ],
+        [
+          "(anonymous) :366",
+          23.830999999999996
+        ],
+        [
+          "Eg index-DebORF4z.js:41",
+          22.18
+        ],
+        [
+          "B host-57DKWzgR.js:1",
+          21.633000000000003
+        ],
+        [
+          "removeEventListener :0",
+          21.135
+        ],
+        [
+          "r index-DebORF4z.js:26",
+          19.123
+        ],
+        [
+          "x1 index-DebORF4z.js:59",
+          15.917000000000002
+        ]
+      ],
+      "requests": 46
+    },
+    {
+      "mode": "page",
+      "round": 2,
+      "first": 1281,
+      "next": 1452,
+      "frames": 524,
+      "p95": 66.66599999999926,
+      "p99": 83.33400000000074,
+      "max": 100,
+      "over33": 40,
+      "longMax": 109,
+      "longBlocking": 1152,
+      "heapBefore": 38886600,
+      "heapAfter": 79460168,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 53497740,
+          "totalSize": 65548288,
+          "documents": 3,
+          "nodes": 467,
+          "jsEventListeners": 234,
+          "urls": 15
+        },
+        {
+          "page": 21,
+          "usedSize": 48125776,
+          "totalSize": 61030400,
+          "documents": 3,
+          "nodes": 467,
+          "jsEventListeners": 228,
+          "urls": 25
+        },
+        {
+          "page": 31,
+          "usedSize": 79453264,
+          "totalSize": 91418624,
+          "documents": 3,
+          "nodes": 467,
+          "jsEventListeners": 234,
+          "urls": 25
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          7720.923999999994
+        ],
+        [
+          "(anonymous) index-DebORF4z.js:68",
+          2017.5020000000009
+        ],
+        [
+          "(program) :0",
+          662.3660000000001
+        ],
+        [
+          "(garbage collector) :0",
+          400.7380000000001
+        ],
+        [
+          "atob :0",
+          133.305
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          80.386
+        ],
+        [
+          "Blob :0",
+          57.011
+        ],
+        [
+          "requestAnimationFrame :0",
+          33.327999999999996
+        ],
+        [
+          "RegExp: \\s :0",
+          23.834
+        ],
+        [
+          "createObjectURL :0",
+          20.218999999999998
+        ],
+        [
+          "B host-57DKWzgR.js:1",
+          17.560000000000002
+        ],
+        [
+          "postMessage :0",
+          14.069
+        ],
+        [
+          "(anonymous) :336",
+          10.741
+        ],
+        [
+          "(anonymous) :366",
+          7.4559999999999995
+        ],
+        [
+          "ic index-DebORF4z.js:39",
+          6.566999999999999
+        ],
+        [
+          "(anonymous) host-57DKWzgR.js:1",
+          6.54
+        ]
+      ],
+      "requests": 46
+    },
+    {
+      "mode": "page",
+      "round": 3,
+      "first": 1874,
+      "next": 1493,
+      "frames": 525,
+      "p95": 66.66600000000108,
+      "p99": 100,
+      "max": 100,
+      "over33": 38,
+      "longMax": 116,
+      "longBlocking": 1247,
+      "heapBefore": 40065284,
+      "heapAfter": 61149968,
+      "checkpoints": [
+        {
+          "page": 11,
+          "usedSize": 48537040,
+          "totalSize": 58884096,
+          "documents": 2,
+          "nodes": 462,
+          "jsEventListeners": 229,
+          "urls": 15
+        },
+        {
+          "page": 21,
+          "usedSize": 66593480,
+          "totalSize": 75993088,
+          "documents": 2,
+          "nodes": 462,
+          "jsEventListeners": 233,
+          "urls": 25
+        },
+        {
+          "page": 31,
+          "usedSize": 61139964,
+          "totalSize": 71737344,
+          "documents": 2,
+          "nodes": 462,
+          "jsEventListeners": 228,
+          "urls": 25
+        }
+      ],
+      "cpu": [
+        [
+          "(idle) :0",
+          7791.5029999999915
+        ],
+        [
+          "(anonymous) index-DebORF4z.js:68",
+          2056.433999999999
+        ],
+        [
+          "(program) :0",
+          644.4129999999997
+        ],
+        [
+          "(garbage collector) :0",
+          378.1469999999999
+        ],
+        [
+          "atob :0",
+          106.60400000000003
+        ],
+        [
+          "win.androidBridge.onmessage :930",
+          65.33900000000001
+        ],
+        [
+          "Blob :0",
+          55.165
+        ],
+        [
+          "createObjectURL :0",
+          37.254999999999995
+        ],
+        [
+          "requestAnimationFrame :0",
+          35.745000000000005
+        ],
+        [
+          "B host-57DKWzgR.js:1",
+          24.605
+        ],
+        [
+          "RegExp: \\s :0",
+          22.363
+        ],
+        [
+          "(anonymous) :366",
+          13.498000000000001
+        ],
+        [
+          "Eg index-DebORF4z.js:41",
+          10.606
+        ],
+        [
+          "Nx index-DebORF4z.js:41",
+          8.921000000000001
+        ],
+        [
+          "(anonymous) :336",
+          7.425
+        ],
+        [
+          "post host-57DKWzgR.js:1",
+          5.123
+        ]
+      ],
+      "requests": 46
+    }
+  ]
+}

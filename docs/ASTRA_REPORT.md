@@ -243,3 +243,87 @@ ASTRA 在 Codex 额度用完前完成了 R8-1、R8-2 的代码和 R8-3 ①②，
 - 三套 1024 原图、iOS/Android 蒙版与 Windows 32/16px 对比见 [ICON_R10.md](ICON_R10.md)。
 - 正式 SVG、favicon、Android 五密度/自适应安全区、Tauri PNG/ICO/ICNS/Appx、iOS 图标均已生成，底色常量同步。
 - 69 项图标输出检查通过，npm run build 通过；仅在 librarium-icon 的 feat/new-icon 本地提交，不推送、不合并、不发版。
+
+
+## 第十四轮 · 2026-10-17（漫画阅读器流畅度和出图速度）
+
+工作区仅 librarium-reader，分支 feat/comic-reader-perf；原版提交为 776eb27（R11 任务书提交，阅读器未改）。未启动桌面客户端，未推送、未合并、未发版。
+
+### 测法与可复现条件
+
+在 EBOOK_API34 / Android 14 的实际 debug APK / WebView Chrome 113 上，通过 adb 9333 CDP 驱动；390×844、DPR 3、触屏、CPU 降速 4 倍、SwiftShader。固定自托管测试源使用既有 Komga 私网许可，经过真实源沙箱、原生 HTTP、防盗链配置/正文取图路径。两话各 40 张固定 2400×3400 JPEG（960066 字节），图片服务每请求等待 80ms，章节列表等待 160ms，禁用 HTTP 缓存。源只写在模拟器测试数据里，不修改/安装生产源代码。
+
+每个版本 scroll / page 各跑三轮，所有数字逐项取中位数。条漫以真实触屏滑动加固定下一页边界定位，翻页以方向键连续过 30 张；这不是自由滚动的固定 12 秒场景，不能与任务书中旧桌面模拟数字直接相减。首图从进入第一话到 DOM img 有 naturalWidth，轮询 40ms；这是图片就绪代理指标，并非屏幕光学首绘。换话从下一话操作到新话图片就绪。rAF 记录帧间隔；>33.4ms 阈值沿用 measure-app.mjs；longtask 阻塞合计为 sum(max(duration−50,0))。每轮单独录 CPU 自身采样，记录 JS heap、DOM counters 和 URL 驻留数。性能运行时没有并发构建或跑其他测试。
+
+先量 baseline，再逐项改/测；首图波动较大，因此最后额外恢复原版跑 baseline-confirm，再恢复最终源码跑 final。两次原版结果都保留，不删除初始较好的首图数字。原版和最终源码 SHA-256 在 scripts/perf/results/source-hashes.json。纯全分辨率噪声图的最初试跑体积 4.3MB、严重放大桥接传输，已废弃；不混入以下比较。
+
+### 改前 / 改后（三轮中位数）
+
+| 版本 | 模式 | 首图 ms | 换话 ms | p95 ms | p99 ms | 最长帧 ms | >33.4ms 帧 | 最长长任务 ms | 阻塞合计 ms |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| baseline | scroll | 1339 | 1384 | 50 | 166.7 | 350 | 49 | 376 | 2523 |
+| baseline | page | 1316 | 1493 | 66.7 | 100 | 100 | 40 | 116 | 1247 |
+| baseline-confirm | scroll | 2599 | 2223 | 33.3 | 300 | 783.3 | 47 | 750 | 7785 |
+| baseline-confirm | page | 2423 | 3367 | 283.3 | 316.7 | 316.7 | 60 | 323 | 6945 |
+| final | scroll | 2013 | 1182 | 33.3 | 66.7 | 166.7 | 38 | 87 | 123 |
+| final | page | 1934 | 1542 | 16.7 | 33.3 | 66.7 | 6 | 58 | 11 |
+
+
+相对最初 baseline，最终版条漫 p95 50→33.3ms、p99 166.7→66.7ms、阻塞 2523→123ms；翻页 p95 66.7→16.7ms、p99 100→33.3ms、阻塞 1247→11ms。条漫仍有 >33.4ms 帧，不能据此宣称完全无掉帧。
+
+首图总时间不能报成稳定提升：最初 baseline 是 1339/1316ms，最终是 2013/1934ms，反而更慢；随后的原版复核是 2599/2423ms。最后相邻原版/最终版对照中，首图降至 2013/1934ms，换话 2223→1182ms、3367→1542ms，但源启动/调度存在明显轮间波动。能稳定定位到的收益是请求发出后的取图转换段（含固定网络等待）：
+
+| 复核版本 | 模式 | 请求发出→图片就绪 ms |
+|---|---|---:|
+| baseline-confirm | scroll | 1337 |
+| baseline-confirm | page | 1241 |
+| final | scroll | 345 |
+| final | page | 328 |
+
+
+### 每项修改的测量与撤回
+
+| 实验（均为两模式各三轮） | 调整与取舍 |
+|---|---|
+| step1-android-bytes | 安卓正文图片用预分配 Uint8Array + 有界循环替代每字节回调；预取转换分块让出主线程。翻页 p95 66.7→16.7ms、阻塞 1247→0ms，保留；条漫首图退化继续处理。 |
+| step2-decode | 屏外图先 load / decode，再提交宽高和占位，DOM img 使用 async decoding。条漫 p95 50→33.3ms；翻页额外 decode 等待使首图 1201→2308ms，此部分随后撤回。 |
+| step3-window-priority | 图片生命周期改成有界窗口，当前图先取、近页观察器不抢冷启动，远页迟到结果丢弃；翻页撤掉额外 decode 等待。第31张 URL 25→8；保留。 |
+| step4-visible-first | 当前图直接提交 async img，仅屏外图准备解码；避免可见图等屏外准备路径。条漫长任务阻塞 211→124ms，首图仍有波动。 |
+| step5-current-bytes | pageURL 的 front 传到正文转换层；当前图快速连续转换，预取继续让出主线程。该阶段换话中位数 scroll 1119ms、page 736ms；最后在原版/最终版对照中确认转换段收益。 |
+| step6-open-parallel（撤回） | 试过详情/进度并行读、书架写入不阻塞图片。首图无稳定收益（scroll 1742→2033ms），不保留；书架/进度原有先后关系恢复。 |
+
+
+完整逐项数字含 p95/p99/最长帧/长任务/内存，在 [summary.md](../scripts/perf/results/summary.md)；原始三轮、CPU 函数采样、每十页 DOM/heap 检查点分别在 scripts/perf/results/ 的同名 JSON。共九组有效版本数据、每组六轮，未将半途试跑计入。
+
+CPU 采样：最初原版逐字节转换回调自身耗时中位数 scroll 2822ms、page 2056ms（index-DebORF4z.js:68，对应 nativeRequest 的 Uint8Array.from(atob(...), callback)）；原版复核约 6740/6336ms。最终正文转换 helper 约 655/544ms。主要优化依据是每字节 JS 回调与临时对象造成的主线程/GC 开销；浏览器内部 (program) 仍占相当比例，不把它误归因于某个未采样到的 React 函数。
+
+### 内存与 iOS 单独处理
+
+| 版本 | 模式 | JS heap 前→后 MiB | 第 11 / 21 / 31 张 Blob URL 数 |
+|---|---|---|---|
+| baseline | scroll | 37.6→58.7 | 15 / 24 / 24 |
+| baseline | page | 38.2→75.8 | 15 / 25 / 25 |
+| baseline-confirm | scroll | 36→75.7 | 15 / 25 / 25 |
+| baseline-confirm | page | 37.1→75.6 | 15 / 25 / 25 |
+| final | scroll | 27.5→63.8 | 7 / 8 / 8 |
+| final | page | 28.4→63 | 8 / 8 / 8 |
+
+
+URL 驻留量明显下降，JS heap 仍受 GC 时机影响；JS heap 不等于图片解码内存或整个 WebView RSS，因此不声称这些数字证明 iOS 不会白屏。安卓 window 为当前页前后最多 4 张（顺读通常当前+前4+后3=8张），iOS 前后最多2张、向后预取1张；observer 同样受窗口约束，远页完成时再检查距离并 revoke，离章/退出时中止并释放。卸掉图片后保留已知宽高比占位。
+
+WKWebView 分支：不走新的 Android Capacitor base64 适配器，保留 sandbox.http；屏外图 decode() 拒绝时使用已 load 的图片，避免永久占位；当前图直接 async 上屏；取消检查使用基础 aborted 属性。没有依赖 content-visibility 来实现图片回收，支持目标包含 iOS 15；WebKit 是 [Safari 18 才新增 content-visibility](https://webkit.org/blog/15865/webkit-features-in-safari-18-0/)。没有引入额外 bitmap/canvas 大图副本；本轮仍显示原始分辨率图片，未新增下一话图片预取。
+
+iOS 验证范围仅为单元测试的 iOS 传输分支，以及安卓 WebView 中 iPhone UA + 人为 decode 拒绝的策略分支回归（能出图、连续翻页后最多5个驻留 URL）。本机未运行真正的 WKWebView / iOS 真机，真实内存压力、WebKit 解码和白屏恢复仍待 iOS 真机验证；安卓数字不能当 iOS 性能结论。
+
+### 回归、范围与复跑
+
+- npm run build：通过；npm run android:build：最终 debug APK 构建通过。
+- node scripts/comic-test.mjs：13/13 通过。
+- node scripts/perf/reader-image-test.mjs android / ios：通过。覆盖原始字节、front、源解密回调、Referer、压缩头、状态/非图片、私网策略和取消。
+- node scripts/perf/reader-regression.mjs：17项通过。漫画/小说实际触屏翻页、两套五类面板、漫画书签、React 委托 wheel/touchstart/touchmove 为 passive、退出前漫画 URL 全部释放，以及 iOS 模拟分支。小说夹具走真实 TXT→EPUB 引擎；未改共享 chrome.jsx。
+- 产品文件仅 src/pages/ComicReader.jsx、src/comic/images.js、src/comic/library.js。library.js 只在 pageURL 内传递 front 一个参数，其他缓存、源和翻译逻辑未动，便于与 Claude 的其他 library.js 修改合并。其余为 scripts/perf 测量/回归和本报告、PROGRESS。
+- 回归工具初版的 CDP 文档注入/会话触屏设置和夹具转义问题已修正后重跑；最终通过记录是 scripts/perf/results/regression.json，没有把脚本错误计成产品通过。
+- 复跑：设置 JAVA_HOME 和 ANDROID_HOME，启动 EBOOK_API34，npm run android:build，然后 node scripts/perf/comic-reader-android.mjs <label> 3；对照工具 node scripts/perf/recheck-reader.mjs 776eb27 会备份/恢复当前三个源码文件、分别构建原版/当前版，仅用于干净且已保存的 reader 工作区。
+- 测完已移除 9333/9461 转发、adb emu kill 关闭模拟器、gradlew.bat --stop 停止1个 daemon；未打开桌面客户端。仅本地提交 feat/comic-reader-perf，不推送、不合并、不发版。
+
+完成

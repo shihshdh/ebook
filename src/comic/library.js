@@ -106,7 +106,7 @@ export const chaptersOf = (d) => (d.single ? [{ id: null, title: '全一卷', gr
 // ---------- 图 ----------
 /** 取一张正文图：返回 blob 地址，用完调用方自己 URL.revokeObjectURL */
 export function pageURL(sourceId, url, { comicId, epId, signal, front } = {}) {
-  return pageSlot(() => withSource(sourceId, box => fetchImage(box, url, { comicId, epId, signal })), { signal, front })
+  return pageSlot(() => withSource(sourceId, box => fetchImage(box, url, { comicId, epId, signal, front })), { signal, front })
     .then(blob => URL.createObjectURL(blob));
 }
 
