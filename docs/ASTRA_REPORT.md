@@ -243,3 +243,11 @@ ASTRA 在 Codex 额度用完前完成了 R8-1、R8-2 的代码和 R8-3 ①②，
 - 三套 1024 原图、iOS/Android 蒙版与 Windows 32/16px 对比见 [ICON_R10.md](ICON_R10.md)。
 - 正式 SVG、favicon、Android 五密度/自适应安全区、Tauri PNG/ICO/ICNS/Appx、iOS 图标均已生成，底色常量同步。
 - 69 项图标输出检查通过，npm run build 通过；仅在 librarium-icon 的 feat/new-icon 本地提交，不推送、不合并、不发版。
+
+## 第十五轮 · 2026-10-17 · R12 陶红书签开屏
+
+- 两个方向：书签轻提 / 书页展开，正式选择轻提；均为 1400ms，降低动态为 500ms，可点按/任意键跳过，会话只播一次。逐帧和切换方法见 [SPLASH_R12.md](SPLASH_R12.md)。
+- Android / iOS / 网页首帧统一 #B64E38 纯色交接，网页书签淡入，移除旧夜读视觉和 worker，不再等待字体。原生仅静态检查。
+- 浏览器 5190、390×844 验证浅/深/跟随系统、跳过及会话行为通过；npm run build 通过。
+- 4× CPU 整页 rAF 检查未通过 33ms 门槛（最大 830–1093ms，DOM 清理 1.77–1.87s）；CSS 视觉时间线 1.4s，合成帧/真机仍待验。不越界修改首页加载。
+- 仅 feat/new-splash 本地提交；不推送、不合并、不发版，未开桌面客户端。
