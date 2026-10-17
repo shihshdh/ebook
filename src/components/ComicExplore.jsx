@@ -11,10 +11,13 @@ import { useUIActions } from '../lib/ui.jsx';
 import { usePageActive } from '../lib/pageActive.js';
 import { WORLDS } from '../lib/library.js';
 import { comicSupported, comicUnsupportedWhy, useComicSources } from '../comic/sources.js';
-import { useComicProgress } from '../comic/library.js';
+import { prefetchComic, useComicProgress } from '../comic/library.js';
+import { calm } from '../lib/calm.js';
 import { setComicPaneShown, useComicCollage, useComicList, useTopRated } from '../comic/catalog.js';
 import { comicBook } from '../comic/book.js';
 import '../styles/comic.css';
+
+const prefetched = new Set();   // 这次运行里提前取过详情的书
 
 export default function ComicExplore({ active, onChange, tabs, shown = true }) {
   const { openBook } = useUIActions();
@@ -34,6 +37,24 @@ export default function ComicExplore({ active, onChange, tabs, shown = true }) {
   const collage = useComicCollage(WORLDS, on);
   const recent = useComicProgress();
   const top = useTopRated(on && !active);
+  // 趁空闲先把光盘上的高分神作、书墙前面十几部的详情取好（存进本机）：点开时章节马上就有，不用等源（拷贝漫画一次 3.9 秒）。
+  // 一部一部来，手在动就停（lib/calm.js）；这次运行里取过的不再取
+  const visibleBooks = on && list.done ? [...top, ...list.books.slice(0, 16)] : [];
+  useEffect(() => {
+    if (!visibleBooks.length) return;
+    let alive = true;
+    (async () => {
+      for (const b of visibleBooks) {
+        if (!alive) return;
+        if (prefetched.has(b.id)) continue;
+        prefetched.add(b.id);
+        await calm();
+        await new Promise(r => setTimeout(r, 120));
+        prefetchComic(b);
+      }
+    })();
+    return () => { alive = false; };
+  }, [visibleBooks.length > 0, active]);
   const world = WORLDS.find(w => w.id === active);
   const settle = useCallback(() => {}, []);
 
@@ -87,7 +108,9 @@ export default function ComicExplore({ active, onChange, tabs, shown = true }) {
       )}
 
       {on && !list.books.length && <p className="cx-status muted">{list.done ? `${world ? `「${world.tag}」` : ''}这里暂时没有漫画：漫画源可能连不上，到插件页「测一遍」看看。` : '正在打开漫画书库…'}</p>}
-      {on && list.books.length > 0 && <MasonryWall key={active || 'all'} books={list.books} onOpen={openBook} />}
+      {on && list.books.length > 0 && <MasonryWall key={active || 'all'} books={list.books} onOpen={openBook} grow
+        onEnd={list.done && !list.exhausted ? list.more : undefined}
+        endNote={list.loadingMore ? '正在从各个漫画源取更多…' : list.exhausted ? '各个漫画源都翻到底了' : '继续往下翻…'} />}
     </>
   );
 }

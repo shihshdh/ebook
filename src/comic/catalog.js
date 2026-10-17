@@ -12,7 +12,7 @@ import { comicBook } from './book.js';
 import { FAMOUS, TOP_RATED } from './famous.js';
 import SEED from './famous-seed.js';
 import { localizeComics } from './translate.js';
-import { coversBlocked } from './library.js';
+import { chaptersOf, comicDetails, coversBlocked } from './library.js';
 import { calm } from '../lib/calm.js';
 import { mobileUI } from '../lib/native.js';
 import { normTitle } from '../lib/pool.js';
@@ -80,21 +80,34 @@ const categoriesOf = (id) => {
 };
 
 /** 一个源在这个书单里给的漫画（'all' 或世界 id）；源出错、没有对得上的分类就是空的 */
-async function fromSource(source, key) {
+// 一个源在这个书单里的下一页（'all' 或世界 id）。cur：翻到哪了（{ index, page }，第一次是 undefined）。
+//   全部：先翻这个源的第一个探索页，翻完（没东西、到 maxPage、或者是不能翻页的「单页多分区」）换它的下一个探索页
+//   世界：分类名对得上的那个分类，一页页往后翻
+// 返回 { comics, cur: 下一次从哪接着（null：这个源翻完了） }；出错就当翻完了
+async function fromSource(source, key, cur) {
   try {
     if (key === 'all') {
       return await slot(() => withSource(source.id, async box => {
-        if (!box.meta.explore.length) return [];
-        const { parts } = await box.call('explore', [0, 1], { timeout: TIMEOUT });
-        const seen = new Set();
-        return parts.flatMap(p => p.comics).filter(c => !seen.has(c.id) && seen.add(c.id));
+        const ex = box.meta.explore;
+        let { index = 0, page = 1 } = cur || {};
+        while (index < ex.length) {
+          const { parts, maxPage } = await box.call('explore', [index, page], { timeout: TIMEOUT });
+          const seen = new Set(), comics = parts.flatMap(p => p.comics).filter(c => !seen.has(c.id) && seen.add(c.id));
+          const single = ex[index].type === 'singlePageWithMultiPart' || (maxPage && page >= maxPage);
+          const next = !comics.length || single ? { index: index + 1, page: 1 } : { index, page: page + 1 };
+          if (comics.length) return { comics, cur: next.index < ex.length ? next : null };
+          ({ index, page } = next);
+        }
+        return { comics: [], cur: null };
       }));
     }
     const words = WORLD_WORDS[key];
     const cat = (await slot(() => categoriesOf(source.id))).find(c => words.test(c.label));
-    if (!cat) return [];
-    return (await slot(() => withSource(source.id, box => box.call('category', [cat.category, cat.param, 1], { timeout: TIMEOUT })))).comics;
-  } catch { return []; }
+    if (!cat) return { comics: [], cur: null };
+    const page = cur?.page || 1;
+    const { comics, maxPage } = await slot(() => withSource(source.id, box => box.call('category', [cat.category, cat.param, page], { timeout: TIMEOUT })));
+    return { comics, cur: comics.length && (!maxPage || page < maxPage) ? { page: page + 1 } : null };
+  } catch { return { comics: [], cur: null }; }
 }
 
 // ---------- 名作 ----------
@@ -102,7 +115,7 @@ async function fromSource(source, key) {
 // 不认「海贼王同人」这种沾边的。搜到的在本机记 7 天，没搜到的记 1 天（打开的源变了就重搜），第二次打开直接出来
 // 包子漫画排到后面：书全，但封面图床把我们整个拦了（Cloudflare 403），名作要是从它那儿找的，书墙、光盘上全是没图的书衣
 const PREFER = ['copy_manga', 'manhuaren', 'ManHuaGui', 'goda', 'mycomic', 'Komiic', 'baozi', 'ykmh', 'ccc', 'manga_dex'];
-const FAMOUS_KEY = 'comic:famous', DAY = 864e5, HIT_DAYS = 7, MISS_DAYS = 1, TRIES = 6, SEARCH_TIMEOUT = 12000, SIG_V = 2, SEED_DAYS = 120;
+const FAMOUS_KEY = 'comic:famous', DAY = 864e5, HIT_DAYS = 7, MISS_DAYS = 1, TRIES = 6, SEARCH_TIMEOUT = 12000, SIG_V = 4, SEED_DAYS = 120;
 const famousSlot = limiter(mobileUI ? 2 : 4);   // 和探索页、世界分类各排各的队：名作要先出来
 // 同一个源同时最多搜两部、每次搜完歇 250 毫秒：几十部一起搜，拷贝漫画会限流（返回状态码 210），被拒的那几部就找不到了。
 // 先按源排队、轮到了再占全局名额（反过来的话，排队等拷贝漫画的占着全局名额，别的源也动不了）
@@ -162,6 +175,7 @@ function findFamous(f, sources) {
     const healthy = order.filter(s => !shaky.has(s.id) && !coversBlocked(s.id)).length, k = Math.min(4, healthy);
     if (!f.byRe && k > 1) order.unshift(...order.splice(turn++ % k, 1));
     let tried = 0;
+    const found = [];
     for (const source of order) {
       if (tried >= TRIES) break;
       // 这次运行里连着出错的源不再去找：坏掉的源一次要等十几秒才报错，排着队的几十部全被它拖住
@@ -172,12 +186,22 @@ function findFamous(f, sources) {
         errors.set(source.id, 0);
         // 名单写了 byRe 的（书名太常见）还要作者对得上，源里没写作者的也不收（包子漫画有同名的国漫「冥王」「乒乓」）
         const comic = comics.find(c => names.has(normTitle(c.title)) && (!f.byRe || f.byRe.test(c.subtitle || '')));
-        if (comic) {
-          const hit = { at: now, sig, sourceId: source.id, sourceName: source.name, comic: { id: comic.id, title: comic.title, subtitle: comic.subtitle || '', cover: comic.cover || '', tags: (comic.tags || []).slice(0, 4), description: String(comic.description || '').slice(0, 300) } };
-          remember(f.title, hit);
-          return hit;
-        }
+        // 还得真有章节：版权作品在漫画人、GoDa 常被下架（详情页还在、章节空了），选了它点开就是「没有章节」。
+        // 顺带详情存进了本机（library.js），点开这部名作时章节马上就有
+        if (!comic) continue;
+        const n = chaptersOf(await comicDetails(source.id, comic.id)).length;
+        if (!n) continue;
+        // 有章节也不一定全（GoDa 的东京喰种只有 5 话）：找到两个就比一比，用章节多的，另一个留作可换的源
+        found.push({ n, sourceId: source.id, sourceName: source.name, comic: { id: comic.id, title: comic.title, subtitle: comic.subtitle || '', cover: comic.cover || '', tags: (comic.tags || []).slice(0, 4), description: String(comic.description || '').slice(0, 300) } });
+        if (found.length >= 2) break;
       } catch { failed = true; errors.set(source.id, (errors.get(source.id) || 0) + 1); }
+    }
+    if (found.length) {
+      found.sort((a, b) => b.n - a.n);
+      const [best, ...rest] = found;
+      const hit = { at: now, sig, sourceId: best.sourceId, sourceName: best.sourceName, comic: best.comic, alts: rest.map(({ sourceId, sourceName, comic }) => ({ sourceId, sourceName, comic })) };
+      remember(f.title, hit);
+      return hit;
     }
     // 中途有源出错（限流、超时）的不记「没找到」：下次打开再搜
     if (!failed) remember(f.title, { at: now, sig, miss: true, sources: ids.join() });
@@ -192,6 +216,7 @@ function findFamous(f, sources) {
 function pickBook(f, p) {
   const b = comicBook({ sourceId: p.sourceId, sourceName: p.sourceName, comic: p.comic });
   if (b.title !== f.title) { b.alt = b.title; b.title = f.title; }
+  for (const a of p.alts || []) if (!b.comics.some(x => x.sourceId === a.sourceId)) { b.comics.push(comicBook({ sourceId: a.sourceId, sourceName: a.sourceName, comic: a.comic }).comics[0]); b.poolSources.push(a.sourceName); }
   if (f.by) b.author = f.by;
   if (f.note) b.blurb = f.note;
   return b;
@@ -244,18 +269,45 @@ const lists = new Map();   // 'all' | 世界 id → { books, done, subs }
 function load(key) {
   let entry = lists.get(key);
   if (entry) return entry;
-  entry = { books: [], done: false, subs: new Set() };
+  entry = { books: [], done: false, more: () => {}, loadingMore: false, exhausted: false, subs: new Set() };
   lists.set(key, entry);
   const emit = () => entry.subs.forEach(fn => fn());
   (async () => {
     const sources = (await listComicSources()).filter(e => e.enabled);
-    const got = sources.map(source => ({ source, comics: [] }));
+    const got = sources.map(source => ({ source, comics: [], cur: undefined, ids: new Set() }));
     const famous = frontList(key), picks = famous.map(() => null);
-    const show = () => { entry.books = compose(famous, picks, got); emit(); };
+    // 第一页（名作在前 + 各源第一页交错）之后，翻页取来的每一轮单独交错、接在最后（tail）：前面已经看过的一本都不挪
+    let tail = [];
+    const show = () => {
+      const head = compose(famous, picks, got), names = new Set(head.map(b => normTitle(b.title)));
+      entry.books = [...head, ...tail.filter(b => !names.has(normTitle(b.title)))];
+      emit();
+    };
+    // 取一页：已经有的（同一个源翻页常有重的）不再要
+    const take = async (g) => {
+      const { comics, cur } = await fromSource(g.source, key, g.cur);
+      g.cur = cur;
+      const fresh = comics.filter(c => !g.ids.has(c.id) && g.ids.add(c.id));
+      return fresh.length ? localizeComics(fresh, g.source.key) : [];
+    };
+    // 书墙翻到底了（ComicExplore 的 onEnd）：每个还能翻的源各再取一页
+    entry.more = async () => {
+      if (entry.loadingMore || entry.exhausted || !entry.done) return;
+      const open = got.filter(g => g.cur);
+      if (!open.length) { entry.exhausted = true; emit(); return; }
+      entry.loadingMore = true; emit();
+      const round = await Promise.all(open.map(async g => ({ source: g.source, comics: await take(g) })));
+      const seen = new Set(entry.books.map(b => normTitle(b.title)));
+      tail = [...tail, ...blend(round).filter(b => !seen.has(normTitle(b.title)))];
+      show();
+      entry.loadingMore = false;
+      if (!got.some(g => g.cur)) entry.exhausted = true;
+      emit();
+    };
     // 谁先回来先显示：每找到一部名作、每回来一个源就重新排一遍
     await Promise.all([
       ...famous.map(async (f, i) => { picks[i] = await findFamous(f, sources).catch(() => null); if (picks[i]) show(); }),
-      ...got.map(async (g) => { g.comics = await localizeComics(await fromSource(g.source, key), g.source.key); show(); }),
+      ...got.map(async (g) => { g.comics = await take(g); show(); }),
     ]);
     entry.done = true;
     emit();
@@ -263,7 +315,7 @@ function load(key) {
   return entry;
 }
 
-/** @returns {{ books: object[], done: boolean }} key：'all' 或世界 id */
+/** @returns {{ books: object[], done: boolean, more: () => void, loadingMore: boolean, exhausted: boolean }} key：'all' 或世界 id */
 export function useComicList(key) {
   const [, bump] = useState(0);
   const entry = key ? load(key) : null;
@@ -273,7 +325,7 @@ export function useComicList(key) {
     entry.subs.add(fn);
     return () => entry.subs.delete(fn);
   }, [entry]);
-  return entry || { books: [], done: true };
+  return entry || { books: [], done: true, more: () => {}, loadingMore: false, exhausted: true };
 }
 
 /** 世界的拼贴封面：后台把五个世界的书单都拉一遍（同时 4 个请求），拉到哪个显示哪个 */

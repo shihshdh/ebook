@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { idbGet, idbSet } from '../lib/idb.js';
 import { listComicSources, withSource } from './sources.js';
 import { fetchImage } from './images.js';
-import { loadCover, saveCover } from './cover-cache.js';
+import { loadCover, saveCover, loadDetails, saveDetails } from './cover-cache.js';
 import { calm } from '../lib/calm.js';
 import { isIOS, mobileUI } from '../lib/native.js';
 import { localizeComics, localizeDetails } from './translate.js';
@@ -71,8 +71,27 @@ const remember = (map, key, load) => {
   return map.get(key);
 };
 /** @returns {Promise<{title, subtitle, cover, description, tags: [string, string[]][], chapters: {id, title, group}[], single, updateTime}>} */
-export const comicDetails = (sourceId, comicId) => remember(details, `${sourceId}|${comicId}`,
-  () => withSource(sourceId, box => box.call('info', [comicId], { timeout: 30000 })).then(d => localizeDetails(d, sourceId)));
+// 详情存在本机（cover-cache.js）：有的源取一次要 3–4 秒（拷贝漫画、漫画柜），点开一部看过 / 找过的漫画不该再干等。
+// 存的有章节就马上用；存了超过 6 小时的，同时在后台重取一份换上（新出的话下次打开就有）。没章节的不存（多半是被下架，下次再试）
+const DETAIL_FRESH = 6 * 3600e3, DETAIL_KEEP = 14 * 864e5;
+const fetchDetails = (sourceId, comicId) => withSource(sourceId, box => box.call('info', [comicId], { timeout: 30000 })).then(d => localizeDetails(d, sourceId));
+export const comicDetails = (sourceId, comicId) => remember(details, `${sourceId}|${comicId}`, async () => {
+  const key = `${sourceId}|${comicId}`, saved = await loadDetails(key), now = Date.now();
+  if (saved && now - saved.at < DETAIL_KEEP && chaptersOf(saved.v).length) {
+    if (now - saved.at > DETAIL_FRESH) fetchDetails(sourceId, comicId).then(d => { if (chaptersOf(d).length) { saveDetails(key, d); details.set(key, Promise.resolve(d)); } }, () => {});
+    return saved.v;
+  }
+  const d = await fetchDetails(sourceId, comicId);
+  if (chaptersOf(d).length) saveDetails(key, d);
+  return d;
+});
+/** 提前取详情（手指按下一部漫画、光盘转到跟前）：点开时章节已经在了。取不到不报错 */
+export function prefetchComic(book) {
+  const c = book?.comics?.find(x => !coversBlocked(x.sourceId)) || book?.comics?.[0];
+  if (c) comicDetails(c.sourceId, c.comicId).catch(() => {});
+}
+/** 提前取一话的图片列表（详情出来后「开始看 / 继续看」那一话），点开阅读器少等一轮 */
+export function prefetchChapter(sourceId, comicId, epId) { chapterImages(sourceId, comicId, epId).catch(() => {}); }
 /** 某一话的图片地址。epId 为 null：整本一卷 */
 export const chapterImages = (sourceId, comicId, epId) => remember(episodes, `${sourceId}|${comicId}|${epId}`,
   () => withSource(sourceId, box => box.call('ep', [comicId, epId], { timeout: 30000 })).then(r => r.images));
@@ -198,4 +217,22 @@ export function useComicProgress() {
     return () => { alive = false; progressSubs.delete(setList); };
   }, []);
   return list;
+}
+
+// ---------- 换个源找同一部 ----------
+// 已知的源都没章节（版权作品在漫画人、GoDa 常被下架：详情页还在，章节列表空了）：按书名去其他打开的源里搜，书名对得上的接上
+const bare = (s) => String(s || '').replace(/[！-～]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+  .replace(/[(（【\[][^)）】\]]*[)）】\]]/g, '').replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase();
+/** @returns {Promise<{ sourceId, sourceName, comicId, cover, title }[]>} 书名对得上、而且有章节的别的源 */
+export async function findOtherSources(book, { signal } = {}) {
+  const names = new Set([book.title, book.alt, ...(book.comics || []).map(c => c.title)].map(bare).filter(Boolean));
+  const have = new Set((book.comics || []).map(c => c.sourceId));
+  const hits = [];
+  await searchComics(book.title, { signal, timeout: 12000, onResult: ({ source, comics }) => {
+    if (have.has(source.id)) return;
+    const c = comics.find(x => names.has(bare(x.title)));
+    if (c) hits.push({ sourceId: source.id, sourceName: source.name, comicId: c.id, cover: c.cover || '', title: c.title });
+  } });
+  const ok = await Promise.all(hits.map(h => comicDetails(h.sourceId, h.comicId).then(d => chaptersOf(d).length > 0, () => false)));
+  return hits.filter((_, i) => ok[i]).sort((a, b) => coversBlocked(a.sourceId) - coversBlocked(b.sourceId));
 }

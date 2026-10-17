@@ -148,10 +148,15 @@ function estimate(t, { colW, narrow }) {
   return 22 + Math.ceil((t.line.slice(0, 46).length + 2) / perLine) * size * 1.5 + 14 + 20 + 18 + 2;
 }
 
-export default memo(function MasonryWall({ books, onOpen, flip = [], pageSize = PAGE }) {
+// grow：书单只会往后变长（漫画书单：各源陆续回来、翻页接在后面）——已经铺了几张就留着，不从第一页重铺
+//        （不然每回来一个源，往下滑了一截的书墙就被打回第一屏重排）。换书单由外面换 key
+// onEnd：铺到书单最后了还往下滑（再要一页）；endNote：那时底下显示的字
+export default memo(function MasonryWall({ books, onOpen, flip = [], pageSize = PAGE, grow = false, onEnd, endNote }) {
   // 铺了几本。换了书单就从第一页重新铺——当场算，不等 effect：等 effect 的话新书单先按旧的张数整个渲染、排一遍，下一帧再砍掉
-  const [shown, setShown] = useState({ books, n: pageSize });
-  const count = shown.books === books ? shown.n : pageSize;
+  const growId = useRef({}).current, ident = grow ? growId : books;
+  const [shown, setShown] = useState({ id: ident, n: pageSize });
+  const count = Math.min(books.length, shown.id === ident ? shown.n : pageSize);
+  const endRef = useRef(onEnd); endRef.current = onEnd;
   const sentinel = useRef(null);
 
   // 衬线字先下好再上屏（为什么见 lib/fonts.js）：书名、摘句要用的分片一次下 FONT_PAGES 页，下一页快不在里面了再下一批；
@@ -159,7 +164,7 @@ export default memo(function MasonryWall({ books, onOpen, flip = [], pageSize = 
   const fonts = useRef({ books: null, to: 0, ready: null });   // 这份书单的前 to 本已经在下（或下好了）
   useEffect(() => {
     const f = fonts.current;
-    if (f.books !== books) Object.assign(f, { books, to: 0, ready: Promise.resolve() });
+    if (f.books !== ident) Object.assign(f, { books: ident, to: 0, ready: Promise.resolve() });
     if (count + 2 * pageSize <= f.to) return;   // 下一页、再下一页的都已经在下了
     const to = Math.max(f.to, count) + FONT_PAGES * pageSize;
     f.ready = Promise.all([f.ready, loadSerif(serifText(tilesOf(books, f.to, to, flip.length > 1)))]);
@@ -172,18 +177,20 @@ export default memo(function MasonryWall({ books, onOpen, flip = [], pageSize = 
     let alive = true, waiting = false;
     const io = new IntersectionObserver(([e]) => {
       if (!e.isIntersecting || waiting) return;
+      // 已经全铺上了：要下一页（外面取来书单变长，哨兵再碰到时接着铺）
+      if (count >= books.length) { endRef.current?.(); return; }
       waiting = true;
       atMost(fonts.current.ready, FONT_WAIT).then(() => {
         waiting = false;
         // 后台分片渲染（React 每 5ms 让一次主线程）：一页十几张卡一口气渲染要二三十毫秒（手机上）
-        if (alive) startTransition(() => setShown(s => ({ books, n: Math.min(books.length, (s.books === books ? s.n : pageSize) + pageSize) })));
+        if (alive) startTransition(() => setShown(s => ({ id: ident, n: Math.min(books.length, (s.id === ident ? s.n : pageSize) + pageSize) })));
       });
       // 提前两屏挂：比 content-visibility: auto 的「附近」（Chrome 是视口上下各 1.5 屏）还远，新挂的卡片先只占位、不排版，
       // 滚过去时一两张一两张地排。以前提前 900px，新卡片一挂上就在附近，挂上那一帧连排带画整页卡片
     }, { rootMargin: '200% 0px' });
     io.observe(el);
     return () => { alive = false; io.disconnect(); };
-  }, [books, pageSize]);
+  }, [books, pageSize, count]);   // 每铺一页重挂一次：哨兵还在视野里（新铺的没把它挤出去）的话浏览器不会再报，就卡住不铺了
 
   const tiles = useMemo(() => tilesOf(books, 0, count, flip.length > 1), [books, count, flip.length]);
 
@@ -223,7 +230,7 @@ export default memo(function MasonryWall({ books, onOpen, flip = [], pageSize = 
           </div>
         ))}
       </div>
-      {count < books.length && <div ref={sentinel} className="mw-more muted">继续往下翻…</div>}
+      {(count < books.length || onEnd) && <div ref={sentinel} className="mw-more muted">{count < books.length ? '继续往下翻…' : endNote || '继续往下翻…'}</div>}
     </div>
   );
 });

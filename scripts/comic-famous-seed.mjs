@@ -16,7 +16,9 @@ const hits = {};
 for (const [title, v] of Object.entries(cache)) {
   if (!v?.sourceId || !v.sig) continue;
   const { id, title: t, subtitle, cover, tags } = v.comic;
-  hits[title] = { sig: v.sig, sourceId: v.sourceId, sourceName: v.sourceName, comic: { id, title: t, subtitle, cover, tags, description: String(v.comic.description || '').slice(0, 120) } };
+  const slim = (c) => ({ id: c.id, title: c.title, subtitle: c.subtitle, cover: c.cover, tags: c.tags, description: String(c.description || '').slice(0, 120) });
+  hits[title] = { sig: v.sig, sourceId: v.sourceId, sourceName: v.sourceName, comic: { id, title: t, subtitle, cover, tags, description: String(v.comic.description || '').slice(0, 120) },
+    alts: (v.alts || []).map(a => ({ sourceId: a.sourceId, sourceName: a.sourceName, comic: slim(a.comic) })) };
 }
 const at = Date.now();
 writeFileSync('src/comic/famous-seed.js', `// 自动生成（scripts/comic-famous-seed.mjs），别手改。名作、高分神作在各源里找到的结果，${new Date(at).toISOString().slice(0, 10)} 找的。

@@ -2,13 +2,16 @@
 // 搜索池把不同漫画源里的同一部合成一条（book.comics），默认用看过的那个源，没看过用第一个。
 import { useEffect, useMemo, useState } from 'react';
 import Icon from './Icon.jsx';
-import { comicDetails, chaptersOf, useComicProgress, readPath } from '../comic/library.js';
+import { comicDetails, chaptersOf, useComicProgress, readPath, prefetchChapter, findOtherSources } from '../comic/library.js';
 import '../styles/comic.css';
 import { useShelf } from '../lib/useShelf.js';
 import { ensureComicShelf } from '../comic/shelf.js';
 import { comicShelfId } from '../comic/book.js';
 
-export default function ComicSheetBody({ book, onRead }) {
+export default function ComicSheetBody({ book: given, onRead }) {
+  // 已知的源都没章节时去别的源按书名找来的（findOtherSources），接在后面
+  const [more, setMore] = useState([]);
+  const book = useMemo(() => (more.length ? { ...given, comics: [...given.comics, ...more] } : given), [given, more]);
   const recent = useComicProgress();
   const { items } = useShelf();
   const [adding, setAdding] = useState(false);
@@ -36,6 +39,22 @@ export default function ComicSheetBody({ book, onRead }) {
   useEffect(() => {
     if (empty && picked == null && seen < 0 && fallback < book.comics.length - 1) setFallback(f => f + 1);
   }, [empty, picked, seen, fallback, book.comics.length]);
+  // 已知的源都试完还是没章节（版权作品常被下架）：按书名去别的源找，找到就接上、自动换过去
+  const [looking, setLooking] = useState(false);
+  const exhausted = empty && picked == null && (seen >= 0 || fallback >= book.comics.length - 1);
+  useEffect(() => {
+    if (!exhausted || looking || more.length) return;
+    const ctl = new AbortController();
+    setLooking(true);
+    findOtherSources(given, { signal: ctl.signal }).then(list => { if (list.length) { setMore(list); setFallback(given.comics.length); } }, () => {}).finally(() => setLooking(false));
+    return () => ctl.abort();
+  }, [exhausted]);
+  // 详情出来了：「开始看 / 继续看」那一话的图片列表先取上，点开阅读器少等一轮
+  useEffect(() => {
+    if (!d || !chapters.length) return;
+    const ep = chapters[Math.min(progress?.index || 0, chapters.length - 1)];
+    prefetchChapter(c.sourceId, c.comicId, ep.id);
+  }, [d]);
   const list = useMemo(() => chapters.map((x, i) => ({ ...x, i })), [chapters]);
   const ordered = reverse ? [...list].reverse() : list;
   const groups = [...new Set(ordered.map(x => x.group))];
@@ -73,8 +92,9 @@ export default function ComicSheetBody({ book, onRead }) {
         </div>
         {shelfError && <p role="alert">{shelfError}</p>}
         {!d && !error && <p className="sheet-note">正在打开章节目录…</p>}
-        {error && <p className="sheet-note">{error}{book.comics.length > 1 ? '。换个源试试。' : ''}</p>}
-        {d && !chapters.length && <p className="sheet-note">这部漫画在「{c.sourceName}」里没有章节（可能下架了）{book.comics.length > 1 ? '，换个源试试' : ''}。</p>}
+        {looking && <p className="sheet-note">「{c.sourceName}」里没有章节，正在别的漫画源里找这一部…</p>}
+        {!looking && error && <p className="sheet-note">{error}{book.comics.length > 1 ? '。换个源试试。' : ''}</p>}
+        {!looking && d && !chapters.length && <p className="sheet-note">这部漫画在「{c.sourceName}」里没有章节（可能下架了）{book.comics.length > 1 ? '，换个源试试' : ''}。</p>}
         {chapters.length > 1 && groups.map(g => (
           <div key={g} className="cx-chapter-group">
             {groups.length > 1 && <h3 className="muted">{g}</h3>}
