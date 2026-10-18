@@ -14,7 +14,7 @@ import { coverLoader, firstCover } from './cover-loader.js';
 import { firstPageCache } from './first-page-cache.js';
 import { loadCover, saveCover, loadDetails, saveDetails } from './cover-cache.js';
 import { isIOS, mobileUI } from '../lib/native.js';
-import { localizeComics, localizeDetails } from './translate.js';
+import { localizeComics, localizeDetails, bestLanguage } from './translate.js';
 
 // ---------- 地址 ----------
 export { readPath } from './book.js';
@@ -79,7 +79,9 @@ const remember = (map, key, load) => {
 // 存的有章节就马上用；存了超过 6 小时的，同时在后台重取一份换上（新出的话下次打开就有）。没章节的不存（多半是被下架，下次再试）
 const DETAIL_FRESH = 6 * 3600e3, DETAIL_KEEP = 14 * 864e5;
 // One total deadline: retry only early transient errors, never stack full timeouts.
-const fetchDetails = (sourceId, comicId) => requestBudget(async signal => {
+const fetchDetails = (sourceId, comicId) => {
+  let received;
+  return requestBudget(async signal => {
   const started = Date.now();
   const once = () => withSource(sourceId, box => {
     signal.throwIfAborted();
@@ -94,8 +96,10 @@ const fetchDetails = (sourceId, comicId) => requestBudget(async signal => {
     await new Promise(r => setTimeout(r, 400));
     signal.throwIfAborted(); d = await once();
   }
+  received = bestLanguage(d);
   return localizeDetails(d, sourceId);
-});
+  }, { fallback: () => received });
+};
 export const comicDetails = (sourceId, comicId) => remember(details, `${sourceId}|${comicId}`, async () => {
   const key = `${sourceId}|${comicId}`, saved = await loadDetails(key), now = Date.now();
   if (saved && now - saved.at < DETAIL_KEEP && chaptersOf(saved.v).length) {

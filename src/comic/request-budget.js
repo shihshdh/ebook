@@ -1,11 +1,11 @@
 // A deadline covers source boot, callbacks and native HTTP together.
-export function requestBudget(run, { timeout = 12000, signal, message = '漫画源响应超时，请重试或切换漫画源' } = {}) {
+export function requestBudget(run, { timeout = 12000, signal, fallback, message = '漫画源响应超时，请重试或切换漫画源' } = {}) {
   const ctl = new AbortController();let timer,abort;
-  const stopped = new Promise((_,reject) => {
+  const stopped = new Promise((resolve,reject) => {
     abort = () => { const error = new DOMException('已取消','AbortError');ctl.abort(error);reject(error); };
     if (signal?.aborted) return abort();
     signal?.addEventListener('abort',abort,{once:true});
-    timer=setTimeout(()=>{const error=new Error(message);error.name='TimeoutError';ctl.abort(error);reject(error);},timeout);
+    timer=setTimeout(()=>{const error=new Error(message);error.name='TimeoutError';ctl.abort(error);try { const value=fallback?.(); if(value!==undefined)resolve(value); else reject(error); } catch { reject(error); }},timeout);
   });
   return Promise.race([stopped,Promise.resolve().then(()=>{ctl.signal.throwIfAborted();return run(ctl.signal);})])
     .finally(()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);});
