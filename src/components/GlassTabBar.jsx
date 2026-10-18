@@ -114,6 +114,7 @@ export default function GlassTabBar({ tabs, hidden, searchTab }) {
     const b = baked.current;
     if (!b) return;
     baked.current = null;
+    clearTimeout(b.timer);
     const t = clamp((b.anims[0].currentTime || 0) / 1000 / SAMPLE, 0, b.path.length - 1);
     const i = Math.floor(t), k = t - i, a = b.path[i], c = b.path[Math.min(b.path.length - 1, i + 1)];
     const mix = (p) => a[p] + (c[p] - a[p]) * k;
@@ -138,15 +139,19 @@ export default function GlassTabBar({ tabs, hidden, searchTab }) {
     const duration = (path.length - 1) * SAMPLE * 1000;
     const e = els();
     const anims = Object.keys(e).map(key => e[key].animate(frames.map(f => f[key]), { duration, easing: 'linear', fill: 'forwards' }));
-    const mine = { path, anims };
+    const mine = { path, anims, timer: 0 };
     baked.current = mine;
-    anims[0].finished.then(() => {
+    const settled = () => {
       if (baked.current !== mine) return;
-      baked.current = null;
+      baked.current = null; clearTimeout(mine.timer);
       apply(end);
       anims.forEach(an => an.cancel());
       setOn(st.L > .01);
-    }, () => {});
+    };
+    // WKWebView can defer Animation.finished across route commits even after
+    // the final frame is painted. Release the glass layer on the same deadline.
+    mine.timer = setTimeout(settled, duration + 80);
+    anims[0].finished.then(settled, () => {});
   };
 
   // 手指按着时逐帧推
@@ -216,7 +221,7 @@ export default function GlassTabBar({ tabs, hidden, searchTab }) {
       setOn(false);
     });
     ro.observe(el);
-    return () => { ro.disconnect(); cancelAnimationFrame(raf.current); baked.current?.anims.forEach(a => a.cancel()); };
+    return () => { ro.disconnect(); cancelAnimationFrame(raf.current); clearTimeout(baked.current?.timer); baked.current?.anims.forEach(a => a.cancel()); };
   }, [tabs.length]);
 
   const localX = (e) => e.clientX - bar.current.getBoundingClientRect().left;

@@ -135,12 +135,13 @@ try{
  await page.mouse.move(last.x+last.width/2,last.y+last.height/2);await page.mouse.down();await page.mouse.move(first.x+first.width/2,first.y+first.height/2,{steps:5});
  await tab.dispatchEvent('pointercancel',{pointerId:1,isPrimary:true,pointerType:'mouse'});await page.mouse.up();await page.waitForTimeout(850);
  assert.equal(await tab.locator('a.active').getAttribute('href'),'/plugins');
+ await page.evaluate(()=>{window.__animate=Element.prototype.animate;Element.prototype.animate=function(...args){const a=__animate.apply(this,args);Object.defineProperty(a,'finished',{get:()=>new Promise(()=>{})});return a;};});
  for(const n of [0,4,1,3]){const box=await items.nth(n).boundingBox();await page.mouse.click(box.x+box.width/2,box.y+box.height/2);}
  await page.waitForTimeout(900);await items.nth(2).focus();await page.keyboard.press('Enter');await page.waitForTimeout(900);
- assert.equal(await tab.locator('a.active').getAttribute('href'),'/shelf');
+ assert.equal(await tab.locator('a.active').getAttribute('href'),'/shelf');assert.equal(await tab.getAttribute('data-lifted'),null);await page.evaluate(()=>Element.prototype.animate=__animate);
  await page.emulateMedia({reducedMotion:'reduce'});await items.nth(1).click();await page.waitForTimeout(500);assert.equal(await tab.getAttribute('data-lifted'),null);await page.emulateMedia({reducedMotion:'no-preference'});
  await page.evaluate(()=>document.documentElement.dataset.theme='dark');await page.waitForTimeout(100);await page.screenshot({path:`${output}/${label}-${suffix}-glass-dark.png`});
- report.glassInteractions={cancelledDrag:true,rapidSwitch:true,keyboard:true,reducedMotion:true,dark:true};
+ report.glassInteractions={cancelledDrag:true,rapidSwitch:true,missingFinishedCallback:true,keyboard:true,reducedMotion:true,dark:true};
 
  if(label!=='baseline'){assert.equal(report.blackFrames,0);assert(report.slowTarget.visible.length>0);assert(report.maxResidentURLs<=10);}
  assert.equal(errors.length,0,errors.join('\n'));
