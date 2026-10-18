@@ -141,9 +141,13 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
   // 停着的时候要重新摆盘（尺寸变了、新挂上了盘）：撤下循环动画、摆好、再挂上
   const redraw = () => { const was = !!idle.current; exitIdle(); draw.current(); if (was) enterIdle(); };
   useLayoutEffect(() => {
-    const it = idle.current;
-    if (it && [...discRefs.current.keys()].some(i => !it.anims.has(i))) redraw();
-  }, [visible]);
+    // Async source results may replace keyed buttons at the same indices/count.
+    // Their DOM nodes need a pose even when neither n nor the window changed.
+    const mounted = new Set(discRefs.current.values());
+    for (const el of discSize.current.keys()) if (!mounted.has(el)) discSize.current.delete(el);
+    for (const el of pose.current.keys()) if (!mounted.has(el)) pose.current.delete(el);
+    redraw();
+  }, [visible, books]);
 
   useEffect(() => {
     const f = fr.current;

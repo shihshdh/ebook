@@ -106,7 +106,7 @@ if (appearance === 'dark') {
     return await until(() => $$('.route.is-active .explore-comic .mw-tile').length > 4, 90000) && $$('.route.is-active .explore-comic .mw-tile').length;`, { settle: 4000 });
   await step('comic-disc-covers', `const discs = await until(() => $('.route.is-active .explore-comic .discshelf'), 90000);
     if (!discs) throw Error('漫画光盘架没有出现'); discs.scrollIntoView({block:'center'});
-    const ready = await until(() => [...discs.querySelectorAll('.disc-face .cover.is-real img')].filter(i => i.complete && i.naturalWidth > 60).length >= 2, 60000);
+    const ready = await until(() => [...discs.querySelectorAll('.disc-face .cover.is-real img')].filter(i => i.complete && i.naturalWidth > 60 && i.closest('.disc').offsetWidth > 80).length >= 2, 60000);
     return {real: !!ready, count: discs.querySelectorAll('.disc-face .cover.is-real').length};`, {settle:1000,timeout:160000});
   await step('explore-novel-return', `byText('.route.is-active .explore-kind .chip', /^轻小说$/)?.click(); scrollTo(0,0); await sleep(400);
     const page=$('.route.is-active .explore:not([hidden])'), hero=page?.querySelector('.ws');

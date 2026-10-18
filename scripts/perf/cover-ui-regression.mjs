@@ -42,6 +42,10 @@ for(const [name,engine] of [['chromium',chromium],['webkit',webkit]]){
  // Evict the entire shared cache while the first disc remains mounted.
  await page.evaluate(async()=>{const {coverURL}=await import('/src/comic/library.js');const {saveCover}=await import('/src/comic/cover-cache.js');const blob=await(await fetch('/fixture-cover.png')).blob();for(let i=0;i<130;i++)saveCover(`evict|https://fixture/${i}`,blob);await new Promise(r=>setTimeout(r,200));for(let i=0;i<130;i++){const url=await coverURL('evict',`https://fixture/${i}`);URL.revokeObjectURL(url);}});
  const discAlive=await page.evaluate(async()=>{const img=document.querySelector('.disc-face img');const blob=await(await fetch(img.src)).blob();return blob.size>0;});if(!discAlive)throw Error('mounted disc URL revoked');
- writeFileSync(`release/verification/0.4.2/${name}-ui.json`,JSON.stringify({metrics,discAlive,errors},null,2));console.log(name,JSON.stringify(metrics));
+ // Source results can replace the disc books without changing the list length.
+ await page.evaluate(async books=>{const {default:React}=await import('/node_modules/.vite/deps/react.js');const {default:{createRoot}}=await import('/node_modules/.vite/deps/react-dom_client.js');const {default:DiscShelf}=await import('/src/effects/DiscShelf.jsx');const box=document.createElement('div');box.id='replacement-discs';document.body.append(box);const root=createRoot(box);const render=items=>root.render(React.createElement(DiscShelf,{books:items,onOpen:()=>{}}));render(books);await new Promise(r=>setTimeout(r,1600));render(books.map(b=>({...b,id:b.id+'-replacement'})));await new Promise(r=>setTimeout(r,400));},books);
+ const replacementWidths=await page.evaluate(()=>[...document.querySelectorAll('#replacement-discs .disc')].map(e=>e.offsetWidth));
+ if(replacementWidths.length<2||replacementWidths.some(w=>w<80))throw Error('replacement discs lost geometry: '+JSON.stringify(replacementWidths));
+ writeFileSync(`release/verification/0.4.2/${name}-ui.json`,JSON.stringify({metrics,discAlive,replacementWidths,errors},null,2));console.log(name,JSON.stringify(metrics));
  }finally{await browser.close()}
 }
