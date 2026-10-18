@@ -93,7 +93,7 @@ export const comicDetails = (sourceId, comicId) => remember(details, `${sourceId
 /** 提前取详情（手指按下一部漫画、光盘转到跟前）：点开时章节已经在了。取不到不报错 */
 export function prefetchComic(book) {
   const c = book?.comics?.find(x => !coversBlocked(x.sourceId)) || book?.comics?.[0];
-  if (c) comicDetails(c.sourceId, c.comicId).catch(() => {});
+  return c ? comicDetails(c.sourceId, c.comicId).catch(() => {}) : Promise.resolve();
 }
 /** 提前取一话的图片列表（详情出来后「开始看 / 继续看」那一话），点开阅读器少等一轮 */
 const firstPages = firstPageCache();

@@ -124,8 +124,14 @@ if (appearance === 'dark') {
   await step('plugins', `location.hash = '#/plugins'; await sleep(1500); $('#comicsources')?.scrollIntoView({ block: 'start' }); scrollBy(0, -70); return $$('#comicsources .bs-list > li').length;`);
   await step('novel-sheet', `location.hash = '#/'; await sleep(1500); scrollTo(0, 0); byText('.route.is-active button, .route.is-active a', /看看这本/)?.click();
     return await until(() => $('.sheet .sheet-title')?.textContent, 15000);`, { settle: 1800 });
-  await step('novel-reader', `const b = byText('.sheet button', /开始读|继续读|阅读|下载/); const label = b?.textContent; b?.click();
-    const ok = await until(() => location.hash.includes('/read/') && $('.reader2, .rd-stage, [class*=reader]'), 90000); await sleep(2500); return { label, ok: !!ok, hash: location.hash };`, { settle: 2000, timeout: 150000 });
+  // 下载按钮先入架、不会自动打开。用固定本地TXT验证真实阅读器，避免把上游下载慢误算成阅读器失败。
+  await step('novel-reader', `const id='local:tour-novel';
+    const text=['第一章 旅途', ...Array(180).fill('这是一段用于iPhone阅读验收的本地小说正文。'), '第二章 归来', ...Array(120).fill('远处的灯火亮了起来。')].join(String.fromCharCode(10));
+    const q=indexedDB.open('librarium',1), db=await new Promise((r,j)=>{q.onsuccess=()=>r(q.result);q.onerror=j});
+    await new Promise((r,j)=>{const t=db.transaction(['shelf','blob'],'readwrite');t.objectStore('shelf').put({id,title:'iPhone小说验收',ext:'txt',source:'local',addedAt:Date.now()},id);t.objectStore('blob').put(new Blob([text],{type:'text/plain'}),id);t.oncomplete=r;t.onerror=j});db.close();
+    location.hash='#/read/'+encodeURIComponent(id);
+    const ok=await until(()=>$('.reader2 .epub-container iframe')?.contentDocument?.body?.textContent?.includes('iPhone阅读验收'),60000);
+    return {label:'本地TXT→真实EPUB阅读器',ok:!!ok,hash:location.hash};`, {settle:2000,timeout:90000});
   await step('novel-reader-chrome', `if (!location.hash.includes('/read/')) return 'not in reader'; return tap(innerWidth / 2, innerHeight / 2);`);
 }
 

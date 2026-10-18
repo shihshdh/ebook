@@ -40,7 +40,8 @@ if (!existsSync(`docs/RELEASE_${VER}.md`)) fail(`没有更新说明 docs/RELEASE
 if (process.argv.includes('--check')) { console.log('✓ 可以打包'); process.exit(0); }
 
 // 2. 两个包：在 release/ 里、是这一版
-const headTime = +run('git', ['log', '-1', '--format=%ct']) * 1000;
+// 文档和验收脚本补充不会改变已构建客户端；按最后一次产品/构建输入改动核对产物时间。
+const headTime = +run('git', ['log', '-1', '--format=%ct', '--', 'package.json', 'package-lock.json', 'src', 'src-tauri', 'android', 'ios', 'public', 'capacitor.config.json', 'vite.config.js', 'scripts/build-ios.sh', 'scripts/ios-assets.mjs']) * 1000;
 for (const f of [EXE, APK, IPA]) {
   if (!existsSync(`release/${f}`)) fail(`release/${f} 不存在：先跑 发版.bat 打包`);
   if (statSync(`release/${f}`).mtimeMs < headTime) fail(`release/${f} 比当前代码旧（是之前打的）：重新跑 发版.bat`);
