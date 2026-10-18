@@ -1,17 +1,17 @@
 {
-  "version": "0.4.1",
-  "notes": "新书签图标和陶红开屏；漫画源扩充、旧账户自动补源、详情首图预取与阅读流畅度优化",
+  "version": "0.4.2",
+  "notes": "修复漫画封面和光盘出图、书单拉取、轻小说顶部空白及漫画源开关变形。",
   "windows": {
-    "file": "EBOOK_0.4.1_x64-setup.exe",
-    "sha256": "c7c14661e84a840a906ecbbbd5e90d2af4dd01cf1a8fab3667b9e6be23256377"
+    "file": "EBOOK_0.4.2_x64-setup.exe",
+    "sha256": "6dfb6284969e9240f3c66875814b8096f09e7c1ad5e869aeb4394e42416da7e7"
   },
   "android": {
-    "file": "EBOOK_0.4.1.apk",
-    "sha256": "8acaa783a502ce9e110c8ca057b2275f1f8fae95021243334047f408403a54f8"
+    "file": "EBOOK_0.4.2.apk",
+    "sha256": "6deb2b8b595d46fd5c7c498920c17c34727d3e84de2c2d886a347f55cfbcc472"
   },
   "ios": {
-    "file": "EBOOK_0.4.1_ios-unsigned.ipa",
-    "sha256": "9e1b925787efcae53d6646544d60b2d9d28bb884bc73f37b259a22a58de4ea48",
+    "file": "EBOOK_0.4.2_ios-unsigned.ipa",
+    "sha256": "2ad8e3d0c873208531602a3893f4b9459b99f0a4d53245d43f7a13b97b4b5be4",
     "unsigned": true
   }
 }

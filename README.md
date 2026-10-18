@@ -14,9 +14,9 @@
 
 | 平台 | 文件 | 安装与更新 |
 |---|---|---|
-| iPhone（iOS 15 及以上） | [EBOOK_0.4.1_ios-unsigned.ipa](https://github.com/shihshdh/ebook/releases/download/v0.4.1/EBOOK_0.4.1_ios-unsigned.ipa) | 用 SideStore 安装，见下方「iPhone 安装」 |
-| 安卓 | [EBOOK_0.4.1.apk](https://github.com/shihshdh/ebook/releases/download/v0.4.1/EBOOK_0.4.1.apk) | 直接安装；以后在应用里「检查更新」 |
-| Windows 10 / 11 | [EBOOK_0.4.1_x64-setup.exe](https://github.com/shihshdh/ebook/releases/download/v0.4.1/EBOOK_0.4.1_x64-setup.exe) | 直接安装；以后在应用里「检查更新」 |
+| iPhone（iOS 15 及以上） | [EBOOK_0.4.2_ios-unsigned.ipa](https://github.com/shihshdh/ebook/releases/download/v0.4.2/EBOOK_0.4.2_ios-unsigned.ipa) | 用 SideStore 安装，见下方「iPhone 安装」 |
+| 安卓 | [EBOOK_0.4.2.apk](https://github.com/shihshdh/ebook/releases/download/v0.4.2/EBOOK_0.4.2.apk) | 直接安装；以后在应用里「检查更新」 |
+| Windows 10 / 11 | [EBOOK_0.4.2_x64-setup.exe](https://github.com/shihshdh/ebook/releases/download/v0.4.2/EBOOK_0.4.2_x64-setup.exe) | 直接安装；以后在应用里「检查更新」 |
 
 > Windows 第一次运行如果提示「Windows 已保护你的电脑」，点「更多信息 → 仍要运行」。
 
