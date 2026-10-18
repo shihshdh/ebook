@@ -2,6 +2,8 @@
 //   node scripts/comic-test.mjs              用假源（fixtures/comic/fixture-source.js）把沙箱的宿主接口逐项过一遍，网络回固定内容
 //   node scripts/comic-test.mjs --live       另外拉真实的 Venera 源，走一遍 搜索 → 详情 → 第一章 → 第一张图
 //   node scripts/comic-test.mjs --live --all 白名单里的源全部测（默认只测拷贝、包子、MangaDex）
+//   node scripts/comic-test.mjs --live --deep --repo=LX7kM9/venera-configs@<提交> --only=bilimanga
+//                                            社区仓库的源；--deep 另外查封面、探索页、名作有没有章节（见 live() 上面的说明）
 //
 // 沙箱代码（src/comic/runtime/sandbox.js）照 vite.config.js 的 inline-script 一样用 esbuild 打包，放进 vm 里跑；
 // DOMParser 用 linkedom。主页面那一侧（host.js 的 http）在这里照着写了一份：Node 里没有 iframe。
@@ -10,6 +12,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import http from 'node:http';
 import https from 'node:https';
+import tls from 'node:tls';
 import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 import { tmpdir } from 'node:os';
@@ -353,12 +356,31 @@ test('翻译：外文才翻、章节号本地改、MangaDex 挑语言、认不�
 
 // ---------- 真实源（--live）----------
 // Node 的 https：请求头大小写原样发出（undici 的 fetch 会全转小写，被 Cloudflare 当机器人），自己跟跳转、解压
-function nodeRequest({ url, method = 'GET', headers = {}, body }, hops = 0) {
+// --proxy=http://127.0.0.1:7890 走 HTTP 代理（https 用 CONNECT 隧道）；不写就是直连（Node 的 https 不看 HTTPS_PROXY 环境变量）
+const PROXY = process.argv.find(a => a.startsWith('--proxy='))?.slice(8);
+function tunnel(u) {
   return new Promise((resolve, reject) => {
-    const u = new URL(url), lib = u.protocol === 'http:' ? http : https;
+    const p = new URL(PROXY);
+    const r = http.request({ host: p.hostname, port: p.port || 80, method: 'CONNECT', path: `${u.hostname}:${u.port || 443}`, timeout: 15000 });
+    r.on('connect', (res, socket) => (res.statusCode === 200 ? resolve(socket) : (socket.destroy(), reject(new Error(`代理 CONNECT ${res.statusCode}`)))));
+    r.on('timeout', () => r.destroy(new Error('代理超时')));
+    r.on('error', reject);
+    r.end();
+  });
+}
+async function nodeRequest({ url, method = 'GET', headers = {}, body }, hops = 0) {
+  const u = new URL(url), viaProxy = PROXY && u.protocol === 'https:' ? await tunnel(u) : null;
+  return new Promise((resolve, reject) => {
+    const lib = u.protocol === 'http:' ? http : https;
     const h = { ...headers };
     if (!Object.keys(h).some(k => k.toLowerCase() === 'accept-encoding')) h['Accept-Encoding'] = 'gzip, deflate, br';
-    const req = lib.request(u, { method, headers: h, timeout: 25000 }, (res) => {
+    const opts = { method, headers: h, timeout: 25000 };
+    if (viaProxy) Object.assign(opts, { agent: false, createConnection: () => tls.connect({ socket: viaProxy, servername: u.hostname }) });
+    // http 网址走代理：连代理，路径写完整网址
+    const viaHttpProxy = PROXY && u.protocol === 'http:' && new URL(PROXY);
+    if (viaHttpProxy) { Object.assign(opts, { host: viaHttpProxy.hostname, port: viaHttpProxy.port || 80, path: u.href }); h.Host ??= u.host; }
+    const req = viaHttpProxy ? http.request(opts, onRes) : lib.request(u, opts, onRes);
+    function onRes(res) {
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && hops < 6) {
         res.resume();
         const next = new URL(res.headers.location, u).href;
@@ -375,7 +397,7 @@ function nodeRequest({ url, method = 'GET', headers = {}, body }, hops = 0) {
         const headers = Object.fromEntries(Object.entries(res.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(',') : String(v)]));
         resolve({ status: res.statusCode, url, headers, bytes: new Uint8Array(buf) });
       });
-    });
+    }
     req.on('timeout', () => req.destroy(new Error('超时')));
     req.on('error', reject);
     if (body != null) req.write(typeof body === 'string' ? body : Buffer.from(body));
@@ -387,48 +409,114 @@ const IMAGE_MAGIC = (b) => (b[0] === 0xff && b[1] === 0xd8) || (b[0] === 0x89 &&
 
 // --only=baozi,copy_manga 只测这几个；--set=baozi.domains=webmota.com 改某个源的设置；--verbose 失败时打印请求和源的日志
 // --bundled 测随包附带的那份（src/comic/default-sources.js：脚本去过空白、带默认设置），不从 GitHub 拉
+// --repo=owner/repo@提交 测社区仓库里的源（按那个仓库的 index.json，文件名可以带目录）；_venera_.js 仍用官方的（随包只带官方那份）
+// --deep 另外查三样（书墙要用的）：
+//   封面：搜索结果、探索页各取前 3 张封面（走源的 onThumbnailLoad），Cloudflare 403、超时都算取不到
+//   探索：探索页第一个标签第一页去重后多少部（同 catalog.js 的「全部」书单），能不能翻到第二页（第二页多出多少部新的）
+//   名作：搜咒术回战、间谍过家家，书名对得上的打开详情，看是不是真有章节、最后一话有没有图（漫画人、GoDa 的版权作品详情只剩空列表）
+// --json=文件 把逐源结果（含探索页书名）写成 JSON；--gap=毫秒 同一个源两次请求至少隔开多久（默认 300，别压测源网站）
 const option = (name) => process.argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3);
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const within = (p, ms, what) => Promise.race([p, new Promise((_, reject) => setTimeout(() => reject(new Error(`${what}超时`)), ms).unref())]);
+const FAMOUS_CHECK = [
+  { name: '咒术回战', q: ['咒术回战', '咒術迴戰', 'Jujutsu Kaisen'], re: /咒[术術][回迴][战戰]|jujutsu\s*kaisen/i },
+  { name: '间谍过家家', q: ['间谍过家家', '間諜家家酒', 'SPY×FAMILY'], re: /间谍过家家|間諜過家家|間諜家家酒|spy\s*[x×]\s*family/i },
+];
+const unique = (comics) => { const seen = new Set(); return comics.filter(c => c.id && !seen.has(c.id) && seen.add(c.id)); };
+async function coverCheck(box, comics) {
+  const list = comics.filter(c => c.cover).slice(0, 3);
+  let ok = 0, why = '';
+  for (const c of list) {
+    try {
+      const req = await within(box.call('thumb', c.cover), 30000, '封面');
+      if (req.modifyImage) throw new Error('要重排图片');
+      const res = await within(box.http({ ...req, bytes: true }), 30000, '封面');
+      let bytes = new Uint8Array(res.body);
+      if (req.onResponse) bytes = new Uint8Array(await box.call('imageResponse', req.onResponse, res.body));
+      if (res.status >= 200 && res.status < 300 && IMAGE_MAGIC(bytes)) ok++;
+      else why ||= `HTTP ${res.status}${res.headers['cf-mitigated'] ? ' Cloudflare' : ''}${IMAGE_MAGIC(bytes) ? '' : ' 不是图片'}`;
+    } catch (err) { why ||= String(err?.message || err).slice(0, 50); }
+  }
+  return { ok, of: list.length, why };
+}
+async function famousCheck(box, options) {
+  const out = [];
+  for (const f of FAMOUS_CHECK) {
+    let found, said = '没搜到';
+    for (const q of f.q) {
+      try { found = (await within(box.call('search', q, options, 1, null), 60000, '搜索')).comics.find(c => f.re.test(c.title)); }
+      catch (err) { said = `搜索出错 ${String(err?.message || err).slice(0, 30)}`; }
+      if (found) break;
+    }
+    if (found) {
+      try {
+        const d = await within(box.call('info', found.id), 60000, '详情');
+        said = d.chapters.length ? `${d.chapters.length} 话` : d.single ? '单本' : '下架（0 话）';
+        // 有章节列表还要看最新一话打不打得开（有的站只留目录，图删了）
+        if (d.chapters.length || d.single) {
+          const last = d.chapters.at(-1)?.id ?? null;
+          try { const n = (await within(box.call('ep', found.id, last), 60000, '章节')).images.length; said += n ? `，最后一话 ${n} 张` : '，最后一话没有图'; }
+          catch (err) { said += `，最后一话打不开（${String(err?.message || err).slice(0, 24)}）`; }
+        }
+      }
+      catch (err) { said = `详情出错 ${String(err?.message || err).slice(0, 30)}`; }
+    }
+    out.push({ name: f.name, title: found?.title || '', said });
+  }
+  return out;
+}
+
 async function live() {
+  // 源脚本自己没接住的请求失败（比如 TLS 被断）别把整轮测试带崩：记下来，最后打印
+  const stray = [];
+  process.on('unhandledRejection', (err) => stray.push(String(err?.message || err).slice(0, 80)));
   const bundled = args.has('--bundled') ? (await import('../src/comic/default-sources.js')).default : null;
-  const index = bundled ? bundled.sources : JSON.parse(await download(VENERA.owner, VENERA.repo, 'main', 'index.json'));
+  const [, owner = VENERA.owner, repo = VENERA.repo, ref = 'main'] = /^([^/@]+)\/([^/@]+)(?:@(.+))?$/.exec(option('repo') || '') || [];
+  const official = owner === VENERA.owner && repo === VENERA.repo;
+  // --index=all_index.json：有的仓库把实验源列在另一个索引里
+  const index = bundled ? bundled.sources : JSON.parse(await download(owner, repo, ref, option('index') || 'index.json'));
   const liveRuntime = bundled ? bundled.runtime : await download(VENERA.owner, VENERA.repo, 'main', '_venera_.js');
-  const only = option('only')?.split(',');
+  const only = option('only')?.split(','), gap = Number(option('gap') ?? 300), deep = args.has('--deep');
   const sets = {};
   for (const s of bundled?.sources || []) if (s.settings) sets[s.key] = { ...s.settings };
   for (const a of process.argv.filter(x => x.startsWith('--set='))) { const [, key, setting, value] = /^--set=([^.]+)\.([^=]+)=(.*)$/.exec(a) || []; if (key) (sets[key] ||= {})[setting] = value; }
   const selfHosted = ['komga', 'kavita', 'lanraragi'];
-  const wanted = index.filter(e => (bundled || e.fileName === `${e.key}.js`) && (only ? only.includes(e.key)
+  // 官方仓库只认和 key 同名的文件（拷贝漫画的多账号版不测）；社区仓库的文件名五花八门，同一个 key 取第一个。成人站一律不跑
+  const fileOk = (e) => bundled || (official ? e.fileName === `${e.key}.js` : /^[\w-]+(\/[\w-]+)*\.js$/.test(e.fileName || ''));
+  const wanted = index.filter((e, i) => fileOk(e) && index.findIndex(o => o.key === e.key && fileOk(o)) === i && comicSkipReason(e) !== '成人内容' && (only ? only.includes(e.key)
     : args.has('--all') ? !comicSkipReason(e) && !selfHosted.includes(e.key) : bundled ? e.enabled : ['copy_manga', 'baozi', 'manga_dex'].includes(e.key)));
-  console.log(`\n真实源（${bundled ? `随包附带 @${bundled.commit.slice(0, 8)}` : 'venera-configs@main'}，${wanted.length} 个）：`);
+  console.log(`\n真实源（${bundled ? `随包附带 @${bundled.commit.slice(0, 8)}` : `${owner}/${repo}@${ref.slice(0, 8)}`}，${wanted.length} 个，${PROXY ? `代理 ${PROXY}` : '直连'}）：`);
   const rows = [];
   await Promise.all(Array.from({ length: 4 }, async () => {
     for (let e; (e = wanted.shift());) {
-      const t0 = Date.now(), row = { name: e.name, key: e.key };
-      let stage = '装载', box;
+      const t0 = Date.now(), row = { name: e.name, key: e.key, version: String(e.version || ''), fileName: e.fileName, repo: bundled ? 'bundled' : `${owner}/${repo}`, net: PROXY ? '代理' : '直连' };
+      let stage = '装载', box, options = [], comics = [];
+      // 同一个源的请求排开：两次请求之间至少隔 gap 毫秒
+      let next = 0;
+      const fetcher = async (req) => { const at = Math.max(Date.now(), next); next = at + gap; if (at > Date.now()) await sleep(at - Date.now()); return nodeRequest(req); };
       try {
-        const code = e.code ?? await download(VENERA.owner, VENERA.repo, 'main', e.fileName);
-        box = await openSandbox({ code, runtime: liveRuntime, fetcher: nodeRequest, data: sets[e.key] ? { settings: sets[e.key] } : {} });
-        const options = box.meta.searchOptions.map(o => o.default);
+        const code = e.code ?? await download(owner, repo, ref, e.fileName);
+        box = await within(openSandbox({ code, runtime: liveRuntime, fetcher, data: sets[e.key] ? { settings: sets[e.key] } : {} }), 60000, '装载');
+        options = box.meta.searchOptions.map(o => o.default);
         stage = '搜索';
-        let comics = [];
-        for (const k of KEYWORDS[e.key] || ['海贼王', '航海王', '鬼灭之刃']) { comics = (await box.call('search', k, options, 1, null)).comics; if (comics.length) break; }
+        for (const k of KEYWORDS[e.key] || ['海贼王', '航海王', '鬼灭之刃']) { comics = (await within(box.call('search', k, options, 1, null), 60000, '搜索')).comics; if (comics.length) break; }
         if (!comics.length) throw new Error('搜不到');
         row.search = comics.length;
         stage = '详情';
         // 第一本打不开（下架了）就换下一本，最多试三本
         let comic, d;
         for (const c of comics.slice(0, 3)) {
-          try { d = await box.call('info', c.id); comic = c; if (d.chapters.length || d.single) break; } catch (err) { if (c === comics[Math.min(2, comics.length - 1)]) throw err; }
+          try { d = await within(box.call('info', c.id), 60000, '详情'); comic = c; if (d.chapters.length || d.single) break; } catch (err) { if (c === comics[Math.min(2, comics.length - 1)]) throw err; }
         }
         row.chapters = d.chapters.length || 1;
         stage = '章节';
-        const ep = await box.call('ep', comic.id, d.chapters[0]?.id ?? null);
+        const ep = await within(box.call('ep', comic.id, d.chapters[0]?.id ?? null), 60000, '章节');
         row.images = ep.images.length;
         if (!ep.images.length) throw new Error('没有图片');
         stage = '图片';
         const req = await box.call('image', ep.images[0], comic.id, d.chapters[0]?.id ?? null);
         if (req.modifyImage) throw new Error('要重排图片');
-        const img = await box.http({ ...req, bytes: true });
+        const img = await within(box.http({ ...req, bytes: true }), 60000, '图片');
         let bytes = new Uint8Array(img.body);
         if (req.onResponse) bytes = new Uint8Array(await box.call('imageResponse', req.onResponse, img.body));
         if (img.status !== 200 || !IMAGE_MAGIC(bytes)) throw new Error(`HTTP ${img.status}，${IMAGE_MAGIC(bytes) ? '' : '不是图片'}`);
@@ -438,13 +526,38 @@ async function live() {
         row.ok = false; row.why = `${stage}：${String(err?.message || err).slice(0, 70)}`;
         if (args.has('--verbose') && box) row.detail = [...box.sent.slice(-4).map(r => `    → ${r.method} ${r.url.slice(0, 140)}`), ...box.logs.slice(-6).map(l => `    · ${l.slice(0, 200)}`)].join('\n');
       }
+      if (deep && box) {
+        if (comics.length) row.searchCovers = await coverCheck(box, comics);
+        try {
+          if (!box.meta.explore.length) { row.explore = 0; row.page2 = '没有探索页'; }
+          else {
+            const type = box.meta.explore[0].type;
+            const first = unique((await within(box.call('explore', 0, 1), 60000, '探索')).parts.flatMap(p => p.comics));
+            row.explore = first.length; row.titles = first.map(c => c.title);
+            if (type === 'singlePageWithMultiPart') row.page2 = '不分页';
+            else {
+              try {
+                const ids = new Set(first.map(c => c.id));
+                row.page2 = unique((await within(box.call('explore', 0, 2), 60000, '探索')).parts.flatMap(p => p.comics)).filter(c => !ids.has(c.id)).length;
+              } catch (err) { row.page2 = `出错 ${String(err?.message || err).slice(0, 30)}`; }
+            }
+            row.exploreCovers = await coverCheck(box, first);
+          }
+        } catch (err) { row.explore = 0; row.page2 = `探索出错 ${String(err?.message || err).slice(0, 50)}`; }
+        row.famous = await famousCheck(box, options);
+      }
       row.s = ((Date.now() - t0) / 1000).toFixed(1);
       rows.push(row);
     }
   }));
-  for (const r of rows.sort((a, b) => a.key.localeCompare(b.key)))
+  const cov = (c) => (c ? `${c.ok}/${c.of}${c.why ? `（${c.why}）` : ''}` : '—');
+  for (const r of rows.sort((a, b) => a.key.localeCompare(b.key))) {
     console.log(`  ${r.ok ? '✓' : '✗'} ${r.name.padEnd(12)} ${r.ok ? `搜到 ${r.search}，${r.chapters} 话，第一话 ${r.images} 张，图 ${r.image}` : r.why}  (${r.s}s)${r.detail ? `\n${r.detail}` : ''}`);
+    if (deep) console.log(`      封面 搜索 ${cov(r.searchCovers)} 探索 ${cov(r.exploreCovers)}｜探索 ${r.explore ?? '—'} 部（第二页 ${typeof r.page2 === 'number' ? `+${r.page2}` : r.page2 ?? '—'}）｜${(r.famous || []).map(f => `${f.name} ${f.said}`).join('，')}`);
+  }
   console.log(`  能用 ${rows.filter(r => r.ok).length} / ${rows.length}`);
+  if (stray.length) console.log(`  源脚本里没接住的错误 ${stray.length} 个：${[...new Set(stray)].join('；')}`);
+  if (option('json')) await writeFile(option('json'), JSON.stringify(rows, null, 1));
 }
 
 // ---------- 跑 ----------
