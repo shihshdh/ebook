@@ -12,11 +12,11 @@
 - 包子保留为现有可读源的例外：章节图改到 s1.bzcdn.net 后成功，搜索/探索封面仍可能 403；不宣称 24 个源全部封面正常。
 - 热辣/拷贝、好看/311、动漫屋/漫画人等同后台来源不同时默认开启。
 
-## 尚需主分支接入（阻止直接发版）
+## 主分支接入（2026-10-18）
 
-当前 sources.js 的 listComicSources 仍只在 !installed 时调用 installDefaults，且 installDefaults 不读取 since/replaces。生成包 version=2 本身不会令旧账户补源，也不会更新已安装的三个替换源。
+已接入包版本升级：旧账户补入本轮新增站点，已删除的旧站点和替换站点不会恢复；旧内置脚本在社区修复版本更新时替换，保留用户开关、Cookie 和自定义域名。用户自己安装的版本与更高版本优先。包子仅迁移原默认图床。迁移写完列表再写版本标记，中断可重试；7 项迁移回归通过。
 
-主分支接入需要：按包版本补 since>installed 的新增源，保留用户删除/停用；替换仍为内置旧版本的源脚本，保留用户自装新版、开关、cookie 和自定义设置；包子仅迁移旧的默认图床。社区来源的后续更新也需使用 from 中的真实仓库路径，当前更多源/更新索引只认官方仓库。依任务书，本分支不修改 Claude 所属 sources.js，尚未合并 main 或发版。
+社区脚本按固定提交随应用升级，记录 from，不用官方仓库的同名文件覆盖社区修复版。社区源自动跟踪其仓库最新版不是本次行为。
 
 ## 候选逐项实测
 
@@ -110,7 +110,10 @@
 | venera-app | hot_manga / 热辣漫画 | 中文/待逐站确认 | 通过 | 通过 | 3/3 / 3/3 | 28 / 不分页 | 收录/默认关 |
 | venera-app | ikmmh / 爱看漫 | 中文/待逐站确认 | 搜索：搜不到 | 搜索：搜不到 | — / — | 0 / 探索出错 探索页面加载失败：加载探索页面失败，状态码：403 | 收录/默认关 |
 | venera-app | mh1234 / 漫画1234 | 中文/待逐站确认 | 搜索：Client network socket disconnected before secure TLS connection was es | 搜索：Client network socket disconnected before secure TLS connection was es | — / 0/0 | 0 / 不分页 | 不收此版本（重复或实测不通过） |
-| venera-app | shonen_jump_plus / 少年ジャンプ＋ | 日文 | 搜索：Unexpected token '<', "<html> <h"... is not valid JSON | 搜索：Unexpected token '<', "<html> <h"... is not valid JSON | — / — | 0 / 探索出错 Unexpected token '<', "<html> <h"... is not valid | 不收此版本（重复或实测不通过） |
+| venera-app | shonen_jump_plus / 少年ジャンプ＋ | 日文 | 搜索：Unexpected token '<', "<html>
+ <h"... is not valid JSON | 搜索：Unexpected token '<', "<html>
+ <h"... is not valid JSON | — / — | 0 / 探索出错 Unexpected token '<', "<html>
+ <h"... is not valid | 不收此版本（重复或实测不通过） |
 | venera-app | zaimanhua / 再漫画 | 中文/待逐站确认 | 详情：漫画不存在或已被删除 | 详情：漫画不存在或已被删除 | 3/3 / 3/3 | 20 / 20 | 收录/默认关 |
 | 137syh | ikmmh / 爱看漫 | 中文/待逐站确认 | 搜索：搜不到 | 搜索：搜不到 | — / — | 0 / 探索出错 探索页面加载失败：加载探索页面失败，状态码：403 | 不收此版本（重复或实测不通过） |
 | 137syh | vomic / vomic | 中文/待逐站确认 | 装载：HTTP 404 https://raw.githubusercontent.com/137syh/venera-syh/a746f0cf6 | 装载：HTTP 404 https://raw.githubusercontent.com/137syh/venera-syh/a746f0cf6 | — / — | — / — | 不收此版本（重复或实测不通过） |
@@ -164,4 +167,4 @@ npm run build
 node scripts/comic-test.mjs --live --bundled --deep --json=after-direct.json
 ```
 
-已完成源筛选、打包内容与离线构建复核；旧账户迁移及客户端整体验收待主分支接入后完成。
+源筛选、旧账户迁移、打包内容与离线回归已接入；三端客户端整体验收记录随 0.4.1 发布补充。

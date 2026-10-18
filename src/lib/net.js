@@ -9,6 +9,7 @@
 //   3. 谁先回响应头谁赢，其余全部中止——同一时刻通常只有一两个请求在跑，不会把带宽分掉
 //   4. 赢家的耗时记进本机（指数平均），下次它排第一，基本一发即中
 // 正文下载过程中 15 秒没有新数据（代理卡住）就判它失败，换剩下的地址重来。
+import { releaseAssetUrls as releaseUrls } from './github-urls.js';
 import { isNative, nativeGetBinary, nativeGetText, nativeProbe, platform } from './native.js';
 
 const HEAD_TIMEOUT = 15000;   // 单个地址等响应头的上限
@@ -221,30 +222,9 @@ export async function getBinary(urls, onProgress, { expectZip = false, validate,
 // ---------- 候选地址 ----------
 // 下面的顺序只是"没测过时的初始推荐"，跑起来以后按本机实测重排。
 // jsDelivr：cdn 主域国内常被干扰，testingcf / gcore / fastly 等子节点各有各的线路
-const JSD = ['testingcf.jsdelivr.net', 'gcore.jsdelivr.net', 'originfastly.jsdelivr.net', 'quantil.jsdelivr.net', 'fastly.jsdelivr.net', 'cdn.jsdelivr.net'];
-// GitHub 加速代理（前缀式：代理地址 + 原始地址），都带 CORS 头
-const GH_PROXIES = ['https://gh-proxy.org/', 'https://edgeone.gh-proxy.org/', 'https://ghfast.top/', 'https://gh.llkk.cc/'];
-
-/**
- * GitHub 仓库里的文件。小文件 jsDelivr 优先（有 CDN、带 CORS）；
- * 大仓库里的大文件（ixinzhi 的 EPUB 仓库好几个 G）jsDelivr 会超时，改成代理 / raw 优先、jsDelivr 垫底
- */
-export function repoFileUrls(owner, repo, branch, path, { big = false } = {}) {
-  const enc = path.split('/').map(encodeURIComponent).join('/');
-  const raw = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${enc}`;
-  const cdn = JSD.map(h => `https://${h}/gh/${owner}/${repo}@${branch}/${enc}`);
-  const proxied = GH_PROXIES.map(p => p + raw);
-  return big ? [...proxied, raw, ...cdn.slice(0, 2)] : [...cdn.slice(0, 3), ...proxied, raw, ...cdn.slice(3)];
-}
-
-/**
- * GitHub Releases 附件：原生端可直连 github.com；网页端只能走带 CORS 的代理
- * （ghfast 下 Releases 时跳转后的响应没有 CORS 头，网页端用不了，客户端里照用）
- */
+export { repoFileUrls } from './github-urls.js';
 export function releaseAssetUrls(owner, repo, tag, file) {
-  const direct = `https://github.com/${owner}/${repo}/releases/download/${tag}/${encodeURIComponent(file)}`;
-  const proxied = GH_PROXIES.map(p => p + direct);
-  return isNative ? [...proxied, direct] : proxied.filter(u => !u.startsWith('https://ghfast.top/'));
+  return releaseUrls(owner, repo, tag, file, { native: isNative });
 }
 
 // ---------- 诊断 ----------

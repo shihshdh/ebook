@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { idbGet, idbSet } from '../lib/idb.js';
 import { listComicSources, withSource } from './sources.js';
 import { fetchImage } from './images.js';
+import { firstPageCache } from './first-page-cache.js';
 import { loadCover, saveCover, loadDetails, saveDetails } from './cover-cache.js';
 import { calm } from '../lib/calm.js';
 import { isIOS, mobileUI } from '../lib/native.js';
@@ -95,7 +96,15 @@ export function prefetchComic(book) {
   if (c) comicDetails(c.sourceId, c.comicId).catch(() => {});
 }
 /** 提前取一话的图片列表（详情出来后「开始看 / 继续看」那一话），点开阅读器少等一轮 */
-export function prefetchChapter(sourceId, comicId, epId) { chapterImages(sourceId, comicId, epId).catch(() => {}); }
+const firstPages = firstPageCache();
+const pageKey = (sourceId, comicId, epId, url) => JSON.stringify([sourceId, comicId, epId, url]);
+export function prefetchChapter(sourceId, comicId, epId, page = 0) {
+  chapterImages(sourceId, comicId, epId).then(images => {
+    const url = images[Math.min(Math.max(0, page), images.length - 1)];
+    if (url) firstPages.warm(pageKey(sourceId, comicId, epId, url), () =>
+      pageSlot(() => withSource(sourceId, box => fetchImage(box, url, { comicId, epId }))));
+  }).catch(() => {});
+}
 /** 某一话的图片地址。epId 为 null：整本一卷 */
 export const chapterImages = (sourceId, comicId, epId) => remember(episodes, `${sourceId}|${comicId}|${epId}`,
   () => withSource(sourceId, box => box.call('ep', [comicId, epId], { timeout: 30000 })).then(r => r.images));
@@ -105,9 +114,17 @@ export const chaptersOf = (d) => (d.single ? [{ id: null, title: '全一卷', gr
 
 // ---------- 图 ----------
 /** 取一张正文图：返回 blob 地址，用完调用方自己 URL.revokeObjectURL */
-export function pageURL(sourceId, url, { comicId, epId, signal, front } = {}) {
-  return pageSlot(() => withSource(sourceId, box => fetchImage(box, url, { comicId, epId, signal, front })), { signal, front })
-    .then(blob => URL.createObjectURL(blob));
+export async function pageURL(sourceId, url, { comicId, epId, signal, front } = {}) {
+  signal?.throwIfAborted();
+  const cached = firstPages.take(pageKey(sourceId, comicId, epId, url), signal);
+  let blob;
+  if (cached) {
+    try { blob = await cached; }
+    catch (error) { if (signal?.aborted) throw error; } // 预取失败照常重试，不让后台失败挡住阅读。
+  }
+  if (!blob) blob = await pageSlot(() => withSource(sourceId, box => fetchImage(box, url, { comicId, epId, signal, front })), { signal, front });
+  signal?.throwIfAborted();
+  return URL.createObjectURL(blob);
 }
 
 // 封面好不好取，按源记：有的源图床把我们整个拦掉（包子漫画的 static-tw.baozimh.com 一律 Cloudflare 403，加什么请求头都没用）。

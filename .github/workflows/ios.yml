@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Verify iOS platform routing
-        run: node --test scripts/ios-platform-test.mjs
+        run: node --test scripts/ios-platform-test.mjs scripts/comic-defaults-migration-test.mjs scripts/comic-first-page-test.mjs scripts/catalog-worker-test.mjs
       - name: Build unsigned iPhone package
         run: npm run ios:build
       - uses: actions/upload-artifact@v4

@@ -9,7 +9,8 @@
 // 三份合起来约 3MB，缓存在 IndexedDB，过期（6 小时）后在后台刷新，先用旧的。
 import { idbGet, idbSet } from '../../lib/idb.js';
 import { getBinary, getText, releaseAssetUrls, repoFileUrls } from '../../lib/net.js';
-import { parseCSV } from './csv.js';
+import { build as buildCatalog } from './build.js';
+import { isNative } from '../../lib/native.js';
 
 export const id = 'mojimoon';
 export const kind = 'catalog';
@@ -38,109 +39,23 @@ async function fetchAll(onStatus) {
   return { catalog, csv, index, fetchedAt: Date.now() };
 }
 
-const aidFromLink = (link) => (String(link || '').match(/book\/(\d+)\.htm/) || [])[1] || '';
-const statusOf = (s = '') => ({ status: s.includes('完结') ? '已完结' : s.includes('连载') ? '连载中' : '', animated: s.includes('动画') });
-
-/** 把三份原始数据拼成 Book[] */
-export function build({ catalog, csv, index }) {
-  const cat = JSON.parse(catalog);
-  const idx = JSON.parse(index);
-  const rows = parseCSV(csv.replace(/^﻿/, ''));
-  const head = rows.shift() || [];
-  const col = Object.fromEntries(head.map((h, i) => [h.trim(), i]));
-  const get = (r, k) => (r[col[k]] ?? '').trim();
-
-  /** @type {Map<string, any>} */
-  const books = new Map();
-  const ensure = (aid, seed) => {
-    if (!books.has(aid)) books.set(aid, {
-      id: `${id}:${aid}`, source: id, aid, title: '', alt: '', author: '', publisher: '', status: '', animated: false,
-      tags: [], description: '', length: '', updated: '', illustrated: false, downloads: [], ...seed,
+// 保留同步导出供脚本使用；应用启动时走独立 Worker，JSON/CSV 和下载候选不再堵住开屏。
+export const build = raw => buildCatalog(raw, { native: isNative });
+async function buildAsync(raw) {
+  if (typeof Worker === 'undefined') return build(raw);
+  try {
+    return await new Promise((resolve, reject) => {
+      const worker = new Worker(new URL('./build.worker.js', import.meta.url), { type: 'module' });
+      const done = (fn, value) => { clearTimeout(timer); worker.terminate(); fn(value); };
+      const timer = setTimeout(() => done(reject, new Error('书目后台整理超时')), 20000);
+      worker.onmessage = ({ data }) => data.error ? done(reject, new Error(data.error)) : done(resolve, data.books);
+      worker.onerror = event => { event.preventDefault(); done(reject, new Error(event.message || '书目 Worker 不可用')); };
+      worker.postMessage({ raw, native: isNative });
     });
-    return books.get(aid);
-  };
-
-  for (const list of Object.values(cat.pages || {})) {
-    for (const b of list) {
-      const aid = String(b.aid);
-      Object.assign(ensure(aid), {
-        title: b.title || '', author: b.author || '', publisher: b.publisher || '',
-        ...statusOf(b.status), length: b.length || '', updated: b.update || '',
-        tags: String(b.tags || '').split(/\s+/).filter(Boolean),
-        description: b.description || '',
-        // 原站封面：img.wenku8.com 本身国内外都连不上，交给 covers.js 走图片代理
-        coverSrc: b.cover_url || '',
-      });
-    }
+  } catch (error) {
+    console.warn('[mojimoon] 后台整理不可用，使用兼容路径', error);
+    return build(raw);
   }
-
-  for (const r of rows) {
-    if (r.length < 3) continue;
-    const aid = aidFromLink(get(r, 'novel_link')) || 'x' + get(r, 'main');
-    const book = ensure(aid);
-    if (!book.title) book.title = get(r, 'main');
-    if (!book.author) book.author = get(r, 'author');
-    book.alt = book.alt || get(r, 'alt');
-    const upd = get(r, 'update');
-    if (upd > book.updated) book.updated = upd;
-    const path = get(r, 'download_url').replace(/^https:\/\/raw\.githubusercontent\.com\//, '');
-    if (path) {
-      const [owner, repo, branch, ...rest] = path.split('/');
-      book.downloads.push({
-        kind: 'txt', label: '纯文本 EPUB', note: `无插图 · ${get(r, 'txt_update') || '整本'}`,
-        urls: repoFileUrls(owner, repo, branch, rest.join('/'), { big: true }),
-      });
-    }
-    const lz = get(r, 'dl_label');
-    if (lz) {
-      // 「台版」是台湾正式出版的电子版，带官方封面、彩页和插图——插图来源里数量最多的一块（约 375 本）
-      const taiban = get(r, 'dl_remark') === '台版';
-      if (taiban) book.taiban = true;
-      book.downloads.push({
-        kind: 'external', label: taiban ? '蓝奏云 EPUB · 台版' : '蓝奏云 EPUB', taiban,
-        note: [get(r, 'volume'), taiban ? '官方彩插' : get(r, 'dl_remark')].filter(Boolean).join(' · '),
-        url: LANZOU + lz, pwd: get(r, 'dl_pwd'),
-      });
-    }
-  }
-
-  for (const [aid, entry] of Object.entries(idx)) {
-    if (!entry) continue;
-    if (entry.blocked) {
-      const book = ensure(aid, { title: entry.title });
-      book.blocked = entry.blocked;
-      continue;
-    }
-    const variants = entry.volumes ? [entry] : Object.values(entry.variants || {});
-    const v = variants.find(x => x.volumes?.length);
-    if (!v) continue;
-    const book = ensure(aid, { title: entry.title, author: entry.author });
-    book.illustrated = true;
-    book.builtAt = (v.built_at || '').slice(0, 10);
-    // 重制版 EPUB 放在哪个仓库的 Releases：上游 2026-10 把它们搬到了 mojimoon/wenku8-epub，索引里用 repo 字段标明；
-    // 以前固定拼 mojimoon/wenku8，搬家后插图版全部 404（报"网络不行"其实是地址错了）。没有 repo 字段的老索引照旧用主仓库
-    const [owner, repo] = /^[\w.-]+\/[\w.-]+$/.test(v.repo || entry.repo || '') ? (v.repo || entry.repo).split('/') : [OWNER, REPO];
-    book.downloads.unshift({
-      kind: 'illustrated', label: '插图重制版', note: `含封面插图 · ${v.volumes.length} 卷`,
-      volumes: v.volumes.map(vol => ({
-        key: vol.file.replace(/\.epub$/, ''), title: vol.title, size: vol.size, images: vol.images, chapters: vol.chapters,
-        urls: releaseAssetUrls(owner, repo, v.tag, `${aid}-${vol.file}`),
-      })),
-    });
-  }
-
-  const out = [];
-  for (const b of books.values()) {
-    if (!b.title) continue;
-    if (b.blocked) b.blockedNote = "轻小说文库已因版权问题下架本书正文，无法重制插图版";
-    // 可以请上游按需生成插图版的书：只有 TXT 源（没有蓝奏云 EPUB）、没下架、还没生成过——和上游 build_request.py 的校验一致
-    b.canRequest = /^\d+$/.test(b.aid) && !b.illustrated && !b.blocked
-      && b.downloads.some(d => d.kind === 'txt') && !b.downloads.some(d => d.kind === 'external');
-    b.updated = b.updated || b.builtAt || '';
-    if (!b.coverSrc && /^\d+$/.test(b.aid)) b.coverSrc = `http://img.wenku8.com/image/${Math.floor(b.aid / 1000)}/${b.aid}/${b.aid}s.jpg`;
-    out.push(b);
-  }
-  return out;
 }
 
 /**
@@ -168,11 +83,11 @@ export async function load({ force = false, onStatus, onUpdate } = {}) {
   if (memo && !force) return memo;
   const cached = force ? null : await idbGet('kv', CACHE_KEY).catch(() => null);
   if (cached) {
-    memo = { books: build(cached), fetchedAt: cached.fetchedAt, stale: Date.now() - cached.fetchedAt > TTL };
+    memo = { books: await buildAsync(cached), fetchedAt: cached.fetchedAt, stale: Date.now() - cached.fetchedAt > TTL };
     if (memo.stale) {
       fetchAll().then(async raw => {
         await idbSet('kv', CACHE_KEY, raw);
-        memo = { books: build(raw), fetchedAt: raw.fetchedAt, stale: false };
+        memo = { books: await buildAsync(raw), fetchedAt: raw.fetchedAt, stale: false };
         onUpdate?.(memo);
       }).catch(err => console.warn('[mojimoon] 后台刷新失败', err));
     }
@@ -181,7 +96,7 @@ export async function load({ force = false, onStatus, onUpdate } = {}) {
   const raw = await fetchAll(onStatus);
   onStatus?.('正在整理书目…');
   await idbSet('kv', CACHE_KEY, raw).catch(() => {});
-  memo = { books: build(raw), fetchedAt: raw.fetchedAt, stale: false };
+  memo = { books: await buildAsync(raw), fetchedAt: raw.fetchedAt, stale: false };
   return memo;
 }
 

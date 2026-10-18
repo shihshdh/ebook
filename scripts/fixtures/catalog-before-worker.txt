@@ -1,0 +1,105 @@
+const aidFromLink = (link) => (String(link || '').match(/book\/(\d+)\.htm/) || [])[1] || '';
+const statusOf = (s = '') => ({ status: s.includes('完结') ? '已完结' : s.includes('连载') ? '连载中' : '', animated: s.includes('动画') });
+
+/** 把三份原始数据拼成 Book[] */
+export function build({ catalog, csv, index }) {
+  const cat = JSON.parse(catalog);
+  const idx = JSON.parse(index);
+  const rows = parseCSV(csv.replace(/^﻿/, ''));
+  const head = rows.shift() || [];
+  const col = Object.fromEntries(head.map((h, i) => [h.trim(), i]));
+  const get = (r, k) => (r[col[k]] ?? '').trim();
+
+  /** @type {Map<string, any>} */
+  const books = new Map();
+  const ensure = (aid, seed) => {
+    if (!books.has(aid)) books.set(aid, {
+      id: `${id}:${aid}`, source: id, aid, title: '', alt: '', author: '', publisher: '', status: '', animated: false,
+      tags: [], description: '', length: '', updated: '', illustrated: false, downloads: [], ...seed,
+    });
+    return books.get(aid);
+  };
+
+  for (const list of Object.values(cat.pages || {})) {
+    for (const b of list) {
+      const aid = String(b.aid);
+      Object.assign(ensure(aid), {
+        title: b.title || '', author: b.author || '', publisher: b.publisher || '',
+        ...statusOf(b.status), length: b.length || '', updated: b.update || '',
+        tags: String(b.tags || '').split(/\s+/).filter(Boolean),
+        description: b.description || '',
+        // 原站封面：img.wenku8.com 本身国内外都连不上，交给 covers.js 走图片代理
+        coverSrc: b.cover_url || '',
+      });
+    }
+  }
+
+  for (const r of rows) {
+    if (r.length < 3) continue;
+    const aid = aidFromLink(get(r, 'novel_link')) || 'x' + get(r, 'main');
+    const book = ensure(aid);
+    if (!book.title) book.title = get(r, 'main');
+    if (!book.author) book.author = get(r, 'author');
+    book.alt = book.alt || get(r, 'alt');
+    const upd = get(r, 'update');
+    if (upd > book.updated) book.updated = upd;
+    const path = get(r, 'download_url').replace(/^https:\/\/raw\.githubusercontent\.com\//, '');
+    if (path) {
+      const [owner, repo, branch, ...rest] = path.split('/');
+      book.downloads.push({
+        kind: 'txt', label: '纯文本 EPUB', note: `无插图 · ${get(r, 'txt_update') || '整本'}`,
+        urls: repoFileUrls(owner, repo, branch, rest.join('/'), { big: true }),
+      });
+    }
+    const lz = get(r, 'dl_label');
+    if (lz) {
+      // 「台版」是台湾正式出版的电子版，带官方封面、彩页和插图——插图来源里数量最多的一块（约 375 本）
+      const taiban = get(r, 'dl_remark') === '台版';
+      if (taiban) book.taiban = true;
+      book.downloads.push({
+        kind: 'external', label: taiban ? '蓝奏云 EPUB · 台版' : '蓝奏云 EPUB', taiban,
+        note: [get(r, 'volume'), taiban ? '官方彩插' : get(r, 'dl_remark')].filter(Boolean).join(' · '),
+        url: LANZOU + lz, pwd: get(r, 'dl_pwd'),
+      });
+    }
+  }
+
+  for (const [aid, entry] of Object.entries(idx)) {
+    if (!entry) continue;
+    if (entry.blocked) {
+      const book = ensure(aid, { title: entry.title });
+      book.blocked = entry.blocked;
+      continue;
+    }
+    const variants = entry.volumes ? [entry] : Object.values(entry.variants || {});
+    const v = variants.find(x => x.volumes?.length);
+    if (!v) continue;
+    const book = ensure(aid, { title: entry.title, author: entry.author });
+    book.illustrated = true;
+    book.builtAt = (v.built_at || '').slice(0, 10);
+    // 重制版 EPUB 放在哪个仓库的 Releases：上游 2026-10 把它们搬到了 mojimoon/wenku8-epub，索引里用 repo 字段标明；
+    // 以前固定拼 mojimoon/wenku8，搬家后插图版全部 404（报"网络不行"其实是地址错了）。没有 repo 字段的老索引照旧用主仓库
+    const [owner, repo] = /^[\w.-]+\/[\w.-]+$/.test(v.repo || entry.repo || '') ? (v.repo || entry.repo).split('/') : [OWNER, REPO];
+    book.downloads.unshift({
+      kind: 'illustrated', label: '插图重制版', note: `含封面插图 · ${v.volumes.length} 卷`,
+      volumes: v.volumes.map(vol => ({
+        key: vol.file.replace(/\.epub$/, ''), title: vol.title, size: vol.size, images: vol.images, chapters: vol.chapters,
+        urls: releaseAssetUrls(owner, repo, v.tag, `${aid}-${vol.file}`),
+      })),
+    });
+  }
+
+  const out = [];
+  for (const b of books.values()) {
+    if (!b.title) continue;
+    if (b.blocked) b.blockedNote = "轻小说文库已因版权问题下架本书正文，无法重制插图版";
+    // 可以请上游按需生成插图版的书：只有 TXT 源（没有蓝奏云 EPUB）、没下架、还没生成过——和上游 build_request.py 的校验一致
+    b.canRequest = /^\d+$/.test(b.aid) && !b.illustrated && !b.blocked
+      && b.downloads.some(d => d.kind === 'txt') && !b.downloads.some(d => d.kind === 'external');
+    b.updated = b.updated || b.builtAt || '';
+    if (!b.coverSrc && /^\d+$/.test(b.aid)) b.coverSrc = `http://img.wenku8.com/image/${Math.floor(b.aid / 1000)}/${b.aid}/${b.aid}s.jpg`;
+    out.push(b);
+  }
+  return out;
+}
+

@@ -14,6 +14,7 @@ import { idbDel, idbGet, idbSet } from '../lib/idb.js';
 import { getText, repoFileUrls } from '../lib/net.js';
 import { isIOS, isNative, mobileUI } from '../lib/native.js';
 import { comicSkipReason, isSelfHosted } from './policy.js';
+import { DEFAULTS_VERSION, migrateComicDefaults } from './defaults-migration.js';
 
 export const REPOS = [
   { id: 'venera', name: 'Venera 官方源', owner: 'venera-app', repo: 'venera-configs', branch: 'main' },
@@ -52,24 +53,9 @@ const DEFAULTS_KEY = 'comic:defaults';
  * 首次使用装上随包附带的源（同默认书源）：已经有的（同一个 id）不动，用户的开关、设置、自己装的新版都优先；
  * 删掉的不会再补回来（标记记着装过哪一版）。内置包里的 _venera_.js 比本机的新才换
  */
-async function installDefaults(list) {
+async function installDefaults(list, installed) {
   const { default: bundled } = await import('./default-sources.js');
-  const have = new Set(list.map(e => e.id)), now = Date.now(), added = [];
-  for (const s of bundled.sources) {
-    const id = `${bundled.repo}:${s.fileName.replace(/\.js$/, '')}`;
-    if (have.has(id)) continue;
-    added.push({ id, repo: bundled.repo, key: s.key, name: s.name, version: s.version, fileName: s.fileName, className: s.className, code: s.code,
-      enabled: s.enabled, autoOff: s.autoOff, addedAt: now, updatedAt: now, builtin: bundled.version });
-    // 默认设置（包子漫画换个能用的域名）：源还没有自己的存档才写
-    if (s.settings && !(await idbGet('kv', dataKey(id)))) await idbSet('kv', dataKey(id), { settings: s.settings });
-  }
-  const runtime = await idbGet('kv', runtimeKey(bundled.repo));
-  if (!runtime?.code || (runtime.builtin && runtime.builtin < bundled.version)) await idbSet('kv', runtimeKey(bundled.repo), { code: bundled.runtime, at: now, builtin: bundled.version });
-  // 列表先写，标记后写：中途失败下次重来，按 id 去重不会装两遍
-  const next = [...list, ...added];
-  if (added.length) await idbSet('kv', KEY, next);
-  await idbSet('kv', DEFAULTS_KEY, bundled.version);
-  return next;
+  return migrateComicDefaults(list, installed || 0, bundled, { get: idbGet, set: idbSet });
 }
 
 /** @returns {Promise<{id, repo, key, name, version, fileName, className, code, enabled, autoOff?, builtin?, addedAt, updatedAt, test?}[]>} */
@@ -79,7 +65,7 @@ export async function listComicSources() {
     // 读失败不能当成新账户（会把用户的列表盖掉）：这里出错就整个抛出去
     const [stored, installed] = await Promise.all([idbGet('kv', KEY), idbGet('kv', DEFAULTS_KEY)]);
     let list = Array.isArray(stored) ? stored : [];
-    if (comicSupported && !installed) list = await installDefaults(list);
+    if (comicSupported && Number(installed || 0) < DEFAULTS_VERSION) list = await installDefaults(list, installed);
     return (cache = list);
   })().finally(() => { loading = null; });
   return loading;
@@ -119,7 +105,7 @@ export async function fetchIndex(repoId) {
       return {
         id, repo: repoId, key: e.key, name: String(e.name || e.key), fileName: e.fileName, version: String(e.version || ''),
         description: String(e.description || ''), skip: comicSkipReason({ key: e.key, name: e.name }),
-        installed: !!have, update: !!have && newer(e.version, have.version),
+        installed: !!have, update: !!have && !have.from && newer(e.version, have.version),
       };
     });
   return items.filter(e => !items.some(o => o !== e && o.key === e.key && o.fileName === `${o.key}.js` && e.fileName !== `${e.key}.js`));

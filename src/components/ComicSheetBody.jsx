@@ -53,7 +53,7 @@ export default function ComicSheetBody({ book: given, onRead }) {
   useEffect(() => {
     if (!d || !chapters.length) return;
     const ep = chapters[Math.min(progress?.index || 0, chapters.length - 1)];
-    prefetchChapter(c.sourceId, c.comicId, ep.id);
+    prefetchChapter(c.sourceId, c.comicId, ep.id, progress?.page || 0);
   }, [d]);
   const list = useMemo(() => chapters.map((x, i) => ({ ...x, i })), [chapters]);
   const ordered = reverse ? [...list].reverse() : list;

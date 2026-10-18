@@ -18,7 +18,7 @@ const fail = (msg) => { console.error('\n✗ ' + msg); process.exit(1); };
 const run = (cmd, args, opts = {}) => String(execFileSync(cmd, args, { encoding: 'utf8', stdio: opts.quiet ? 'pipe' : ['ignore', 'pipe', 'inherit'], ...opts }) ?? '').trim();
 
 const VER = JSON.parse(readFileSync('package.json', 'utf8')).version;
-const EXE = `EBOOK_${VER}_x64-setup.exe`, APK = `EBOOK_${VER}.apk`;
+const EXE = `EBOOK_${VER}_x64-setup.exe`, APK = `EBOOK_${VER}.apk`, IPA = `EBOOK_${VER}_ios-unsigned.ipa`;
 const TAG = `v${VER}`;
 console.log(`EBOOK ${VER}`);
 
@@ -41,12 +41,12 @@ if (process.argv.includes('--check')) { console.log('✓ 可以打包'); process
 
 // 2. 两个包：在 release/ 里、是这一版
 const headTime = +run('git', ['log', '-1', '--format=%ct']) * 1000;
-for (const f of [EXE, APK]) {
+for (const f of [EXE, APK, IPA]) {
   if (!existsSync(`release/${f}`)) fail(`release/${f} 不存在：先跑 发版.bat 打包`);
   if (statSync(`release/${f}`).mtimeMs < headTime) fail(`release/${f} 比当前代码旧（是之前打的）：重新跑 发版.bat`);
 }
 const sha = (f) => new Promise((res, rej) => { const h = createHash('sha256'); createReadStream(f).on('data', d => h.update(d)).on('end', () => res(h.digest('hex'))).on('error', rej); });
-const sums = { [EXE]: await sha(`release/${EXE}`), [APK]: await sha(`release/${APK}`) };
+const sums = Object.fromEntries(await Promise.all([EXE, APK, IPA].map(async f => [f, await sha(`release/${f}`)])));
 for (const [f, s] of Object.entries(sums)) console.log(`  ${s}  ${f}`);
 
 // 3. 更新说明
@@ -56,7 +56,7 @@ const title = lines.find(l => l.startsWith('# '))?.slice(2).trim();
 const oneLine = lines.find(l => l.startsWith('> '))?.slice(2).trim();
 if (!title || !oneLine) fail(`${notesFile} 要有「# 标题」和「> 一句话说明」两行`);
 const body = lines.filter(l => !l.startsWith('# ') && !l.startsWith('> ')).join('\n').trim()
-  + `\n\n## SHA-256\n\n\`\`\`text\n${sums[EXE]}  ${EXE}\n${sums[APK]}  ${APK}\n\`\`\`\n`;
+  + `\n\n## SHA-256\n\n\`\`\`text\n${sums[EXE]}  ${EXE}\n${sums[APK]}  ${APK}\n${sums[IPA]}  ${IPA}\n\`\`\`\n`;
 
 // 4. GitHub Release（先建、传好附件）
 writeFileSync('release/RELEASE_BODY.md', body);
@@ -71,7 +71,7 @@ if (!manifestOnly) {
   try { run('gh', ['release', 'view', TAG, '--repo', REPO], { quiet: true }); exists = true; } catch {}
   if (exists) fail(`GitHub 上已经有 ${TAG} 了。要重传附件：gh release upload ${TAG} release/${EXE} release/${APK} --clobber --repo ${REPO}，再跑 node release.mjs --manifest`);
   console.log(`\n建 Release ${TAG}，上传两个文件（几十 MB，要一会儿）…`);
-  run('gh', ['release', 'create', TAG, `release/${EXE}`, `release/${APK}`, '--repo', REPO, '--target', 'main', '--title', title, '--notes-file', 'release/RELEASE_BODY.md'], { stdio: 'inherit' });
+  run('gh', ['release', 'create', TAG, `release/${EXE}`, `release/${APK}`, `release/${IPA}`, '--repo', REPO, '--target', 'main', '--title', title, '--notes-file', 'release/RELEASE_BODY.md'], { stdio: 'inherit' });
 }
 
 // 5. 核对 Release 上的附件确实在，再推清单
@@ -79,12 +79,13 @@ if (hasGh) {
   let assets = [];
   try { assets = JSON.parse(run('gh', ['release', 'view', TAG, '--repo', REPO, '--json', 'assets'], { quiet: true })).assets.map(a => a.name); }
   catch { fail(`GitHub 上找不到 Release ${TAG}：先建好、传好两个文件，再跑 node release.mjs --manifest`); }
-  for (const f of [EXE, APK]) if (!assets.includes(f)) fail(`Release ${TAG} 上没有 ${f}：先传上去，再跑 node release.mjs --manifest`);
+  for (const f of [EXE, APK, IPA]) if (!assets.includes(f)) fail(`Release ${TAG} 上没有 ${f}：先传上去，再跑 node release.mjs --manifest`);
 } else console.log('（没装 gh，没法核对 Release 上的附件，按已经传好了处理）');
-const manifest = { version: VER, notes: oneLine, windows: { file: EXE, sha256: sums[EXE] }, android: { file: APK, sha256: sums[APK] } };
+const manifest = { version: VER, notes: oneLine, windows: { file: EXE, sha256: sums[EXE] }, android: { file: APK, sha256: sums[APK] }, ios: { file: IPA, sha256: sums[IPA], unsigned: true } };
 writeFileSync('latest.json', JSON.stringify(manifest, null, 2) + '\n');
 const readme = readFileSync('README.md', 'utf8');
 const nextReadme = readme
+  .replace(/\[EBOOK_[\d.]+_ios-unsigned\.ipa\]\(https:\/\/github\.com\/[^)]+\)/, `[${IPA}](https://github.com/${REPO}/releases/download/${TAG}/${IPA})`)
   .replace(/\[EBOOK_[\d.]+_x64-setup\.exe\]\(https:\/\/github\.com\/[^)]+\)/, `[${EXE}](https://github.com/${REPO}/releases/download/${TAG}/${EXE})`)
   .replace(/\[EBOOK_[\d.]+\.apk\]\(https:\/\/github\.com\/[^)]+\)/, `[${APK}](https://github.com/${REPO}/releases/download/${TAG}/${APK})`);
 if (nextReadme === readme) console.log('（README 里没找到下载链接，没改）');

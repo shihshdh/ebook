@@ -95,13 +95,13 @@ export default function GlassTabBar({ tabs, hidden, searchTab }) {
     if (!el) return null;
     const items = [...el.querySelectorAll(':scope > .lg-tabs > [data-tab]')];
     if (!items.length) return null;
-    const W = items[0].offsetWidth, H = el.clientHeight, inset = 4;
+    const W = items[0].offsetWidth, H = el.clientHeight, width = el.clientWidth, inset = 4;
     const W0 = W - inset * 2, H0 = H - inset * 2;
     const H1 = Math.round(H * 1.16), W1 = Math.max(Math.round(W * 1.2 + 6), Math.round(H1 * .98));
-    g.current = { W, H, W0, H0, W1, H1, centers: items.map(it => it.offsetLeft + it.offsetWidth / 2), width: el.clientWidth };
+    g.current = { W, H, W0, H0, W1, H1, centers: items.map(it => it.offsetLeft + it.offsetWidth / 2), width };
     const st = el.style;
     st.setProperty('--lg-w0', `${W0}px`); st.setProperty('--lg-w1', `${W1}px`); st.setProperty('--lg-h1', `${H1}px`);
-    st.setProperty('--lg-bar-w', `${el.clientWidth}px`);
+    st.setProperty('--lg-bar-w', `${width}px`);
     return g.current;
   };
   const els = () => ({ lens: lens.current, pill: pill.current, mag: mag.current, red: red.current, blue: blue.current });
@@ -180,7 +180,8 @@ export default function GlassTabBar({ tabs, hidden, searchTab }) {
 
   // 选中格变了（点了别处的链接、浏览器返回）：滑过去。由手势发起的切换，透镜已经在路上了
   useLayoutEffect(() => {
-    const geo = g.current || measure();
+    // 首次尺寸由 ResizeObserver 在浏览器排版后提供，避免 React 提交时强制整页排版。
+    const geo = g.current;
     if (!geo) return;
     const target = geo.centers[active];
     pill.current.style.visibility = active < 0 ? 'hidden' : '';
@@ -203,9 +204,11 @@ export default function GlassTabBar({ tabs, hidden, searchTab }) {
     if (!el) return;
     const ro = new ResizeObserver(() => {
       const geo = measure();
-      if (!geo || !s.current || activeRef.current < 0) return;
-      stopBaked();
-      const x = geo.centers[activeRef.current];
+      if (!geo) return;
+      pill.current.style.visibility = activeRef.current < 0 ? 'hidden' : '';
+      const x = geo.centers[Math.max(0, activeRef.current)];
+      if (!s.current) s.current = {};
+      else stopBaked();
       Object.assign(s.current, { x, tx: x, vx: 0, L: 0, vL: 0, tL: 0, release: true });
       apply(frame(geo, s.current));
       setOn(false);
