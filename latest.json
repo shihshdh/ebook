@@ -1,12 +1,17 @@
 {
-  "version": "0.4.0",
-  "notes": "探索页新增「漫画」：高分神作和名作推荐，搜索时漫画和小说一起出来，加入书架、阅读体验和轻小说一样；外文漫画的书名、简介、章节名自动翻成中文",
+  "version": "0.4.1",
+  "notes": "新书签图标和陶红开屏；漫画源扩充、旧账户自动补源、详情首图预取与阅读流畅度优化",
   "windows": {
-    "file": "EBOOK_0.4.0_x64-setup.exe",
-    "sha256": "56e85f53fa99f743027a8e06b231e9bc45fc09de05716baa1f2ef5565ec1aa40"
+    "file": "EBOOK_0.4.1_x64-setup.exe",
+    "sha256": "c7c14661e84a840a906ecbbbd5e90d2af4dd01cf1a8fab3667b9e6be23256377"
   },
   "android": {
-    "file": "EBOOK_0.4.0.apk",
-    "sha256": "92423c1a17b7c61635dcca85b6566aac1134971bf65cedb4e397e3308466f45f"
+    "file": "EBOOK_0.4.1.apk",
+    "sha256": "8acaa783a502ce9e110c8ca057b2275f1f8fae95021243334047f408403a54f8"
+  },
+  "ios": {
+    "file": "EBOOK_0.4.1_ios-unsigned.ipa",
+    "sha256": "9e1b925787efcae53d6646544d60b2d9d28bb884bc73f37b259a22a58de4ea48",
+    "unsigned": true
   }
 }
