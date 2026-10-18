@@ -132,3 +132,14 @@
 /* 漫画页顶上的「高分神作」光盘架（DiscShelf，同首页「细腻之选」） */
 .cx-top { margin: 4px 0 clamp(36px, 6vw, 72px); }
 .ui-mobile .cx-top { margin-bottom: 30px; }
+
+/* Buffered pages keep their DOM and decoded image across a turn. No fade through black. */
+.comic-reader2 .cr-buffered { position: relative; }
+.comic-reader2 .cr-buffered > .cr-frame { position: absolute; inset-block: 0; display: flex; align-items: center; justify-content: center; visibility: hidden; pointer-events: none; max-width: none; }
+.comic-reader2 .cr-frame.is-visible { visibility: visible; }
+.comic-reader2 .cr-frame img { display: block; max-width: 100%; max-height: 100%; width: auto; height: auto; animation: none; }
+.comic-reader2 .cr-page-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--rd-text); }
+.comic-reader2 .cr-page-status.over-page { top: auto; bottom: max(90px, calc(var(--safe-b) + 70px)); pointer-events: none; }
+.comic-reader2 .cr-page-status > span, .comic-reader2 .cr-page-status > button { width: auto; min-height: 0; margin: 12px; padding: 10px 16px; border-radius: 18px; background: var(--rd-page); box-shadow: 0 2px 16px #0003; font-size: 13px; pointer-events: auto; }
+
+.comic-reader2 .cr-message.is-error { z-index: 3; background: var(--rd-page); }

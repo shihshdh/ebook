@@ -3,16 +3,17 @@
 //   条漫：一话的图从上到下连着排，滚着看（国漫、韩漫、条漫）
 //   翻页：一屏一张，点左右或按方向键翻，可以改成从右往左（日漫）；翻过最后一张进下一话
 //   点屏幕中间呼出 / 收起上下两条；Esc 退出
-//   取图：只取当前位置前后几张（条漫按离屏幕的远近、翻页按往后几张），离当前页超过 KEEP 张的放掉——一话一两百张全留着手机吃不消；
+//   取图：只取当前位置前后几张（条漫按离屏幕的远近、翻页按往后几张），离开缓冲窗口的放掉——一话一两百张全留着手机吃不消；
 //         放掉的图记着宽高比，占位不塌，滚回来再取
 //   进度：翻到哪记到哪（lib：comic:progress），从详情「继续看」、漫画页「最近在看」接着看
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Icon from '../components/Icon.jsx';
 import { haptic, onBackButton, mobileUI, isIOS, setImmersive } from '../lib/native.js';
+import { readerBuffer } from '../comic/reader-buffer.js';
 import { acctKey } from '../lib/accounts.js';
 import { useComicSources } from '../comic/sources.js';
-import { comicDetails, chaptersOf, chapterImages, pageURL, getProgress, saveProgress, readPath } from '../comic/library.js';
+import { comicDetails, chaptersOf, chapterImages, prefetchChapter, pageURL, getProgress, saveProgress, readPath } from '../comic/library.js';
 import { ensureComicShelf, comicShelfProgress, persistComicProgress } from '../comic/shelf.js';
 import '../styles/comic.css';
 import '../styles/reader.css';
@@ -23,10 +24,8 @@ import { useReadingClock } from '../lib/readstats.js';
 import { listBookmarks, addBookmark, removeBookmark } from '../lib/shelf.js';
 
 const PREFS = acctKey('librarium.comic.reader');
-// WKWebView has a tighter image-memory budget. Keep a small explicit window:
-// Safari 15–17 lack content-visibility; do not rely on it to release images.
-const KEEP = isIOS ? 2 : mobileUI ? 4 : 12;
-const AHEAD = isIOS ? 1 : 3;
+// Keep compressed page URLs ahead of reading; only nearby page-mode images mount.
+const AHEAD = mobileUI ? 4 : 6;
 const readPrefs = () => { try { return { mode: 'scroll', rtl: false, theme: 'night', spread: false, ...JSON.parse(localStorage.getItem(PREFS) || '{}') }; } catch { return { mode: 'scroll', rtl: false, theme: 'night', spread: false }; } };
 
 // Decode before committing an image, and keep its geometry after eviction.
@@ -87,8 +86,12 @@ export default function ComicReader() {
   const [pages, setPages] = useState({});     // 第几张 → { url } | { error }
   const ratios = useRef({});                    // 第几张 → 高 / 宽（放掉的图占位用）
   const [cur, setCur] = useState(0);
+  const [displayed, setDisplayed] = useState(null);
+  const [displayedURL, setDisplayedURL] = useState('');
+  const paintedCurrent = displayedURL && pages[displayed]?.url === displayedURL;
   const scroller = useRef(null);
-  const bookmarkRef = `${at}:${cur}`;
+  const bookmarkPage = prefs.mode === 'page' && paintedCurrent ? displayed : cur;
+  const bookmarkRef = `${at}:${bookmarkPage}`;
   const bookmarked = marks.some(m => m.ref === bookmarkRef);
   useEffect(() => { let alive = true; listBookmarks(id).then(m => alive && setMarks(m)); return () => { alive = false; }; }, [id]);
   useEffect(() => { const resize = () => setWide(innerWidth >= 1000); addEventListener('resize', resize); return () => removeEventListener('resize', resize); }, []);
@@ -106,12 +109,20 @@ export default function ComicReader() {
     document.addEventListener('visibilitychange', flushHidden);
     return () => { document.removeEventListener('visibilitychange', flushHidden); flushProgress(); };
   }, [id]);
-  const loading = useRef(new Set());
-  const ctl = useRef(null);
+  const buffer = useRef(null);
+  const stage = useRef(null);
+  const [carry, setCarry] = useState([]);
+  const carryRef = useRef([]);
+  const carryTarget = useRef('');
+  const releaseCarry = () => { carryRef.current.forEach(p => URL.revokeObjectURL(p.url)); carryRef.current = []; };
+  useEffect(() => () => releaseCarry(), []);
+  useEffect(() => {
+    if (paintedCurrent && carryRef.current.length && carryTarget.current === `${id}:${at}` && loadedKey.current === carryTarget.current && pages[displayed]?.url) { releaseCarry(); setCarry([]); }
+  }, [displayed, displayedURL, images, id, at]);
+  const direction = useRef(1);
+  const previousCur = useRef(0);
   const startAt = useRef(null);                 // 进这一话时要停在第几张
-  const pagesRef = useRef(pages);
-  pagesRef.current = pages;
-  const dropAll = () => Object.values(pagesRef.current).forEach(p => p.url && URL.revokeObjectURL(p.url));
+
 
   const chapters = useMemo(() => (details ? chaptersOf(details) : []), [details]);
   const chapter = chapters[at];
@@ -125,9 +136,8 @@ export default function ComicReader() {
     let alive = true;
     flushProgress(); loadedKey.current = '';
     // 上一话的图：没取完的中止，取到的放掉
-    ctl.current?.abort(); ctl.current = new AbortController();
-    dropAll(); pagesRef.current = {};
-    setError(''); setImages(null); setPages({}); ratios.current = {}; loading.current = new Set();
+    buffer.current?.destroy(); buffer.current = null;
+    setError(''); setImages(null); setPages({}); setDisplayed(null); setDisplayedURL(''); ratios.current = {}; direction.current = 1;
     (async () => {
       const d = await comicDetails(sourceId, comicId);
       if (!alive) return;
@@ -146,6 +156,7 @@ export default function ComicReader() {
       const asked = state?.page != null && !(saved?.index === at && saved.at > (state.at || 0));
       const want = asked ? (state.page === -1 ? urls.length - 1 : state.page) : saved?.index === at ? saved.page : 0;
       startAt.current = Math.min(Math.max(0, want || 0), urls.length - 1);
+      previousCur.current = startAt.current; curRef.current = startAt.current;
       setCur(startAt.current);
       loadedKey.current = `${id}:${at}`;
       setImages(urls);
@@ -155,60 +166,64 @@ export default function ComicReader() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceId, comicId, at, retry]);
 
-  // 离开阅读器：中止没取完的图，放掉 blob
-  useEffect(() => () => { ctl.current?.abort(); dropAll(); }, []);
-
   const epId = chapter?.id ?? null;
-  const want = useCallback((i, front = false) => {
-    if (!images || i < 0 || i >= images.length || loading.current.has(i)) return;
-    // The visible page gets the bridge/decoder first. Near-viewport observers
-    // must not race it with several speculative images on a cold chapter.
-    if (!front && (!pagesRef.current[curRef.current]?.url || Math.abs(i - curRef.current) > KEEP)) return;
-    loading.current.add(i);
-    const signal = ctl.current.signal;
-    pageURL(sourceId, images[i], { comicId, epId, signal, front }).then(async url => {
-      // Never hold the visible page behind speculative decoding. Commit it
-      // immediately with async decoding; only offscreen pages predecode.
-      try { return front ? { url } : await preparedPage(url, signal, prefs.mode === 'scroll'); }
-      catch (error) { URL.revokeObjectURL(url); throw error; }
-    }).then(
-      entry => {
-        if (signal.aborted || Math.abs(i - curRef.current) > KEEP) {
-          URL.revokeObjectURL(entry.url);
-          if (!signal.aborted) loading.current.delete(i);
-        }
-        else { if (entry.width) ratios.current[i] = entry.height / entry.width; setPages(p => ({ ...p, [i]: entry })); }
+  const curRef = useRef(cur);
+  curRef.current = cur;
+  useEffect(() => {
+    if (!images || loadedKey.current !== `${id}:${at}`) return;
+    const pool = readerBuffer({ length: images.length, ahead: AHEAD,
+      load: async (i, { signal, front }) => {
+        const url = await pageURL(sourceId, images[i], { comicId, epId, signal, front });
+        try { return await preparedPage(url, signal, front || Math.abs(i - curRef.current) <= 1); }
+        catch (error) { URL.revokeObjectURL(url); throw error; }
       },
-      err => { if (!signal.aborted) setPages(p => ({ ...p, [i]: { error: String(err?.message || '没取到').slice(0, 40) } })); });
-  }, [images, sourceId, comicId, epId, prefs.mode]);
-  const again = (i) => { loading.current.delete(i); setPages(p => { const n = { ...p }; delete n[i]; return n; }); want(i, true); };
+      change: next => {
+        for (const [i, page] of Object.entries(next)) if (page.width) ratios.current[i] = page.height / page.width;
+        setPages(next);
+      },
+    });
+    buffer.current = pool;
+    return () => { pool.destroy(); if (buffer.current === pool) buffer.current = null; };
+  }, [images, sourceId, comicId, epId, id, at]);
 
   const currentReady = !!pages[cur]?.url;
-  // 当前页附近的先取；离得远的放掉
   useEffect(() => {
-    if (!images) return;
-    want(cur, true);
-    for (let k = 1; k <= AHEAD; k++) { want(cur + k); if (k <= 1) want(cur - k); }
-    setPages(p => {
-      let changed = false;
-      const n = { ...p };
-      for (const k of Object.keys(n)) {
-        if (Math.abs(k - cur) > KEEP) { if (n[k].url) URL.revokeObjectURL(n[k].url); delete n[k]; loading.current.delete(Number(k)); changed = true; }
-      }
-      return changed ? n : p;
-    });
-  }, [cur, images, want, currentReady]);
+    if (cur !== previousCur.current) direction.current = cur < previousCur.current ? -1 : 1;
+    previousCur.current = cur;
+    const pin = !paintedCurrent ? [] : [displayed, ...(spread ? [displayed + 1] : [])];
+    if (loadedKey.current === `${id}:${at}`) buffer.current?.window(cur, { pin, reverse: direction.current < 0 });
+  }, [cur, images, displayed, displayedURL, spread, id, at]);
+  const again = i => buffer.current?.retry(i);
+
+  // Keep the last painted page until all images of the next spread have loaded.
+  // Stable image nodes prevent a decoded page being replaced by a blank <img>.
+  const showPrepared = () => {
+    if (prefs.mode !== 'page' || !stage.current || loadedKey.current !== `${id}:${at}`) return;
+    const wanted = [cur, ...(spread && cur + 1 < (images?.length || 0) ? [cur + 1] : [])];
+    if (wanted.every(i => { const im = stage.current.querySelector(`[data-image="${i}"]`); return im?.complete && im.naturalWidth > 0 && im.src === pages[i]?.url; })) { setDisplayedURL(pages[cur].url); setDisplayed(cur); }
+  };
+  useEffect(showPrepared, [cur, pages, spread, prefs.mode]);
+
+  // Near the end, warm the next chapter metadata and first image before crossing.
+  useEffect(() => {
+    const next = chapters[at + 1];
+    if (loadedKey.current === `${id}:${at}` && images && currentReady && next && cur >= Math.max(0, images.length - 5)) {
+      prefetchChapter(sourceId, comicId, next.id);
+    }
+  }, [images, currentReady, cur, at, chapters, sourceId, comicId, id]);
 
   // 进度
   useEffect(() => {
     if (!images || !chapter || loadedKey.current !== `${id}:${at}`) return;
-    saveProgress({ sourceId, sourceName, comicId, title, cover, index: at, chapter: chapter.title, page: cur, pages: images.length });
-    const progress = comicShelfProgress({ index: at, page: cur, pages: images.length, chapters: chapters.length, chapter: chapter.title });
+    const page = prefs.mode === 'page' ? (paintedCurrent ? displayed : null) : cur;
+    if (page == null) return;
+    saveProgress({ sourceId, sourceName, comicId, title, cover, index: at, chapter: chapter.title, page, pages: images.length });
+    const progress = comicShelfProgress({ index: at, page, pages: images.length, chapters: chapters.length, chapter: chapter.title });
     pendingProgress.current = { id, progress };
     clearTimeout(progressTimer.current);
     progressTimer.current = setTimeout(flushProgress, 500);
     return () => clearTimeout(progressTimer.current);
-  }, [cur, images, chapter, at, sourceId, comicId, sourceName, title, cover]);
+  }, [cur, displayed, displayedURL, prefs.mode, images, chapter, at, sourceId, comicId, sourceName, title, cover]);
 
   // ---------- 条漫：滚动 ----------
   const scrollMode = prefs.mode === 'scroll';
@@ -218,23 +233,25 @@ export default function ComicReader() {
     const els = [...root.querySelectorAll('[data-page]')];
     // 跳到要停的那张（只在刚进这一话时）
     if (startAt.current != null) { els[startAt.current]?.scrollIntoView({ block: 'start' }); startAt.current = null; }
-    const near = new IntersectionObserver((es) => es.forEach(e => e.isIntersecting && want(Number(e.target.dataset.page))), { root, rootMargin: '150% 0px' });
     // 屏幕中线压着的那张就是「当前页」
     const middle = new IntersectionObserver((es) => es.forEach(e => e.isIntersecting && setCur(Number(e.target.dataset.page))), { root, rootMargin: '-49% 0px -49% 0px' });
-    els.forEach(el => { near.observe(el); middle.observe(el); });
-    return () => { near.disconnect(); middle.disconnect(); };
-  }, [scrollMode, images, want]);
+    els.forEach(el => middle.observe(el));
+    return () => middle.disconnect();
+  }, [scrollMode, images]);
 
   // ---------- 翻章 ----------
   const go = useCallback((i, page = 0) => {
     if (i < 0 || i >= chapters.length) return;
+    if (!scrollMode && paintedCurrent) {
+      const outgoing = [displayed, ...(spread ? [displayed + 1] : [])].map(n => buffer.current?.detach(n)).filter(Boolean);
+      if (outgoing.length) { releaseCarry(); carryRef.current = outgoing; setCarry(outgoing); }
+    }
+    if (carryRef.current.length) carryTarget.current = `${id}:${i}`;
     nav(readPath(sourceId, comicId, i), { replace: true, state: { title, cover, page, at: Date.now() } });
-  }, [chapters.length, nav, sourceId, comicId, title, cover]);
+  }, [chapters.length, nav, sourceId, comicId, title, cover, scrollMode, displayed, displayedURL, spread, id]);
   const leave = useCallback(() => (window.history.state?.idx > 0 ? nav(-1) : nav('/explore?kind=comic', { replace: true })), [nav]);
 
   // ---------- 翻页 ----------
-  const curRef = useRef(cur);
-  curRef.current = cur;
   const flip = useCallback((d) => {
     if (!images) return;
     const n = curRef.current + d * (spread ? 2 : 1);   // 读 ref：连按几下时每一下都接着上一下翻
@@ -244,12 +261,13 @@ export default function ComicReader() {
   }, [images, go, at, spread, scrollMode]);
 
   const toggleBookmark = useCallback(async () => {
+    if (prefs.mode === 'page' && !paintedCurrent) return;
     try {
-      setMarks(bookmarked ? await removeBookmark(id, bookmarkRef) : await addBookmark(id, { ref: bookmarkRef, label: `${chapter?.title || title} · 第 ${cur + 1} 张` }));
+      setMarks(bookmarked ? await removeBookmark(id, bookmarkRef) : await addBookmark(id, { ref: bookmarkRef, label: `${chapter?.title || title} · 第 ${bookmarkPage + 1} 张` }));
       setToast(bookmarked ? '已移除书签' : '已添加书签');
       haptic('light');
     } catch { setToast('书签没存上，请重试'); }
-  }, [id, bookmarkRef, bookmarked, chapter, title, cur]);
+  }, [id, bookmarkRef, bookmarked, chapter, title, bookmarkPage, prefs.mode, paintedCurrent]);
   const escape = useCallback(() => {
     if (panel) { setPanel(''); setPinned(false); }
     else if (chrome) setChrome(false);
@@ -319,6 +337,14 @@ export default function ComicReader() {
     return <span className="cr-ph num">{i + 1}</span>;
   };
   const next = chapters[at + 1];
+  const staged = new Map(carry.map((p, i) => [p.url, { ...p, i: null, visible: !paintedCurrent, second: carry.length > 1 && i === 1 }]));
+  const stagedIndices = new Set([displayed, ...(spread && displayed != null ? [displayed + 1] : []), cur, cur + 1, ...(spread ? [cur + 2] : [])]);
+  for (const i of stagedIndices) {
+    if (i == null || i < 0 || i >= (images?.length || 0) || !pages[i]?.url) continue;
+    if (staged.has(pages[i].url) && !paintedCurrent) continue;
+    const visible = paintedCurrent && (i === displayed || (spread && i === displayed + 1));
+    staged.set(pages[i].url, { ...pages[i], i, visible, second: spread && i === (visible ? displayed : cur) + 1 });
+  }
 
   const tabs = [{ id: 'toc', label: '目录', icon: 'grid' }, { id: 'progress', label: '进度', icon: 'explore' }, { id: 'marks', label: '书签', icon: 'copy' }, { id: 'mode', label: '阅读方式', icon: 'book' }, { id: 'theme', label: '纸张', icon: 'sparkle' }];
   const progressBar = <div className="rd-progress"><span className="num">{images ? `${cur + 1} / ${images.length}` : '—'}</span><div className="rd-slider"><div className="rd-track"><i style={{ width: `${cur / Math.max(1, (images?.length || 1) - 1) * 100}%` }} /></div>
@@ -334,7 +360,7 @@ export default function ComicReader() {
         <div className="rd-ambient rd-ambient-top">{chapter?.title || title}</div>
         <div className="cr-scroll" ref={scroller} onClick={onTap} onWheel={onWheel} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd} onTouchCancel={() => { gesture.current = null; }}>
         {error && (
-          <div className="cr-message">
+          <div className="cr-message is-error">
             <p>{error}</p>
             <div className="cr-message-actions">
               <button className="btn sm" onClick={(e) => { e.stopPropagation(); setRetry(n => n + 1); }}><Icon name="refresh" size={15} />再试一次</button>
@@ -342,7 +368,7 @@ export default function ComicReader() {
             </div>
           </div>
         )}
-        {!error && !images && <div className="cr-message"><p>正在打开{chapter ? `「${chapter.title}」` : ''}…</p></div>}
+        {!error && !images && !carry.length && <div className="cr-message"><p>正在打开{chapter ? `「${chapter.title}」` : ''}…</p></div>}
         {images && scrollMode && (
           <>
             {images.map((_, i) => (
@@ -354,7 +380,14 @@ export default function ComicReader() {
             </div>
           </>
         )}
-        {images && !scrollMode && <div className={`cr-stage ${spread ? 'is-spread' : ''}`} style={{ flexDirection: prefs.rtl ? 'row-reverse' : 'row' }}>{page(cur)}{spread && cur + 1 < images.length && page(cur + 1)}</div>}
+        {(images || carry.length > 0) && !scrollMode && <div ref={stage} className={`cr-stage cr-buffered ${spread ? 'is-spread' : ''}`} aria-busy={!paintedCurrent || displayed !== cur || !images}>
+          {[...staged.values()].map(p => <div key={p.url} className={`cr-frame ${p.visible ? 'is-visible' : ''}`} aria-hidden={!p.visible} style={{ width: spread ? '50%' : '100%', left: spread && (p.second !== prefs.rtl) ? '50%' : 0 }}>
+            <img data-image={p.i ?? undefined} src={p.url} decoding="async" width={p.width} height={p.height} alt={p.i == null ? '上一话末页' : `第 ${p.i + 1} 张`} draggable="false" onLoad={showPrepared} />
+          </div>)}
+          {(!paintedCurrent || displayed !== cur || !images) && <div className={`cr-page-status ${paintedCurrent || carry.length ? 'over-page' : ''}`} role="status">
+            {pages[cur]?.error || (spread && pages[cur + 1]?.error) ? <button className="cr-ph is-error" onClick={e => { e.stopPropagation(); again(pages[cur]?.error ? cur : cur + 1); }}>第 {cur + 1} 张加载失败 · 点一下重试</button> : <span>{images ? `正在准备第 ${cur + 1} 张…` : '正在准备章节…'}</span>}
+          </div>}
+        </div>}
       </div>
 
         <div className="rd-ambient rd-ambient-bottom"><span>本话 第 {cur + 1} / {images?.length || '—'} 张 · 还剩 {Math.max(0, (images?.length || 1) - cur - 1)} 张</span><Clock /></div>

@@ -80,6 +80,24 @@ if (!boot.ok || boot.result !== 'ready') {
   process.exit(1);
 }
 
+// Real WKWebView glass interaction: press, drag and release the actual control.
+await step('tab-glass-held', `const bar=$('.lg-tabbar'); const items=$$('.lg-tabbar > .lg-tabs > a');
+  if(!bar || items.length<3) throw Error('标签栏不可用');
+  const a=items[0].getBoundingClientRect(),b=items[2].getBoundingClientRect();window.__glassEnd={x:b.x+b.width/2,y:b.y+b.height/2};
+  bar.dispatchEvent(new PointerEvent('pointerdown',{bubbles:true,pointerId:73,isPrimary:true,pointerType:'touch',clientX:a.x+a.width/2,clientY:a.y+a.height/2}));
+  for(let n=1;n<=8;n++){bar.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,pointerId:73,isPrimary:true,pointerType:'touch',clientX:(a.x+a.width/2)+(b.x+b.width/2-a.x-a.width/2)*n/8,clientY:b.y+b.height/2}));await sleep(18);}
+  await sleep(180);const lens=$('.lg-lens'),q=lens.getBoundingClientRect();return {visible:getComputedStyle(lens).visibility,filter:getComputedStyle(lens).backdropFilter||getComputedStyle(lens).webkitBackdropFilter,w:q.width,h:q.height,barH:bar.clientHeight};`,{settle:150});
+await step('tab-glass-rest', `const bar=$('.lg-tabbar');bar.dispatchEvent(new PointerEvent('pointerup',{bubbles:true,pointerId:73,isPrimary:true,pointerType:'touch',clientX:__glassEnd.x,clientY:__glassEnd.y}));await sleep(1100);
+  const p=$('.lg-pill').getBoundingClientRect(),a=$('.lg-tabbar a.active')?.getBoundingClientRect();return {delta:a?p.x+p.width/2-a.x-a.width/2:999,lifted:bar.hasAttribute('data-lifted')};`,{settle:100});
+const sheetEdges = async () => step('sheet-safe-corners', `const s=$('.sheet'),q=s.getBoundingClientRect(),probe=document.createElement('div');probe.style.cssText='position:fixed;visibility:hidden;padding-bottom:var(--safe-b)';document.body.append(probe);const safe=parseFloat(getComputedStyle(probe).paddingBottom)||0;probe.remove();
+  const body=s.querySelector('.sheet-body');const last=s.querySelector('.cx-chapter-list li:last-child');const old=body.scrollTop;body.scrollTop=body.scrollHeight;await sleep(100);const lastBottom=last?.getBoundingClientRect().bottom,bodyBottom=body.getBoundingClientRect().bottom;body.scrollTop=old;return {gap:innerHeight-q.bottom,safe,radius:parseFloat(getComputedStyle(s).borderBottomLeftRadius),left:q.left,right:q.right,lastBottom,bodyBottom};`,{settle:100});
+const readerTurns = async () => step('comic-page-turns', `const mode=byText('.rd-dock button',/^阅读方式$/);mode?.click();await sleep(200);byText('.rd-settings button',/^左右翻页$/)?.click();$('.rd-scrim')?.click();
+  const ready=()=>$$('.cr-frame.is-visible img').some(i=>i.complete&&i.naturalWidth);if(!await until(ready,20000))throw Error('翻页模式没有显示正文');
+  const before=$('.rd-ambient-bottom span')?.textContent||'';const match=before.match(/第 (\d+) \/ (\d+)/);const start=+(match?.[1]||1)-1,total=+(match?.[2]||1);let record=true,black=0,frames=0;
+  function sample(){if(!record)return;frames++;if(!ready())black++;requestAnimationFrame(sample)}requestAnimationFrame(sample);
+  const turns=[];try{for(let n=1;n<=Math.min(5,total-start-1);n++){const at=Date.now();window.dispatchEvent(new KeyboardEvent('keydown',{key:'ArrowRight',bubbles:true}));const target=start+n;const loaded=await until(()=>$$('.cr-frame.is-visible img').some(i=>i.dataset.image===String(target)&&i.complete&&i.naturalWidth),20000);turns.push({ms:Date.now()-at,loaded:!!loaded});if(!loaded)break;await sleep(200);}}finally{record=false;}
+  return {turns,black,frames};`,{settle:200,timeout:150000});
+
 if (appearance === 'dark') {
   // 模拟器已经切到深色：外观选「跟随系统」，App 跟着变深色
   await step('appearance-system', `location.hash = '#/plugins';
@@ -92,8 +110,10 @@ if (appearance === 'dark') {
   await step('explore-comic', `location.hash = '#/explore'; await until(() => $('.route.is-active .explore-kind')); byText('.route.is-active .explore-kind .chip', /^漫画$/)?.click();
     return await until(() => $$('.route.is-active .explore-comic .mw-tile').length > 4, 90000) && $$('.route.is-active .explore-comic .mw-tile').length;`, { settle: 3000 });
   await step('comic-sheet', `$('.route.is-active .explore-comic .mw-tile')?.click(); return await until(() => $$('.sheet .cx-chapter-list li').length, 60000);`, { settle: 2000 });
+  await sheetEdges();
   await step('comic-reader', `const b = byText('.sheet .cs-read-row button, .sheet button', /开始看|继续看/); b?.click();
     return await until(() => [...document.querySelectorAll('.cr-scroll img')].some(i => i.complete && i.naturalWidth), 60000) && 'image';`, { settle: 2500 });
+  await readerTurns();
   await step('comic-reader-chrome', `return tap(innerWidth / 2, innerHeight / 2);`);
   await step('shelf', `location.hash = '#/shelf'; await sleep(2500); return $$('.route.is-active .cover').length;`);
   await step('plugins', `location.hash = '#/plugins'; await sleep(1500); return 1;`);
@@ -120,8 +140,10 @@ if (appearance === 'dark') {
     const btns = $$('.sheet .cx-chapter-list button').slice(0, 20).map(b => Math.round(b.getBoundingClientRect().height));
     return { title: $('.sheet-title')?.textContent, minTap: Math.min(...btns) };`);
   await step('comic-shelf-add', `const b = byText('.sheet .cs-read-row button', /加入书架/); b?.click(); return await until(() => byText('.sheet .cs-read-row button', /已在书架/), 20000) ? 'added' : 'not added';`);
+  await sheetEdges();
   await step('comic-reader', `const b = byText('.sheet .cs-read-row button', /开始看|继续看/); b?.click();
     return await until(() => $$('.cr-scroll img').some(i => i.complete && i.naturalWidth), 60000) ? 'image shown' : 'no image';`, { settle: 3000 });
+  await readerTurns();
   await step('comic-reader-chrome', `return tap(innerWidth / 2, innerHeight / 2);`);
   await step('comic-reader-toc', `const t = byText('.rd-dock button, .rd-dock [role=tab]', /目录/); t?.click(); await sleep(800); return !!$('.panel-toc, .rd-toc');`);
   await step('comic-reader-settings', `const t = byText('.rd-dock button, .rd-dock [role=tab]', /设置|阅读|排版/); t?.click(); await sleep(800); return t?.textContent || 'no tab';`);
@@ -146,6 +168,10 @@ if (appearance === 'dark') {
 
 // 检查实际内容：命令成功执行不代表漫画出图/目录就绪。
 const required = {
+  'tab-glass-held': r => r?.visible==='visible' && /blur/.test(r.filter) && r.h <= r.barH*1.12,
+  'tab-glass-rest': r => Math.abs(r?.delta)<1 && !r.lifted,
+  'sheet-safe-corners': r => r?.gap>=Math.max(8,r.safe)-1 && r.radius>=30 && r.left>=0 && r.right<=500 && (!r.lastBottom || r.lastBottom<r.bodyBottom-8),
+  'comic-page-turns': r => r?.turns.length>0 && r.turns.every(t=>t.loaded) && r.black===0,
   'comic-disc-covers': r => r?.real === true && r.count >= 2,
   'explore-novel-return': r => r?.top >= 0 && r.padding >= 8 && r.padding <= 100 && Math.abs(r.top-r.padding)<2 && r.hidden.every(h=>h===0),
   'comic-switch-shape': r => r?.length > 0 && r.every(s=>s.w===51&&s.h===31),

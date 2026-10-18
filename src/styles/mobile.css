@@ -112,7 +112,7 @@
   --display: -apple-system, 'PingFang SC', system-ui, sans-serif;
   --rounded: ui-rounded, -apple-system, 'PingFang SC', sans-serif; /* SF Pro Rounded：大数字 */
   --gutter: 16px;
-  --tab-h: 62px;
+  --tab-h: 60px;
   --dock-b: max(calc(var(--safe-b) - 12px), 10px);   /* 底栏离屏幕下沿：落在主屏指示条上面一点 */
   --chrome-b: calc(var(--tab-h) + var(--dock-b) + 12px);  /* 底栏占掉的高度：浮层、提示要让出来 */
   --r-card: 22px;
@@ -278,14 +278,14 @@
 .lg-tab span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* 静止时选中那格底下的胶囊：上下左右各让 4px，和外框同心 */
 .lg-pill {
-  position: absolute; left: 0; top: 4px; bottom: 4px; width: var(--lg-w0, 56px); border-radius: 999px; background: var(--lg-pill); z-index: 0;
+  position: absolute; left: 0; top: 0; height: var(--lg-h0, 48px); width: var(--lg-w0, 56px); border-radius: 999px; background: var(--lg-pill); z-index: 0;
   pointer-events: none;
 }
 /* 浮起来的透镜 */
 .lg-lens {
   position: absolute; left: 0; top: 0; z-index: 4; width: var(--lg-w1, 70px); height: var(--lg-h1, 72px); border-radius: 999px; overflow: hidden;
   opacity: 0; visibility: hidden; pointer-events: none;
-  background: var(--lg-lens); -webkit-backdrop-filter: blur(5px) saturate(1.5) brightness(1.06); backdrop-filter: blur(5px) saturate(1.5) brightness(1.06);
+  background: rgba(255, 255, 255, .28); background: color-mix(in srgb, var(--lg-bg) 36%, transparent); -webkit-backdrop-filter: blur(8px) saturate(1.6) brightness(1.04); backdrop-filter: blur(8px) saturate(1.6) brightness(1.04);
   box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .9), inset 0 2px 3px rgba(255, 255, 255, .85), inset 0 -3px 8px rgba(255, 255, 255, .5),
     inset 0 0 14px rgba(255, 255, 255, .35), 0 0 0 .5px rgba(0, 0, 0, .1), 0 10px 26px -6px rgba(0, 0, 0, .28);
 }
@@ -308,15 +308,15 @@
 /* 色散（横向色差）：红像略大、蓝像略小，叠在放大的图标上；中心遮掉，越往外越明显。
    浅色底用正片叠底（白底上只剩彩边，黑字处仍是黑），深色底用滤色（黑底上只剩彩边，白字处仍是白） */
 .lg-ca {
-  z-index: 2; pointer-events: none; opacity: .85;
+  z-index: 2; pointer-events: none; opacity: .2;
   -webkit-mask-image: radial-gradient(closest-side, transparent 45%, rgba(0, 0, 0, .55) 75%, #000 100%);
   mask-image: radial-gradient(closest-side, transparent 45%, rgba(0, 0, 0, .55) 75%, #000 100%);
   mix-blend-mode: multiply;
 }
 .lg-ca-r .lg-tab { color: rgb(255, 92, 70); }
 .lg-ca-b .lg-tab { color: rgb(70, 130, 255); }
-[data-theme="dark"] .lg-ca { mix-blend-mode: screen; opacity: .7; }
-[data-theme="dark"] .lg-lens { box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .45), inset 0 2px 3px rgba(255, 255, 255, .3), inset 0 -3px 8px rgba(255, 255, 255, .12), 0 0 0 .5px rgba(0, 0, 0, .5), 0 10px 26px -6px rgba(0, 0, 0, .7); }
+[data-theme="dark"] .lg-ca { mix-blend-mode: screen; opacity: .16; }
+[data-theme="dark"] .lg-lens { background: rgba(35, 35, 38, .42); background: color-mix(in srgb, var(--lg-bg) 36%, transparent); box-shadow: inset 0 0 0 .5px rgba(255, 255, 255, .45), inset 0 2px 3px rgba(255, 255, 255, .3), inset 0 -3px 8px rgba(255, 255, 255, .12), 0 0 0 .5px rgba(0, 0, 0, .5), 0 10px 26px -6px rgba(0, 0, 0, .7); }
 [data-theme="dark"] .lg-lens::after { opacity: .3; }
 /* 搜索：右边单独一颗圆钮（HIG：search tab 放在标签栏尾端） */
 .lg-search {
@@ -531,13 +531,17 @@ html.ui-mobile:has(.shelf-managebar) .toasts { bottom: calc(var(--chrome-b) + 70
 .ui-mobile .sheet-scrim { background: rgba(0, 0, 0, .28); -webkit-backdrop-filter: none; backdrop-filter: none; animation-duration: 300ms; }
 .ui-mobile[data-theme="dark"] .sheet-scrim { background: rgba(0, 0, 0, .55); }
 .ui-mobile .sheet {
-  left: max(6px, var(--safe-l)); right: max(6px, var(--safe-r)); bottom: 6px; width: auto;
-  max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - 10px);
+  --sheet-gap: 10px;
+  --sheet-bottom: max(var(--safe-b), var(--sheet-gap));
+  --sheet-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - var(--sheet-gap) - var(--sheet-bottom));
+  left: max(var(--sheet-gap), var(--safe-l)); right: max(var(--sheet-gap), var(--safe-r)); bottom: var(--sheet-bottom); width: auto;
+  max-height: var(--sheet-height);
+  overflow: hidden; isolation: isolate;
   border-radius: 34px; background: var(--sys-elevated);
   box-shadow: 0 0 0 .5px var(--lg-edge), 0 -10px 40px -10px rgba(0, 0, 0, .25);
   animation: ios-sheet-in 520ms var(--spring) backwards; transition: transform 420ms var(--spring);
 }
-.ui-mobile .sheet.is-partial { height: calc(var(--visual-height, 100dvh) - var(--safe-t) - 10px); }
+.ui-mobile .sheet.is-partial { height: var(--sheet-height); }
 @keyframes ios-sheet-in { from { transform: translate3d(0, 105%, 0); } }
 .ui-mobile .sheet-layer.is-closing .sheet { animation: ios-sheet-out 260ms cubic-bezier(.4, 0, 1, 1) forwards; }
 .ui-mobile .sheet-layer.is-closing .sheet-scrim { animation: fade-out 240ms ease forwards; }
@@ -549,7 +553,7 @@ html.ui-mobile:has(.shelf-managebar) .toasts { bottom: calc(var(--chrome-b) + 70
   box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), 0 4px 12px -4px rgba(0, 0, 0, .18);
 }
 .ui-mobile .sheet-close::before { content: ''; position: absolute; inset: -4px; }
-.ui-mobile .sheet-body { min-height: 0; -webkit-overflow-scrolling: touch; padding: 14px 20px calc(24px + var(--safe-b)); }
+.ui-mobile .sheet-body { min-height: 0; -webkit-overflow-scrolling: touch; padding: 14px 20px 24px; }
 .ui-mobile .sheet-hero { grid-template-columns: 104px minmax(0, 1fr); gap: 16px; margin-bottom: 16px; }
 .ui-mobile .sheet-cover { border-radius: 6px; box-shadow: 0 2px 4px rgba(0, 0, 0, .1), 0 16px 30px -12px rgba(0, 0, 0, .45); }
 .ui-mobile .sheet-cover-glow { display: none; }
@@ -568,7 +572,7 @@ html.ui-mobile:has(.shelf-managebar) .toasts { bottom: calc(var(--chrome-b) + 70
 .ui-mobile .vol-title small { font-size: 12px; color: var(--label2-sm); }
 .ui-mobile .dl-ring { background: conic-gradient(var(--tint) calc(var(--p) * 360deg), var(--fill2) 0); }
 .ui-mobile .dl-ring .num { color: var(--tint); }
-.ui-mobile .sheet-body { padding-bottom: calc(24px + var(--safe-b)); }
+.ui-mobile .sheet-body { padding-bottom: 24px; }
 .ui-mobile .sheet-scrim { -webkit-backdrop-filter: none; backdrop-filter: none; }
 
 /* 其它弹窗：账户、更新 */
@@ -732,7 +736,7 @@ html.ui-mobile:has(.shelf-managebar) .toasts { bottom: calc(var(--chrome-b) + 70
   .ui-mobile .page { padding-top: calc(var(--safe-t) + 12px); }
   .ui-mobile .hero-grid { flex-direction: row; align-items: center; }
   .ui-mobile .hero-grid > * { flex: 1; }
-  .ui-mobile .sheet { left: 50%; right: auto; width: min(560px, calc(100% - 24px)); translate: -50% 0; top: 8px; bottom: 8px; }
+  .ui-mobile .sheet { left: 50%; right: auto; width: min(560px, calc(100% - 24px)); translate: -50% 0; top: max(8px, var(--safe-t)); bottom: max(8px, var(--safe-b)); --sheet-height: calc(var(--visual-height, 100dvh) - max(8px, var(--safe-t)) - max(8px, var(--safe-b))); }
   .ui-mobile .reader2 .rd-panel.as-pop { left: 50%; right: auto; width: min(520px, calc(100% - 24px)); translate: -50% 0; max-height: calc(var(--visual-height, 100dvh) - var(--safe-t) - var(--tab-h) - 40px); }
 }
 .ui-mobile .chip-static { height: 28px; padding: 0 10px; font-size: 13px; }
