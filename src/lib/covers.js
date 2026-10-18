@@ -15,6 +15,11 @@ import { cleanTitle } from './jacket-art.js';
 import { jacketNow, jacketReady, requestJacket } from './jacket.js';
 export { cleanTitle };
 
+// Loaded only when a comic cover is requested. Intersection changes wake the queue
+// immediately, instead of waiting for an unrelated slow background image.
+let comicAPI;
+export const prioritizeVisibleCovers = () => comicAPI?.prioritizeComicCovers();
+
 // ---------- Bangumi ----------
 const norm = (s = '') => cleanTitle(s).toLowerCase().replace(/[\s·・:：!！?？,，.。、~～\-—_'"“”‘’「」『』《》]/g, '');
 const mem = new Map();
@@ -206,7 +211,7 @@ export function useCover(book, visible = true, near, scale = 0) {
       setFound('');
       let owned = '';
       if (book.comics?.some(c => c.cover)) import('../comic/library.js')
-        .then(m => m.comicCover(book, { near: () => alive && (!near || near()) }))
+        .then(m => { comicAPI = m; return m.comicCover(book, { near: () => alive && (!near || near()) }); })
         .then(u => { if (alive) { owned = u; setFound(u); } else URL.revokeObjectURL(u); }, () => {
           if (alive && attempt < 3) retry = setTimeout(() => setAttempt(a => a + 1), 3500);
         });

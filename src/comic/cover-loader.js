@@ -34,6 +34,7 @@ export function coverLoader({ load, save, fetch, max = 6, perHost = 2, keep = 12
     pending.set(key, job);
     return job.promise;
   }
+  get.refresh = pump;
   return get;
 }
 

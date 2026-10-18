@@ -171,6 +171,7 @@ const getCoverBlob = coverLoader({
     }
   },
 });
+export const prioritizeComicCovers = () => getCoverBlob.refresh();
 /** Caller owns this URL and must revoke it after use. */
 export async function coverURL(sourceId, url, { near } = {}) {
   if (!url) throw new Error('没有封面');

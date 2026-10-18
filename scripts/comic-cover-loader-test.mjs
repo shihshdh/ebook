@@ -30,3 +30,7 @@ test('fast alternate cover wins without waiting for slow primary',async()=>{
 test('alternate candidates remain bounded and all failures settle',async()=>{
  let running=0,peak=0;await assert.rejects(firstCover([1,2,3,4],async()=>{running++;peak=Math.max(peak,running);await pause(15);running--;throw Error('bad');},{stagger:2}));assert.ok(peak<=2);
 });
+test('scrolling a queued cover into view wakes free slots immediately',async()=>{
+ const started=[],gates=new Map();let near=false;const get=coverLoader({max:3,load:async()=>null,save:()=>{},fetch:async(s,u)=>{started.push(u);const gate=deferred();gates.set(u,gate);return gate.promise;}});
+ const bg=get('a','https://slow/1',()=>false);const front=get('b','https://fast/2',()=>near);await pause(5);assert.equal(started.length,1);near=true;get.refresh();await pause(5);assert.equal(started.length,2);for(const g of gates.values())g.resolve(new Blob(['ok']));await Promise.all([bg,front]);
+});

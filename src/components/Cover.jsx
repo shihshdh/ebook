@@ -1,6 +1,6 @@
 // 封面图：先给生成封面，进入视口后再去查真封面，查到就无缝替换
 import { forwardRef, memo, useEffect, useRef, useState } from 'react';
-import { useCover } from '../lib/covers.js';
+import { useCover, prioritizeVisibleCovers } from '../lib/covers.js';
 import { jacketPalette } from '../lib/jacket-art.js';
 import { jacketScale } from '../lib/jacket.js';
 import { isIOS } from '../lib/native.js';
@@ -19,6 +19,7 @@ const startIO = typeof IntersectionObserver === 'undefined' ? null : new Interse
 }, { rootMargin: isIOS ? '300px 100px' : '800px 600px' });
 const nearIO = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver((entries) => {
   for (const e of entries) { const w = watch.get(e.target); if (w) w.near = e.isIntersecting; }
+  prioritizeVisibleCovers();
 }, { rootMargin: '25% 0px' });
 //   size ：封面显示多大，生成封面按这个画（jacket.js 的三档）。只往大里换：悬停放大、光盘抬起这种变化不重画
 const sizeRO = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver((entries) => {
