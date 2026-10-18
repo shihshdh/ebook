@@ -22,7 +22,7 @@
 
 安卓模拟器宿主进程在原生网络测试期间退出，这项未计为通过。已采用浏览器真实源、WebKit 和 Windows 原生交叉验证共用逻辑，并校验正式 APK 的资源与签名。
 
-iPhone 最终构建与四组模拟器验收：[GitHub Actions](https://github.com/shihshdh/ebook/actions/runs/39108933103)。最终状态及附件校验以同目录后续补充和 Release 为准。
+iPhone 最终构建与四组模拟器验收：[GitHub Actions](https://github.com/shihshdh/ebook/actions/runs/39108933103)。最终结果：构建与四组模拟器（iPhone SE、16 Pro、16 Pro Max、16 Pro 深色）全部成功，验收代码为上述产品提交。
 
 详细机器结果、截图与构建日志位于本机 `release/verification/0.4.2/`，未纳入代码库。
 
@@ -32,8 +32,18 @@ iPhone 最终构建与四组模拟器验收：[GitHub Actions](https://github.co
 
 新一轮生产页面网络样本：书卡 1540ms、首张真实封面 3586ms、两张光盘封面 3685ms、重启缓存 152ms。源站波动会改变结果，未承诺所有漫画固定秒开。
 
-此前 iPhone SE、深色组已通过；Pro/Pro Max 的漫画光盘 5 张出图和全部开关尺寸均通过，唯一失败是验收脚本把 CSS env 安全区误读为 0（实际 hero top=70px）。断言现改为比较页面最终计算 padding 与 hero top，并保留隐藏页零高度检查，最终构建重新验收。
+iPhone 安全区断言比较页面最终计算 padding 与 hero top，并保留隐藏页零高度检查；最终四组均通过。
 
 漫画搜索已与书单统一：手机六源并发、桌面八源并发，按已测源延迟调度，源初始化也纳入搜索总时限。独立测试已确认六个请求同时开始以及初始化挂起能按时结束。
 
 附加翻译不能覆盖已加载的有效章节：翻译迟迟不返回时保留已到达的章节结果，而不把它误报为源超时。对应故障回归通过。总计 40 项 Node 回归通过。
+
+最终 IPA：0.4.2（build 37），arm64，最低 iOS 15.0。全部 103 个网页资源与本地最终构建核对：97 个字节一致，6 个仅 Windows/macOS 换行差异，无内容差异。
+
+三端最终 SHA-256：
+
+```text
+6dfb6284969e9240f3c66875814b8096f09e7c1ad5e869aeb4394e42416da7e7  EBOOK_0.4.2_x64-setup.exe
+6deb2b8b595d46fd5c7c498920c17c34727d3e84de2c2d886a347f55cfbcc472  EBOOK_0.4.2.apk
+2ad8e3d0c873208531602a3893f4b9459b99f0a4d53245d43f7a13b97b4b5be4  EBOOK_0.4.2_ios-unsigned.ipa
+```
