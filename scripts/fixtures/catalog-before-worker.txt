@@ -102,4 +102,3 @@ export function build({ catalog, csv, index }) {
   }
   return out;
 }
-

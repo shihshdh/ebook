@@ -1,11 +1,9 @@
 import { mobileOS } from '../lib/native.js';
 import { checkUrl } from './policy.js';
+import { decodeImageBytes } from './image-bytes.js';
 
-// Android's bridge returns base64. Uint8Array.from(atob(...), callback) creates
-// one JS call per byte (and a large temporary array). Decode bounded chunks,
-// yielding between them so scrolling can paint. The visible page skips timer
-// yields: background prefetch must never delay its first display. Only reader pages use this
-// path; WKWebView keeps the established sandbox HTTP path below.
+// Android 大图优先在 Worker 解码；不支持 Worker 的旧 WebView 保留分块回退。
+// 仅漫画正文走这条路径，WKWebView 继续走沙箱原生 HTTP。
 async function androidPageBytes(sandbox, req, signal, front) {
   const url = checkUrl(req.url, { allowPrivate: sandbox.allowPrivate });
   signal?.throwIfAborted();
@@ -30,20 +28,26 @@ async function androidPageBytes(sandbox, req, signal, front) {
     const data = response.data;
     let bytes;
     if (typeof data === 'string' && !/\bapplication\/(?:[\w.-]+\+)?json\b/i.test(responseHeaders['content-type'] || '')) {
-      const base64 = data.replace(/^data:[^,]*,/, '').replace(/\s/g, '');
-      bytes = new Uint8Array(Math.floor(base64.length / 4) * 3 - (base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0));
-      // Multiple of four: each independently decodable block is at most 48 KiB.
-      for (let start = 0, offset = 0; start < base64.length; start += 65536) {
-        signal?.throwIfAborted();
-        const chunk = atob(base64.slice(start, start + 65536));
-        for (let i = 0; i < chunk.length; i++) bytes[offset++] = chunk.charCodeAt(i);
-        if (!front && start + 65536 < base64.length) await new Promise(resolve => setTimeout(resolve, 0));
+      const background = decodeImageBytes(data, signal);
+      if (background) {
+        try { bytes = await background; } catch { signal?.throwIfAborted(); }
+      }
+      if (!bytes) {
+        const base64 = data.replace(/^data:[^,]*,/, '').replace(/\s/g, '');
+        bytes = new Uint8Array(Math.floor(base64.length / 4) * 3 - (base64.endsWith('==') ? 2 : base64.endsWith('=') ? 1 : 0));
+        // Multiple of four: each independently decodable block is at most 48 KiB.
+        for (let start = 0, offset = 0; start < base64.length; start += 65536) {
+          signal?.throwIfAborted();
+          const chunk = atob(base64.slice(start, start + 65536));
+          for (let i = 0; i < chunk.length; i++) bytes[offset++] = chunk.charCodeAt(i);
+          if (!front && start + 65536 < base64.length) await new Promise(resolve => setTimeout(resolve, 0));
+        }
       }
     } else if (data instanceof ArrayBuffer) bytes = new Uint8Array(data);
     else if (ArrayBuffer.isView(data)) bytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
     else bytes = new TextEncoder().encode(typeof data === 'string' ? data : JSON.stringify(data));
     signal?.throwIfAborted();
-    return { status: response.status, body: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) };
+    return { status: response.status, body: bytes.byteOffset === 0 && bytes.byteLength === bytes.buffer.byteLength ? bytes.buffer : bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) };
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);

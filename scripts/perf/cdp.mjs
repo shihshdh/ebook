@@ -28,6 +28,7 @@ export async function connect(wsUrl) {
   await new Promise((res, rej) => { ws.onopen = res; ws.onerror = rej; });
   let id = 0;
   const pending = new Map(), listeners = new Map();
+  ws.onclose = () => { for (const task of pending.values()) task.rej(new Error('CDP connection closed')); pending.clear(); };
   ws.onmessage = (m) => {
     const msg = JSON.parse(m.data);
     if (msg.id && pending.has(msg.id)) { const { res, rej } = pending.get(msg.id); pending.delete(msg.id); msg.error ? rej(new Error(msg.error.message)) : res(msg.result); }

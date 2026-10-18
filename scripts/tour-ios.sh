@@ -64,6 +64,7 @@ tour() {   # 名字 设备类型 外观
     --cellularMode active --cellularBars 4 --batteryState charged --batteryLevel 100 || true
   timed 120 xcrun simctl install "$DEVICE" "$APP"
   launch "$DEVICE" app.librarium.reader -EBOOK_TOUR
+  timed 30 xcrun simctl ui "$DEVICE" appearance "$appearance"
   echo "== $name ($type, $appearance)"
   if ! timed 900 node scripts/ios-tour.mjs "$DEVICE" "$OUT/$name" "$appearance"; then
     FAILED=1

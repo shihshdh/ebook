@@ -107,4 +107,3 @@ export function build({ catalog, csv, index }, { native = false } = {}) {
   }
   return out;
 }
-

@@ -24,4 +24,3 @@ export function releaseAssetUrls(owner, repo, tag, file, { native = false } = {}
   const proxied = GH_PROXIES.map(p => p + direct);
   return native ? [...proxied, direct] : proxied.filter(u => !u.startsWith('https://ghfast.top/'));
 }
-

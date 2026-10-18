@@ -73,7 +73,7 @@ async function step(name, body, { settle = 1200, timeout } = {}) {
 
 // App 起来、首页渲染出来；起不来（闪退、通道没开）就别一屏屏干等了
 const boot = await run('boot', `return await until(() => document.querySelector('.route.is-active') && 'ready', 60000);`, 90000);
-if (!boot.ok) {
+if (!boot.ok || boot.result !== 'ready') {
   try { execFileSync('xcrun', ['simctl', 'io', device, 'screenshot', join(out, '00-boot-failed.png')], { stdio: 'ignore' }); } catch { /* 截不到就算了 */ }
   writeFileSync(join(out, 'tour.json'), JSON.stringify([boot], null, 1));
   console.log('App 没起来：' + boot.error);
@@ -82,8 +82,12 @@ if (!boot.ok) {
 
 if (appearance === 'dark') {
   // 模拟器已经切到深色：外观选「跟随系统」，App 跟着变深色
-  await step('appearance-system', `location.hash = '#/plugins'; await until(() => $('.seg-wide .chip'));
-    byText('.seg-wide .chip', /跟随系统/)?.click(); await sleep(800); return document.documentElement.getAttribute('data-theme');`);
+  await step('appearance-system', `location.hash = '#/plugins';
+    const button = await until(() => [...document.querySelectorAll('.route.is-active [aria-label="外观"] button')].find(b => b.textContent.trim() === '跟随系统'));
+    if (!button) throw Error('没有找到当前页面的外观设置');
+    button.click();
+    await until(() => document.documentElement.getAttribute('data-theme') === 'dark', 5000);
+    return {theme: document.documentElement.getAttribute('data-theme'), systemDark: matchMedia('(prefers-color-scheme: dark)').matches, selected: button.getAttribute('aria-checked')};`);
   await step('home', `location.hash = '#/'; await sleep(1500); scrollTo(0, 0); return document.documentElement.getAttribute('data-theme');`);
   await step('explore-comic', `location.hash = '#/explore'; await until(() => $('.route.is-active .explore-kind')); byText('.route.is-active .explore-kind .chip', /^漫画$/)?.click();
     return await until(() => $$('.route.is-active .explore-comic .mw-tile').length > 4, 90000) && $$('.route.is-active .explore-comic .mw-tile').length;`, { settle: 3000 });
@@ -111,7 +115,7 @@ if (appearance === 'dark') {
   await step('comic-reader', `const b = byText('.sheet .cs-read-row button', /开始看|继续看/); b?.click();
     return await until(() => $$('.cr-scroll img').some(i => i.complete && i.naturalWidth), 60000) ? 'image shown' : 'no image';`, { settle: 3000 });
   await step('comic-reader-chrome', `return tap(innerWidth / 2, innerHeight / 2);`);
-  await step('comic-reader-toc', `const t = byText('.rd-dock button, .rd-dock [role=tab]', /目录/); t?.click(); await sleep(800); return !!$('.rd-toc');`);
+  await step('comic-reader-toc', `const t = byText('.rd-dock button, .rd-dock [role=tab]', /目录/); t?.click(); await sleep(800); return !!$('.panel-toc, .rd-toc');`);
   await step('comic-reader-settings', `const t = byText('.rd-dock button, .rd-dock [role=tab]', /设置|阅读|排版/); t?.click(); await sleep(800); return t?.textContent || 'no tab';`);
   await step('comic-reader-immersive', `$('.rd-scrim')?.click(); await sleep(500); tap(innerWidth / 2, innerHeight / 2); await sleep(400);
     const st = $('.cr-scroll'); st?.scrollBy?.(0, innerHeight * 0.8); return 1;`);
@@ -125,6 +129,24 @@ if (appearance === 'dark') {
   await step('novel-reader-chrome', `if (!location.hash.includes('/read/')) return 'not in reader'; return tap(innerWidth / 2, innerHeight / 2);`);
 }
 
+// 检查实际内容：命令成功执行不代表漫画出图/目录就绪。
+const required = {
+  'appearance-system': r => r?.theme === 'dark' && r?.systemDark && r?.selected === 'true',
+  'explore-novel': r => Number(r) > 0,
+  'explore-comic': r => Number(r) > 4,
+  'explore-comic-top': r => Number(r) > 4,
+  'comic-sheet': r => Number(r) > 0,
+  'comic-reader': r => r === 'image' || r === 'image shown',
+  'comic-reader-toc': r => r === true,
+  'comic-shelf-add': r => r === 'added',
+  'search': r => typeof r === 'string' && r !== 'no comic results',
+  'novel-reader': r => r?.ok === true,
+};
+for (const row of report) if (row.ok && required[row.name] && !required[row.name](row.result)) {
+  row.ok = false; row.error = '实际页面未达到预期：' + JSON.stringify(row.result);
+}
 writeFileSync(join(out, 'tour.json'), JSON.stringify(report, null, 1));
 const bad = report.filter(r => !r.ok || r.page?.overflowX);
 console.log(`${report.length} 屏，${bad.length} 屏有问题`);
+for (const row of bad) console.error(row.name, row.error || '横向溢出');
+if (bad.length) process.exitCode = 1;

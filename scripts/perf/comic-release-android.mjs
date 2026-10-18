@@ -1,0 +1,59 @@
+// Release acceptance in an isolated Android emulator; overwrites only its test account.
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+import {createServer} from 'node:http';
+import {mkdirSync,writeFileSync} from 'node:fs';
+import sharp from 'sharp';
+import bundled from '../../src/comic/default-sources.js';
+import {connect,sleep} from './cdp.mjs';
+const target=(await(await fetch('http://127.0.0.1:9333/json')).json()).find(t=>t.type==='page');
+const p=await connect(target.webSocketDebuggerUrl);
+p.eval=async expression=>{const r=await p.send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true});if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.text);return r.result.value};
+const until=async (expr,ms=30000)=>{const t=Date.now();while(Date.now()-t<ms){if(await p.eval(expr))return Date.now()-t;await sleep(80)}throw Error('Timeout '+expr+' '+await p.eval('document.body.innerText.slice(-500)'))};
+const put=async entries=>p.eval(`(async()=>{const q=indexedDB.open('librarium',1);const d=await new Promise(r=>q.onsuccess=()=>r(q.result));await new Promise((r,j)=>{const t=d.transaction('kv','readwrite');for(const[k,v]of ${JSON.stringify(entries)}){if(v===null)t.objectStore('kv').delete(k);else t.objectStore('kv').put(v,k)}t.oncomplete=r;t.onerror=j});d.close();return true})()`);
+const get=key=>p.eval(`(async()=>{const q=indexedDB.open('librarium',1);const d=await new Promise(r=>q.onsuccess=()=>r(q.result));const v=await new Promise(r=>{const q=d.transaction('kv').objectStore('kv').get(${JSON.stringify(key)});q.onsuccess=()=>r(q.result)});d.close();return v})()`);
+const navigate=async hash=>{await p.eval(`sessionStorage.setItem('librarium.splash','1');location.hash=${JSON.stringify(hash)};location.reload();true`);await until('!!document.querySelector(".lg-bar") || !!document.querySelector(".hero-title") || !!document.querySelector(".plugins")',20000).catch(()=>{});};
+const report={at:new Date().toISOString(),checks:[]};mkdirSync('release/verification',{recursive:true});
+await p.send('Page.enable');await p.send('Runtime.enable');await p.send('Emulation.setCPUThrottlingRate',{rate:1});
+const requests=[];const jpg=await sharp({create:{width:1200,height:1700,channels:3,background:'#b64e38'}}).jpeg().toBuffer();
+const server=createServer((req,res)=>{requests.push({url:req.url,at:Date.now()});setTimeout(()=>{res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'no-store'});res.end(jpg)},250)});
+await new Promise(r=>server.listen(9461,'127.0.0.1',r));
+try{
+ const old=JSON.parse(execFileSync('git',['show','v0.4.0:src/comic/default-sources.js'],{encoding:'utf8',maxBuffer:10e6}).split('export default ')[1].trim().replace(/;$/,''));
+ const oldList=old.sources.filter(s=>s.key!=='Komiic').map(s=>({...s,id:`venera:${s.fileName.replace(/\.js$/,'')}`,repo:'venera',builtin:1,addedAt:1,enabled:s.key==='baozi'?false:s.enabled}));
+ await put([['comic:sources',oldList],['comic:defaults',1],['comic:runtime:venera',{code:old.runtime,builtin:1}],['comic:data:venera:baozi',{settings:{domains:'custom.example',cdn_domains:'as.baozimh.com'},testCookie:'keep'}]]);
+ await navigate('#/plugins');
+ for(let i=0;i<200&&await get('comic:defaults')!==2;i++)await sleep(100);
+ const upgraded=await get('comic:sources'),saved=await get('comic:data:venera:baozi');
+ assert.equal(upgraded.length,37);assert(!upgraded.some(s=>s.key==='Komiic'));assert.equal(upgraded.find(s=>s.key==='baozi').enabled,false);assert.equal(saved.settings.domains,'custom.example');assert.equal(saved.settings.cdn_domains,'s1.bzcdn.net');assert.equal(saved.testCookie,'keep');
+ report.checks.push({name:'native old-account upgrade',count:upgraded.length,deletedPreserved:true,switchPreserved:true,cookiePreserved:true,customDomainPreserved:true});
+ const source=`class ReleaseSource extends ComicSource{name='加载验收';key='komga';version='1';search={load:async()=>({comics:[new Comic({id:'fixture',title:'图像加载验收',cover:'http://127.0.0.1:9461/cover.jpg'})],maxPage:1})};explore=[{title:'推荐',type:'multiPageComicList',load:async()=>({comics:[new Comic({id:'fixture',title:'图像加载验收',cover:'http://127.0.0.1:9461/cover.jpg'})],maxPage:1})}];comic={loadInfo:async()=>new ComicDetails({title:'图像加载验收',chapters:new Map([['1','第一话'],['2','第二话']])}),loadEp:async()=>({images:Array.from({length:10},(_,i)=>'http://127.0.0.1:9461/page'+i+'.jpg')})}}`;
+ await put([['comic:sources',[{id:'perf:release',repo:'perf',key:'komga',name:'加载验收',className:'ReleaseSource',code:source,enabled:true}]],['comic:defaults',2],['comic:runtime:perf',{code:bundled.runtime}],['comic:progress',[]]]);
+ await p.eval(`localStorage.setItem('librarium.comic.reader',JSON.stringify({mode:'scroll'}));true`);
+ await navigate('#/explore?kind=comic');
+ await until('!!document.querySelector(".route.is-active .mw-tile")',30000);
+ await p.eval('document.querySelector(".route.is-active .mw-tile").click();true');
+ await until('!!document.querySelector(".cs-read-row .btn-gold")');
+ for(let i=0;i<100&&!requests.some(r=>r.url==='/page0.jpg');i++)await sleep(50);
+ assert(requests.some(r=>r.url==='/page0.jpg'),'first image requested while details open');await sleep(500);
+ const at=Date.now();await p.eval('document.querySelector(".cs-read-row .btn-gold").click();true');
+ const first=await until('!!document.querySelector(".cr-scroll img")?.naturalWidth');
+ assert.equal(requests.filter(r=>r.url==='/page0.jpg').length,1,'preloaded page reused');
+ report.checks.push({name:'details prefetches first image before reading',firstDisplayMs:Date.now()-at,waitLoopMs:first,firstImageRequests:1});
+ const shot=await p.send('Page.captureScreenshot',{format:'png'});writeFileSync('release/verification/android-comic-prefetch.png',Buffer.from(shot.data,'base64'));
+ // Full default-source install, then a real online wall/detail/reader path.
+ await put([['comic:sources',[]],['comic:defaults',null],['comic:progress',[]],['comic:data:venera:baozi',null]]);
+ await navigate('#/explore?kind=comic');
+ const wall=await until('document.querySelectorAll(".route.is-active .mw-tile").length>0',60000);
+ const covers=await until('[...document.querySelectorAll(".route.is-active .mw-tile img")].some(i=>i.complete&&i.naturalWidth)',60000).catch(e=>String(e.message).slice(0,150));
+ const fresh=await get('comic:sources');assert.equal(fresh.length,38);assert.equal(fresh.filter(s=>s.enabled).length,24);
+ report.checks.push({name:'real default wall',firstCardsMs:wall,firstCoverWaitMs:covers,count:await p.eval('document.querySelectorAll(".route.is-active .mw-tile").length'),installed:fresh.length,enabled:fresh.filter(s=>s.enabled).length});
+ const liveAt=Date.now();await p.eval('document.querySelector(".route.is-active .mw-tile").click();true');
+ await until('!!document.querySelector(".cs-read-row .btn-gold")',60000);
+ report.checks.push({name:'real comic details',ms:Date.now()-liveAt,title:await p.eval('document.querySelector(".sheet-title")?.textContent'),source:await p.eval('document.querySelector(".sheet-source")?.textContent')});
+ await sleep(1000);const readAt=Date.now();await p.eval('document.querySelector(".cs-read-row .btn-gold").click();true');
+ await until('!!document.querySelector(".cr-scroll img")?.naturalWidth',60000);
+ report.checks.push({name:'real comic first image',ms:Date.now()-readAt});
+ const liveShot=await p.send('Page.captureScreenshot',{format:'png'});writeFileSync('release/verification/android-real-comic.png',Buffer.from(liveShot.data,'base64'));
+} catch(error){report.error=String(error.stack||error);throw error}
+finally{writeFileSync('release/verification/android-release-acceptance.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));p.close();server.close()}
