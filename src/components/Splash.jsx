@@ -1,7 +1,8 @@
 // R12 · two geometric directions; switch to 'unfold' for the alternative.
 import { useLayoutEffect, useRef } from 'react';
 import { prefersReduced } from '../lib/motion.js';
-export const SPLASH_DIRECTION = 'lift';
+export const SPLASH_DIRECTION = 'unfold';
+export const SPLASH_DURATION = 2800;
 const KEY = 'librarium.splash';
 export function shouldShowSplash() {
   try { return !sessionStorage.getItem(KEY); } catch { return true; }
@@ -20,7 +21,7 @@ export default function Splash({ onDone }) {
     const skip = () => finish();
     window.addEventListener('keydown', skip);
     // CSS runs on the compositor; this timer is a cleanup fallback.
-    const timer = setTimeout(finish, prefersReduced() ? 500 : 1400);
+    const timer = setTimeout(finish, prefersReduced() ? 500 : SPLASH_DURATION + 120);
     return () => { clearTimeout(timer); window.removeEventListener('keydown', skip); };
   }, []);
   return (

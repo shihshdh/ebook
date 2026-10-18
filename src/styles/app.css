@@ -86,31 +86,32 @@
 .splash {
   position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
   background: #B64E38; color: #FFF7ED; cursor: pointer; isolation: isolate;
-  animation: splash-surface 1400ms linear both;
+  animation: splash-surface 2800ms cubic-bezier(.25,.1,.25,1) both;
 }
 .splash-symbol { width: 192px; height: 192px; fill: #FFF7ED; overflow: visible;
-  animation: splash-lift 1050ms cubic-bezier(.22,.7,.25,1) both; }
+  animation: splash-lift 2800ms cubic-bezier(.22,.7,.25,1) both; }
 .splash-half { transform-box: view-box; transform-origin: 50% 50%; }
 .splash-caption { position: absolute; top: calc(50% + 100px); font: 500 12px/1.5 system-ui, sans-serif;
-  letter-spacing: .36em; padding-left: .36em; animation: splash-caption 1050ms ease both; }
+  letter-spacing: .36em; padding-left: .36em; animation: splash-caption 2800ms ease both; }
 .splash-skip { position: absolute; right: 20px; bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   min-width: 44px; min-height: 44px; border: 0; background: transparent; color: #FFF7ED; font-size: 12px; }
 .splash-unfold .splash-symbol { animation-name: splash-symbol-fade; }
-.splash-unfold .splash-left { animation: splash-open-left 1050ms cubic-bezier(.22,.7,.25,1) both; }
-.splash-unfold .splash-right { animation: splash-open-right 1050ms cubic-bezier(.22,.7,.25,1) both; }
-@keyframes splash-surface { 0%, 68% { opacity: 1; } 100% { opacity: 0; } }
+.splash-unfold .splash-left { animation: splash-open-left 2800ms cubic-bezier(.22,.7,.25,1) both; }
+.splash-unfold .splash-right { animation: splash-open-right 2800ms cubic-bezier(.22,.7,.25,1) both; }
+@keyframes splash-surface { 0%, 74% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes splash-lift {
   0% { opacity: 0; transform: translate3d(0,12px,0); }
-  28%, 65% { opacity: 1; transform: translate3d(0,0,0); }
-  100% { opacity: 0; transform: translate3d(0,-16px,0); }
+  26%, 76% { opacity: 1; transform: translate3d(0,0,0); }
+  100% { opacity: 0; transform: translate3d(0,-8px,0); }
 }
-@keyframes splash-symbol-fade { 0% { opacity: 0; } 28%, 65% { opacity: 1; } 100% { opacity: 0; } }
-@keyframes splash-open-left { 0%, 30% { transform: none; } 100% { transform: translate3d(-60px,0,0) rotate(-8deg); } }
-@keyframes splash-open-right { 0%, 30% { transform: none; } 100% { transform: translate3d(60px,0,0) rotate(8deg); } }
-@keyframes splash-caption { 0%, 24% { opacity: 0; } 48%, 70% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes splash-symbol-fade { 0% { opacity: 0; transform: translate3d(0,10px,0) scale(.96); } 26%, 76% { opacity: 1; transform: translate3d(0,0,0) scale(1); } 100% { opacity: 0; transform: translate3d(0,-8px,0) scale(1); } }
+@keyframes splash-open-left { 0%, 34% { transform: none; } 70%, 100% { transform: translate3d(-24px,0,0) rotate(-3deg); } }
+@keyframes splash-open-right { 0%, 34% { transform: none; } 70%, 100% { transform: translate3d(24px,0,0) rotate(3deg); } }
+@keyframes splash-caption { 0%, 24% { opacity: 0; } 44%, 76% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes splash-reduced { 0% { opacity: 0; } 25%, 75% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
   .splash { animation-duration: 500ms; }
-  .splash .splash-symbol, .splash-caption { animation: splash-symbol-fade 400ms linear both; }
+  .splash .splash-symbol, .splash-caption { animation: splash-reduced 400ms linear both; }
   .splash-unfold .splash-half { animation: none; }
 }
 
