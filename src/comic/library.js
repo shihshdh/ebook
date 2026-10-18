@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { idbGet, idbSet } from '../lib/idb.js';
 import { listComicSources, withSource } from './sources.js';
 import { fetchImage } from './images.js';
+import { measureSource, sourcePriority } from './source-metrics.js';
 import { requestBudget, transientComicError } from './request-budget.js';
 import { coverLoader, firstCover } from './cover-loader.js';
 import { firstPageCache } from './first-page-cache.js';
@@ -42,16 +43,17 @@ const pageSlot = limiter(mobileUI ? 3 : 4);
 
 // ---------- 搜 ----------
 /** 在启用的漫画源里搜。每个源一有结果就 onResult({ source: {id, name, key}, comics, error })，全部结束后 resolve */
-export async function searchComics(keyword, { signal, onResult, timeout = 20000, concurrency = 4 } = {}) {
-  const queue = (await listComicSources()).filter(e => e.enabled);
+export async function searchComics(keyword, { signal, onResult, timeout = 12000, concurrency = mobileUI ? 6 : 8 } = {}) {
+  const queue = (await listComicSources()).filter(e => e.enabled).sort((a,b)=>sourcePriority(a)-sourcePriority(b));
   await Promise.all(Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
     for (let e; !signal?.aborted && (e = queue.shift());) {
       const source = { id: e.id, name: e.name, key: e.key };
       try {
-        const comics = await withSource(e.id, async (box) => {
+        const comics = await measureSource(e, () => requestBudget(bounded => withSource(e.id, async (box) => {
+          bounded.throwIfAborted();
           const options = box.meta.searchOptions.map(o => o.default);
-          return (await box.call('search', [keyword, options, 1, null], { signal, timeout })).comics;
-        });
+          return (await box.call('search', [keyword, options, 1, null], { signal: bounded, timeout })).comics;
+        }), { timeout, signal }));
         const list = await localizeComics(comics, e.key);   // 外文源的书名、简介翻成中文（translate.js）
         if (!signal?.aborted) onResult?.({ source, comics: list });
       } catch (err) {

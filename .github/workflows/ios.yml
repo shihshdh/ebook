@@ -29,7 +29,7 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
       - name: Verify iOS platform routing
-        run: node --test scripts/ios-platform-test.mjs scripts/comic-defaults-migration-test.mjs scripts/comic-first-page-test.mjs scripts/catalog-worker-test.mjs scripts/comic-image-worker-test.mjs scripts/comic-cover-loader-test.mjs scripts/comic-request-budget-test.mjs
+        run: node --test scripts/ios-platform-test.mjs scripts/comic-defaults-migration-test.mjs scripts/comic-first-page-test.mjs scripts/catalog-worker-test.mjs scripts/comic-image-worker-test.mjs scripts/comic-cover-loader-test.mjs scripts/comic-request-budget-test.mjs scripts/comic-search-concurrency-test.mjs
       - name: Verify incremental comic catalog loading
         run: node --experimental-vm-modules --test scripts/comic-catalog-loading-test.mjs
       - name: Build unsigned iPhone package
