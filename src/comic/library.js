@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { idbGet, idbSet } from '../lib/idb.js';
 import { listComicSources, withSource } from './sources.js';
 import { fetchImage } from './images.js';
+import { requestBudget, transientComicError } from './request-budget.js';
 import { coverLoader, firstCover } from './cover-loader.js';
 import { firstPageCache } from './first-page-cache.js';
 import { loadCover, saveCover, loadDetails, saveDetails } from './cover-cache.js';
@@ -75,11 +76,24 @@ const remember = (map, key, load) => {
 // 详情存在本机（cover-cache.js）：有的源取一次要 3–4 秒（拷贝漫画、漫画柜），点开一部看过 / 找过的漫画不该再干等。
 // 存的有章节就马上用；存了超过 6 小时的，同时在后台重取一份换上（新出的话下次打开就有）。没章节的不存（多半是被下架，下次再试）
 const DETAIL_FRESH = 6 * 3600e3, DETAIL_KEEP = 14 * 864e5;
-// 失败了隔 1.2 秒再试一次：源偶尔一下没响应、拷贝漫画限流（210），一次失败就去别的源找一圈要十几秒
-const fetchDetails = (sourceId, comicId) => {
-  const once = () => withSource(sourceId, box => box.call('info', [comicId], { timeout: 20000 }));
-  return once().catch(() => new Promise(r => setTimeout(r, 1200)).then(once)).then(d => localizeDetails(d, sourceId));
-};
+// One total deadline: retry only early transient errors, never stack full timeouts.
+const fetchDetails = (sourceId, comicId) => requestBudget(async signal => {
+  const started = Date.now();
+  const once = () => withSource(sourceId, box => {
+    signal.throwIfAborted();
+    return box.call('info', [comicId], { timeout: 12000, signal });
+  });
+  let d;
+  try { d = await once(); }
+  catch (error) {
+    signal.throwIfAborted();
+    // Retry only an early transient failure; never start another full timeout.
+    if (!transientComicError(error) || Date.now() - started > 3000) throw error;
+    await new Promise(r => setTimeout(r, 400));
+    signal.throwIfAborted(); d = await once();
+  }
+  return localizeDetails(d, sourceId);
+});
 export const comicDetails = (sourceId, comicId) => remember(details, `${sourceId}|${comicId}`, async () => {
   const key = `${sourceId}|${comicId}`, saved = await loadDetails(key), now = Date.now();
   if (saved && now - saved.at < DETAIL_KEEP && chaptersOf(saved.v).length) {
@@ -102,12 +116,12 @@ export function prefetchChapter(sourceId, comicId, epId, page = 0) {
   chapterImages(sourceId, comicId, epId).then(images => {
     const url = images[Math.min(Math.max(0, page), images.length - 1)];
     if (url) firstPages.warm(pageKey(sourceId, comicId, epId, url), () =>
-      pageSlot(() => withSource(sourceId, box => fetchImage(box, url, { comicId, epId }))));
+      pageSlot(() => requestBudget(signal => withSource(sourceId, box => { signal.throwIfAborted(); return fetchImage(box, url, { comicId, epId, signal }); }), { timeout: 8000 })));
   }).catch(() => {});
 }
 /** 某一话的图片地址。epId 为 null：整本一卷 */
 export const chapterImages = (sourceId, comicId, epId) => remember(episodes, `${sourceId}|${comicId}|${epId}`,
-  () => withSource(sourceId, box => box.call('ep', [comicId, epId], { timeout: 30000 })).then(r => r.images));
+  () => requestBudget(signal => withSource(sourceId, box => { signal.throwIfAborted(); return box.call('ep', [comicId, epId], { timeout: 15000, signal }); }).then(r => r.images), { timeout: 15000, message: '章节目录响应超时，请重试或切换漫画源' }));
 
 /** 详情里的章节按阅读顺序编号：章节为空且是整本一卷时给一个「全一卷」 */
 export const chaptersOf = (d) => (d.single ? [{ id: null, title: '全一卷', group: '' }] : d.chapters);
@@ -115,14 +129,16 @@ export const chaptersOf = (d) => (d.single ? [{ id: null, title: '全一卷', gr
 // ---------- 图 ----------
 /** 取一张正文图：返回 blob 地址，用完调用方自己 URL.revokeObjectURL */
 export async function pageURL(sourceId, url, { comicId, epId, signal, front } = {}) {
-  signal?.throwIfAborted();
-  const cached = firstPages.take(pageKey(sourceId, comicId, epId, url), signal);
-  let blob;
-  if (cached) {
-    try { blob = await cached; }
-    catch (error) { if (signal?.aborted) throw error; } // 预取失败照常重试，不让后台失败挡住阅读。
-  }
-  if (!blob) blob = await pageSlot(() => withSource(sourceId, box => fetchImage(box, url, { comicId, epId, signal, front })), { signal, front });
+  const blob = await requestBudget(async bounded => {
+    const cached = firstPages.take(pageKey(sourceId, comicId, epId, url), bounded);
+    if (cached) {
+      try { return await cached; } catch (error) { bounded.throwIfAborted(); }
+    }
+    return pageSlot(() => withSource(sourceId, box => {
+      bounded.throwIfAborted();
+      return fetchImage(box, url, { comicId, epId, signal: bounded, front });
+    }), { signal: bounded, front });
+  }, { timeout: 18000, signal, message: '漫画图片响应超时，点一下重试或换源' });
   signal?.throwIfAborted();
   return URL.createObjectURL(blob);
 }
@@ -241,14 +257,29 @@ const bare = (s) => String(s || '').replace(/[！-～]/g, ch => String.fromCharC
   .replace(/[(（【\[][^)）】\]]*[)）】\]]/g, '').replace(/[\s\p{P}\p{S}]/gu, '').toLowerCase();
 /** @returns {Promise<{ sourceId, sourceName, comicId, cover, title }[]>} 书名对得上、而且有章节的别的源 */
 export async function findOtherSources(book, { signal } = {}) {
-  const names = new Set([book.title, book.alt, ...(book.comics || []).map(c => c.title)].map(bare).filter(Boolean));
-  const have = new Set((book.comics || []).map(c => c.sourceId));
-  const hits = [];
-  await searchComics(book.title, { signal, timeout: 12000, onResult: ({ source, comics }) => {
-    if (have.has(source.id)) return;
-    const c = comics.find(x => names.has(bare(x.title)));
-    if (c) hits.push({ sourceId: source.id, sourceName: source.name, comicId: c.id, cover: c.cover || '', title: c.title });
-  } });
-  const ok = await Promise.all(hits.map(h => comicDetails(h.sourceId, h.comicId).then(d => chaptersOf(d).length > 0, () => false)));
-  return hits.filter((_, i) => ok[i]).sort((a, b) => coversBlocked(a.sourceId) - coversBlocked(b.sourceId));
+  const controller = new AbortController();
+  try {
+    return await requestBudget(async bounded => {
+      const cancel = () => controller.abort();
+      bounded.addEventListener('abort', cancel, { once: true });
+      const names = new Set([book.title, book.alt, ...(book.comics || []).map(c => c.title)].map(bare).filter(Boolean));
+      const have = new Set((book.comics || []).map(c => c.sourceId));
+      const checks = [];
+      let first;
+      const ready = new Promise(resolve => { first = resolve; });
+      const search = searchComics(book.title, { signal: controller.signal, timeout: 5000, concurrency: 6, onResult: ({ source, comics }) => {
+        if (have.has(source.id)) return;
+        const c = comics.find(x => names.has(bare(x.title)));
+        if (!c) return;
+        const hit = { sourceId: source.id, sourceName: source.name, comicId: c.id, cover: c.cover || '', title: c.title };
+        checks.push(comicDetails(source.id, c.id).then(d => {
+          if (!chaptersOf(d).length) return null;
+          first([hit]); return hit;
+        }, () => null));
+      } });
+      try {
+        return await Promise.race([ready, search.then(() => Promise.all(checks)).then(list => list.filter(Boolean))]);
+      } finally { bounded.removeEventListener('abort', cancel); }
+    }, { timeout: 12000, signal, message: '其他漫画源暂时没有回应，请稍后重试' });
+  } finally { controller.abort(); }
 }

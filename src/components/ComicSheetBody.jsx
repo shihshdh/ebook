@@ -26,13 +26,28 @@ export default function ComicSheetBody({ book: given, onRead }) {
   const progress = recent?.find(p => p.sourceId === c.sourceId && p.comicId === c.comicId);
   const [d, setD] = useState(null);
   const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
   const [reverse, setReverse] = useState(false);
   useEffect(() => {
     let alive = true;
     setD(null); setError('');
     comicDetails(c.sourceId, c.comicId).then(v => alive && setD(v), e => alive && setError(e.message || '打不开'));
     return () => { alive = false; };
-  }, [c.sourceId, c.comicId]);
+  }, [c.sourceId, c.comicId, retry]);
+
+  // Hedge a slow first-time source. Explicit selections and the source with
+  // existing reading progress stay under the reader's control.
+  useEffect(() => {
+    if (d || error || picked != null || seen >= 0 || book.comics.length < 2) return;
+    let alive = true;
+    const timer = setTimeout(() => {
+      const others = book.comics.map((x, i) => ({ x, i })).filter(v => v.i !== pick).slice(0, 2);
+      for (const { x, i } of others) comicDetails(x.sourceId, x.comicId).then(value => {
+        if (alive && chaptersOf(value).length) { alive = false; setFallback(i); }
+      }, () => {});
+    }, 1500);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [c.sourceId, c.comicId, d, error, picked, seen, book.comics]);
 
   const chapters = useMemo(() => (d ? chaptersOf(d) : []), [d]);
   const empty = !!error || (d && !chapters.length);
@@ -93,7 +108,7 @@ export default function ComicSheetBody({ book: given, onRead }) {
         {shelfError && <p role="alert">{shelfError}</p>}
         {!d && !error && <p className="sheet-note">正在打开章节目录…</p>}
         {looking && <p className="sheet-note">「{c.sourceName}」里没有章节，正在别的漫画源里找这一部…</p>}
-        {!looking && error && <p className="sheet-note">{error}{book.comics.length > 1 ? '。换个源试试。' : ''}</p>}
+        {error && <div role="alert"><p className="sheet-note">{error}</p><button className="btn btn-ghost sm" onClick={() => setRetry(n => n + 1)}><Icon name="refresh" size={15} />重新加载章节</button></div>}
         {!looking && d && !chapters.length && <p className="sheet-note">这部漫画在「{c.sourceName}」里没有章节（可能下架了）{book.comics.length > 1 ? '，换个源试试' : ''}。</p>}
         {chapters.length > 1 && groups.map(g => (
           <div key={g} className="cx-chapter-group">

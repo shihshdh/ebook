@@ -1,0 +1,6 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import {requestBudget,transientComicError} from '../src/comic/request-budget.js';
+const pause=ms=>new Promise(r=>setTimeout(r,ms));
+test('one deadline includes stalled source boot and prevents a second long wait',async()=>{let aborted=false;const at=Date.now();await assert.rejects(requestBudget(signal=>{signal.addEventListener('abort',()=>aborted=true);return new Promise(()=>{});},{timeout:25}),/超时/);assert.ok(aborted);assert.ok(Date.now()-at<200);});
+test('external cancellation aborts queued and active requests',async()=>{const ctl=new AbortController();let child;const work=requestBudget(signal=>{child=signal;return new Promise(()=>{});},{timeout:500,signal:ctl.signal});await pause(1);ctl.abort();await assert.rejects(work,{name:'AbortError'});assert.ok(child.aborted);});
+test('successful cached results bypass timeout and retain their value',async()=>assert.equal(await requestBudget(async()=>42,{timeout:100}),42));
+test('rate limits, missing chapters, auth and timeouts do not trigger full automatic retries',()=>{for(const message of ['HTTP 429','HTTP 403','HTTP 404','源没有回应（超时）','登录失败','已取消'])assert.equal(transientComicError(Error(message)),false);assert.equal(transientComicError(Error('HTTP 503')),true);assert.equal(transientComicError(Error('NetworkError')),true);});

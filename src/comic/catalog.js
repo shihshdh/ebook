@@ -15,6 +15,8 @@ import { localizeComics } from './translate.js';
 import { chaptersOf, comicDetails, coversBlocked } from './library.js';
 import { calm } from '../lib/calm.js';
 import { mobileUI } from '../lib/native.js';
+import { requestBudget } from './request-budget.js';
+import { measureSource, sourcePriority } from './source-metrics.js';
 import { idbGet, idbSet } from '../lib/idb.js';
 import { normTitle } from '../lib/pool.js';
 
@@ -34,7 +36,7 @@ function limiter(max) {
   const next = () => { while (running < max && queue.length) { const { job, resolve, reject } = queue.shift(); running++; job().then(resolve, reject).finally(() => { running--; next(); }); } };
   return (job) => new Promise((resolve, reject) => { queue.push({ job, resolve, reject }); next(); });
 }
-const pool4 = limiter(mobileUI ? 4 : 6);   // Four mobile slots; slow sources no longer block the entire initial list.
+const pool4 = limiter(mobileUI ? 6 : 8);   // Concurrent independent sources; fast sources start first.
 // 漫画那半看不见（切到轻小说、探索页不在前台）时，书单和名作查找先停着，显示出来再接着（ComicExplore 报给这里）。
 // 不然切到轻小说滑书墙、去首页书架，漫画源还在后台拉书单、解析网页，挤的是同一个主线程
 let paneShown = false;
@@ -42,7 +44,7 @@ const paneWaiters = [];
 export function setComicPaneShown(v) { paneShown = v; if (v) paneWaiters.splice(0).forEach(fn => fn()); }
 const whenShown = () => (paneShown ? Promise.resolve() : new Promise(r => paneWaiters.push(r)));
 // 探索书单、分类：漫画那半看得见、用户的手停下来再开工（lib/calm.js）
-const slot = (job) => pool4(() => whenShown().then(() => calm()).then(job));
+const slot = job => pool4(() => whenShown().then(() => calm()).then(() => requestBudget(job, { timeout: TIMEOUT })));
 
 /** 各源的列表交错合并：第 1 个源的第 1 本、第 2 个源的第 1 本……同名（作者对得上或没写）的合成一条。
  *  封面取不到的源（包子漫画）排在后面一轮：书墙前几屏都是有封面的；它的书和前面同名的照样并进去（多一个可换的源） */
@@ -71,9 +73,9 @@ function blend(perSource) {
 }
 
 const categories = new Map();   // 源 → Promise<[{ label, category, param }]>
-const categoriesOf = (id) => {
+const categoriesOf = (id, signal) => {
   if (!categories.has(id)) {
-    const p = withSource(id, box => box.call('categories', [], { timeout: TIMEOUT }));
+    const p = withSource(id, box => { signal?.throwIfAborted(); return box.call('categories', [], { timeout: TIMEOUT, signal }); });
     p.catch(() => categories.delete(id));
     categories.set(id, p);
   }
@@ -88,11 +90,12 @@ const categoriesOf = (id) => {
 async function fromSource(source, key, cur) {
   try {
     if (key === 'all') {
-      return await slot(() => withSource(source.id, async box => {
+      return await slot(signal => measureSource(source, () => withSource(source.id, async box => {
+        signal.throwIfAborted();
         const ex = box.meta.explore;
         let { index = 0, page = 1 } = cur || {};
         while (index < ex.length) {
-          const { parts, maxPage } = await box.call('explore', [index, page], { timeout: TIMEOUT });
+          const { parts, maxPage } = await box.call('explore', [index, page], { timeout: TIMEOUT, signal });
           const seen = new Set(), comics = parts.flatMap(p => p.comics).filter(c => !seen.has(c.id) && seen.add(c.id));
           const single = ex[index].type === 'singlePageWithMultiPart' || (maxPage && page >= maxPage);
           const next = !comics.length || single ? { index: index + 1, page: 1 } : { index, page: page + 1 };
@@ -100,13 +103,13 @@ async function fromSource(source, key, cur) {
           ({ index, page } = next);
         }
         return { comics: [], cur: null };
-      }));
+      })));
     }
     const words = WORLD_WORDS[key];
-    const cat = (await slot(() => categoriesOf(source.id))).find(c => words.test(c.label));
+    const cat = (await slot(signal => measureSource(source, () => categoriesOf(source.id, signal)))).find(c => words.test(c.label));
     if (!cat) return { comics: [], cur: null };
     const page = cur?.page || 1;
-    const { comics, maxPage } = await slot(() => withSource(source.id, box => box.call('category', [cat.category, cat.param, page], { timeout: TIMEOUT })));
+    const { comics, maxPage } = await slot(signal => measureSource(source, () => withSource(source.id, box => { signal.throwIfAborted(); return box.call('category', [cat.category, cat.param, page], { timeout: TIMEOUT, signal }); })));
     return { comics, cur: comics.length && (!maxPage || page < maxPage) ? { page: page + 1 } : null };
   } catch { return { comics: [], cur: null }; }
 }
@@ -237,7 +240,7 @@ export function useTopRated(on) {
     if (!on) return;
     let live = true;
     (async () => {
-      const sources = (await listComicSources()).filter(e => e.enabled);
+      const sources = (await listComicSources()).filter(e => e.enabled).sort((a,b) => sourcePriority(a)-sourcePriority(b));
       const picks = TOP_RATED.map(() => null);
       const show = () => { if (live) setBooks(TOP_RATED.map((f, i) => picks[i] && pickBook(f, picks[i])).filter(Boolean)); };
       await Promise.all(TOP_RATED.map(async (f, i) => { picks[i] = await findFamous(f, sources).catch(() => null); if (picks[i]) show(); }));
@@ -274,7 +277,7 @@ function load(key) {
   lists.set(key, entry);
   const emit = () => entry.subs.forEach(fn => fn());
   (async () => {
-    const sources = (await listComicSources()).filter(e => e.enabled);
+    const sources = (await listComicSources()).filter(e => e.enabled).sort((a,b) => sourcePriority(a)-sourcePriority(b));
     const signature = sources.map(s => `${s.id}:${s.version}`).sort().join('|');
     const cacheKey = `comic:catalog:v2:${key}`;
     const saved = await idbGet('kv', cacheKey).catch(() => null);
@@ -358,7 +361,7 @@ export function useComicCollage(worlds, on) {
     if (!on) return;
     let live = true;
     (async () => {
-      const sources = (await listComicSources()).filter(e => e.enabled);
+      const sources = (await listComicSources()).filter(e => e.enabled).sort((a,b) => sourcePriority(a)-sourcePriority(b));
       // Publish each hit as it arrives, including other worlds when one has
       // a slow or missing title. No all-world barrier for the hero artwork.
       const out = {};

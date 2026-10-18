@@ -110,7 +110,7 @@ if (appearance === 'dark') {
     return {real: !!ready, count: discs.querySelectorAll('.disc-face .cover.is-real').length};`, {settle:1000,timeout:160000});
   await step('explore-novel-return', `byText('.route.is-active .explore-kind .chip', /^轻小说$/)?.click(); scrollTo(0,0); await sleep(400);
     const page=$('.route.is-active .explore:not([hidden])'), hero=page?.querySelector('.ws');
-    return {top:hero?.getBoundingClientRect().top, hidden:$$('.route.is-active .page[hidden]').map(e=>e.getBoundingClientRect().height), safe:parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--native-safe-top'))||0};`,{settle:300});
+    return {top:hero?.getBoundingClientRect().top, hidden:$$('.route.is-active .page[hidden]').map(e=>e.getBoundingClientRect().height), padding:parseFloat(getComputedStyle(page).paddingTop)};`,{settle:300});
   await step('explore-comic-return', `byText('.route.is-active .explore-kind .chip', /^漫画$/)?.click();scrollTo(0,0);await sleep(500);return 1;`);
   await step('explore-comic-wall', `$('.route.is-active .explore-comic .filters, .route.is-active .filters')?.scrollIntoView({ block: 'start' }); scrollBy(0, -60); await sleep(2500);
     return $$('.route.is-active .explore-comic .mw-tile').slice(0, 6).map(t => t.getAttribute('aria-label') || t.textContent.trim().slice(0, 12));`, { settle: 1500 });
@@ -147,7 +147,7 @@ if (appearance === 'dark') {
 // 检查实际内容：命令成功执行不代表漫画出图/目录就绪。
 const required = {
   'comic-disc-covers': r => r?.real === true && r.count >= 2,
-  'explore-novel-return': r => r?.top >= 0 && r.top < r.safe + 44 && r.hidden.every(h=>h===0),
+  'explore-novel-return': r => r?.top >= 0 && r.padding >= 8 && r.padding <= 100 && Math.abs(r.top-r.padding)<2 && r.hidden.every(h=>h===0),
   'comic-switch-shape': r => r?.length > 0 && r.every(s=>s.w===51&&s.h===31),
   'appearance-system': r => r?.theme === 'dark' && r?.systemDark && r?.selected === 'true',
   'explore-novel': r => Number(r) > 0,
