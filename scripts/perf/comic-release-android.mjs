@@ -16,6 +16,17 @@ const navigate=async hash=>{await p.eval(`sessionStorage.setItem('librarium.spla
 const prefix=process.env.ACCEPT_PREFIX || 'android';
 const report={at:new Date().toISOString(),transport:process.env.ACCEPT_TRANSPORT || 'Android WebView',checks:[]};mkdirSync('release/verification',{recursive:true});
 const record=row=>{report.checks.push(row);writeFileSync(`release/verification/${prefix}-release-acceptance.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(row));};
+if (prefix === 'windows') await p.send('Page.addScriptToEvaluateOnNewDocument', { source: `(() => {
+  const api=window.__TAURI_INTERNALS__;if(!api?.invoke)return;
+  const invoke=api.invoke,urls=new Map();window.__nativeTiming=[];
+  api.invoke=(command,args,options)=>{const start=performance.now();return invoke(command,args,options).then(result=>{
+    if(command==='plugin:http|fetch')urls.set(result,args?.clientConfig?.url);
+    const url=urls.get(args?.rid);if(result?.rid&&url)urls.set(result.rid,url);
+    const ms=performance.now()-start;
+    if(url&&ms>100&&window.__nativeTiming.length<200){const u=new URL(url);window.__nativeTiming.push({command,ms:Math.round(ms),host:u.host,path:u.pathname});}
+    return result;
+  });};
+})();` });
 await p.send('Page.enable');await p.send('Runtime.enable');await p.send('Emulation.setCPUThrottlingRate',{rate:1});
 const requests=[];const jpg=await sharp({create:{width:1200,height:1700,channels:3,background:'#b64e38'}}).jpeg().toBuffer();
 const server=createServer((req,res)=>{requests.push({url:req.url,at:Date.now()});setTimeout(()=>{res.writeHead(200,{'Content-Type':'image/jpeg','Cache-Control':'no-store'});res.end(jpg)},250)});
@@ -57,6 +68,7 @@ try{
  await sleep(1000);const readAt=Date.now();await p.eval('document.querySelector(".cs-read-row .btn-gold").click();true');
  await until('!!document.querySelector(".cr-scroll img")?.naturalWidth',60000);
  record({name:'real comic first image',ms:Date.now()-readAt});
+ if(prefix==='windows') record({name:'native HTTP slow operations',operations:await p.eval('(window.__nativeTiming || []).sort((a,b)=>b.ms-a.ms).slice(0,15)')});
  const liveShot=await p.send('Page.captureScreenshot',{format:'png'});writeFileSync(`release/verification/${prefix}-real-comic.png`,Buffer.from(liveShot.data,'base64'));
 } catch(error){report.error=String(error.stack||error);throw error}
 finally{writeFileSync(`release/verification/${prefix}-release-acceptance.json`,JSON.stringify(report,null,2));console.log(JSON.stringify(report,null,2));p.close();server.close()}

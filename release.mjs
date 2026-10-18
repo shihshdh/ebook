@@ -1,13 +1,13 @@
-// 发版第二步（第一步是 发版.bat 打两个包）：把 release/ 里的两个包传上 GitHub Release，再改 latest.json 和 README 的下载链接、推到 main。
+// 发版第二步（第一步是 发版.bat 打三端包）：把 release/ 里的三端包传上 GitHub Release，再改 latest.json 和 README 的下载链接、推到 main。
 //
 // 顺序有讲究：先建 Release、传好附件，再推 latest.json。客户端启动 8 秒后读 main 上的 latest.json，
 // 版本更新就提示下载 releases/download/v<版本>/<文件名>——清单先上去、附件还没传完的话，这期间点更新会 404。
 //
 // 用法：node release.mjs --check      只查代码状态（发版.bat 打包前先跑这个，免得白打）
 //       node release.mjs              建 Release（要装 GitHub CLI 并登录：gh auth login），再推清单
-//       node release.mjs --manifest   Release 已经在网页上手动建好、两个文件也传了：只改清单和 README、推 main
+//       node release.mjs --manifest   Release 已经在网页上手动建好、三个文件也传了：只改清单和 README、推 main
 // 更新说明：docs/RELEASE_<版本>.md。第一行「# 标题」是 Release 的标题，下一行「> 一句话」写进 latest.json，其余是正文；
-// 正文后面自动补两个文件的 SHA-256。
+// 正文后面自动补三个文件的 SHA-256。
 import { createHash } from 'node:crypto';
 import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -39,7 +39,7 @@ if (!existsSync('android/keystore.properties')) fail('没有 android/keystore.pr
 if (!existsSync(`docs/RELEASE_${VER}.md`)) fail(`没有更新说明 docs/RELEASE_${VER}.md`);
 if (process.argv.includes('--check')) { console.log('✓ 可以打包'); process.exit(0); }
 
-// 2. 两个包：在 release/ 里、是这一版
+// 2. 三端包：在 release/ 里、是这一版
 // 文档和验收脚本补充不会改变已构建客户端；按最后一次产品/构建输入改动核对产物时间。
 const headTime = +run('git', ['log', '-1', '--format=%ct', '--', 'package.json', 'package-lock.json', 'src', 'src-tauri', 'android', 'ios', 'public', 'capacitor.config.json', 'vite.config.js', 'scripts/build-ios.sh', 'scripts/ios-assets.mjs']) * 1000;
 for (const f of [EXE, APK, IPA]) {
@@ -71,7 +71,7 @@ if (!manifestOnly) {
   let exists = false;
   try { run('gh', ['release', 'view', TAG, '--repo', REPO], { quiet: true }); exists = true; } catch {}
   if (exists) fail(`GitHub 上已经有 ${TAG} 了。要重传附件：gh release upload ${TAG} release/${EXE} release/${APK} --clobber --repo ${REPO}，再跑 node release.mjs --manifest`);
-  console.log(`\n建 Release ${TAG}，上传两个文件（几十 MB，要一会儿）…`);
+  console.log(`\n建 Release ${TAG}，上传三个文件（几十 MB，要一会儿）…`);
   run('gh', ['release', 'create', TAG, `release/${EXE}`, `release/${APK}`, `release/${IPA}`, '--repo', REPO, '--target', 'main', '--title', title, '--notes-file', 'release/RELEASE_BODY.md'], { stdio: 'inherit' });
 }
 
@@ -79,7 +79,7 @@ if (!manifestOnly) {
 if (hasGh) {
   let assets = [];
   try { assets = JSON.parse(run('gh', ['release', 'view', TAG, '--repo', REPO, '--json', 'assets'], { quiet: true })).assets.map(a => a.name); }
-  catch { fail(`GitHub 上找不到 Release ${TAG}：先建好、传好两个文件，再跑 node release.mjs --manifest`); }
+  catch { fail(`GitHub 上找不到 Release ${TAG}：先建好、传好三个文件，再跑 node release.mjs --manifest`); }
   for (const f of [EXE, APK, IPA]) if (!assets.includes(f)) fail(`Release ${TAG} 上没有 ${f}：先传上去，再跑 node release.mjs --manifest`);
 } else console.log('（没装 gh，没法核对 Release 上的附件，按已经传好了处理）');
 const manifest = { version: VER, notes: oneLine, windows: { file: EXE, sha256: sums[EXE] }, android: { file: APK, sha256: sums[APK] }, ios: { file: IPA, sha256: sums[IPA], unsigned: true } };
