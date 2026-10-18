@@ -1,5 +1,6 @@
 // Real reader/sheet/tab components with deterministic slow native-image transport.
-// node scripts/perf/comic-reader-turns.mjs [baseline|optimized] [chromium|webkit]
+// Baseline is the 0.4.2 release source, pinned for repeatable comparisons.
+// node scripts/perf/comic-reader-turns.mjs [baseline|optimized] [chromium|webkit] [ios|android]
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {mkdirSync,writeFileSync,unlinkSync} from 'node:fs';
@@ -11,7 +12,7 @@ const suffix=engine+(os==='ios'?'':'-'+os);
 const require=createRequire('C:/Users/ys221/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/playwright/package.json');
 const pw=require('playwright');
 const baseline='src/pages/ComicReader.baseline.jsx';
-if(label==='baseline')writeFileSync(baseline,execFileSync('git',['show','HEAD:src/pages/ComicReader.jsx']));
+if(label==='baseline')writeFileSync(baseline,execFileSync('git',['show','e4205cc:src/pages/ComicReader.jsx']));
 const output='release/verification/reader-turns';mkdirSync(output,{recursive:true});
 const browser=await pw[engine].launch({headless:true,executablePath:engine==='webkit'?'C:/Users/ys221/AppData/Local/ms-playwright/webkit-2359/Playwright.exe':'C:/Program Files/Google/Chrome/Application/chrome.exe'});
 const page=await browser.newPage({viewport:{width:402,height:874},deviceScaleFactor:3,isMobile:true,hasTouch:true,userAgent:os==='ios'?'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 Version/18.5 Mobile/15E148 Safari/604.1':'Mozilla/5.0 (Linux; Android 14; wv) AppleWebKit/537.36 Chrome/131.0.0.0 Mobile Safari/537.36'});
@@ -57,7 +58,7 @@ try{
  },{label});
  const ready=()=>page.waitForFunction(()=>[...document.querySelectorAll('#verification .cr-stage img')].some(i=>i.complete&&i.naturalWidth&&getComputedStyle(i.closest('.cr-frame')||i).visibility!=='hidden'),{timeout:15000});
  await ready();console.log('First page ready');await page.waitForTimeout(1200);
- await page.evaluate(()=>{window.__black=[];window.__record=true;function sample(t){if(__record){const stage=document.querySelector('#verification .cr-stage');const visible=[...(stage?.querySelectorAll('img')||[])].filter(i=>i.complete&&i.naturalWidth&&getComputedStyle(i.closest('.cr-frame')||i).visibility!=='hidden');__black.push({at:t,blank:!!stage&&!visible.length,...(stage&&!visible.length?{html:stage.outerHTML}: {})});}requestAnimationFrame(sample)}requestAnimationFrame(sample);});
+ await page.evaluate(()=>{window.__black=[];window.__record=true;function sample(t){if(__record){const stage=document.querySelector('#verification .cr-stage');const visible=[...(stage?.querySelectorAll('img')||[])].filter(i=>i.complete&&i.naturalWidth&&getComputedStyle(i.closest('.cr-frame')||i).visibility!=='hidden');__black.push({at:t,blank:!!document.querySelector('#verification .mode-paginated')&&!visible.length,...(stage&&!visible.length?{html:stage.outerHTML}: {})});}requestAnimationFrame(sample)}requestAnimationFrame(sample);});
  const turns=[];
  for(let i=1;i<=10;i++){
   const t=Date.now();await page.keyboard.press('ArrowRight');
