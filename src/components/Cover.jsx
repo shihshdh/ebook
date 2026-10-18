@@ -25,9 +25,9 @@ const sizeRO = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver
   for (const e of entries) { const w = watch.get(e.target); if (w && e.contentRect.width > 0) w.size(jacketScale(e.contentRect.width)); }
 });
 
-const Cover = memo(forwardRef(function Cover({ book, className = '', alt, eager = false, imgRef, ...rest }, ref) {
+const Cover = memo(forwardRef(function Cover({ book, className = '', alt, eager = false, priority = 'auto', imgRef, ...rest }, ref) {
   const box = useRef(null);
-  const [visible, setVisible] = useState(eager);
+  const [visible, setVisible] = useState(eager || !startIO);
   const [scale, setScale] = useState(0);
   const watched = useRef({ near: eager, start: () => setVisible(true), size: (s) => setScale(prev => Math.max(prev, s)) });
   useEffect(() => {
@@ -42,14 +42,15 @@ const Cover = memo(forwardRef(function Cover({ book, className = '', alt, eager 
   }, [eager]);
   // eager 后来才变成 true（光盘翻到跟前）也要马上去取：useState(eager) 只认第一次，光盘上又常常等不到进视口的判定，盘就一直没图
   useEffect(() => { if (eager) { setVisible(true); watched.current.near = true; } }, [eager]);
-  const near = () => watched.current.near;
+  watched.current.priority = priority;
+  const near = () => watched.current.priority === 'high' || (watched.current.priority !== 'low' && watched.current.near);
   const { url, real, onError } = useCover(book, visible, near, scale);
   const j = !real && book ? jacketPalette(book) : null;
   const style = j ? { background: `linear-gradient(to bottom right, ${j.bg}, ${j.bg2})`, ...rest.style } : rest.style;
   return (
     <span ref={(el) => { box.current = el; if (typeof ref === 'function') ref(el); else if (ref) ref.current = el; }}
       className={`cover ${real ? 'is-real' : 'is-gen'} ${className}`} {...rest} style={style}>
-      <img ref={imgRef} src={url || BLANK} alt={url ? alt ?? book?.title ?? '' : ''} loading={eager ? 'eager' : 'lazy'} decoding="async" draggable="false" onError={onError} />
+      <img ref={imgRef} src={url || BLANK} alt={url ? alt ?? book?.title ?? '' : ''} loading={eager || visible ? 'eager' : 'lazy'} decoding="async" draggable="false" onError={onError} />
     </span>
   );
 }));

@@ -263,7 +263,7 @@ export default function DiscShelf({ books, onOpen, eyebrow = '本周新装订' }
         aria-label={i === at ? '打开 ' + b.title : '转到 ' + b.title} onClick={(e) => clickDisc(i, e.currentTarget)}
         onPointerDown={i === at ? () => warmBook(b) : undefined}>
         {/* 架上渲染出来的（当前左右 WINDOW 张）都马上取封面：光盘是 3D 变换摆的，等进视口的判定常常等不到，屏幕右边的盘就一直没图 */}
-        <span className="disc-face"><Cover book={b} eager={Math.abs(i - at) <= WINDOW} alt="" /></span>
+        <span className="disc-face"><Cover book={b} eager={Math.abs(i - at) <= WINDOW} priority={i === at ? 'high' : 'auto'} alt="" /></span>
         <span className="disc-sheen" aria-hidden="true" />
         <span className="disc-hub" aria-hidden="true" />
       </button>,

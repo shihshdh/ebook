@@ -184,7 +184,8 @@ export function useCover(book, visible = true, near, scale = 0) {
   const own = provided === brokenOwn ? '' : provided;
   const catalogBook = useCatalogBook(book && !own && !book.coverSrc ? book.bookId : undefined);
   const src = book?.coverSrc || catalogBook?.coverSrc || '';
-  const ident = own || (book ? `${book.title || ''}|${book.author || ''}` : '');
+  const comicIdentity = book?.source === 'comic' ? JSON.stringify(book.comics?.map(c => [c.sourceId, c.cover])) : '';
+  const ident = own || (book ? `${book.id || ''}|${book.title || ''}|${book.author || ''}` : '');
   const [found, setFound] = useState('');   // 找到的真封面
   const [jacket, setJacket] = useState(() => (book && !own ? jacketNow(book, scale) : ''));
   const [attempt, setAttempt] = useState(0);   // 重试次数（最多 3 次，防止坏地址来回跳）
@@ -202,8 +203,14 @@ export function useCover(book, visible = true, near, scale = 0) {
     // 漫画：封面要带源给的防盗链请求头，只能经那个源的沙箱去取（comic/library.js，按需加载）。几个源里都有的一个个试
     // （有的源图床整个被拦，比如包子漫画）；都取不到才是生成的书衣
     if (book.source === 'comic') {
-      if (book.comics?.some(c => c.cover)) import('../comic/library.js').then(m => m.comicCover(book)).then(u => { if (alive) setFound(u); }, () => {});
-      return () => { alive = false; };
+      setFound('');
+      let owned = '';
+      if (book.comics?.some(c => c.cover)) import('../comic/library.js')
+        .then(m => m.comicCover(book, { near: () => alive && (!near || near()) }))
+        .then(u => { if (alive) { owned = u; setFound(u); } else URL.revokeObjectURL(u); }, () => {
+          if (alive && attempt < 3) retry = setTimeout(() => setAttempt(a => a + 1), 3500);
+        });
+      return () => { alive = false; clearTimeout(retry); if (owned) URL.revokeObjectURL(owned); };
     }
     const later = () => { if (attempt < 3) retry = setTimeout(() => { if (alive) setAttempt(a => a + 1); }, 6000); };
     // 查 Bangumi 用书目里的书名和别名（书架条目的书名带「· 上卷」，搜不准）
@@ -218,7 +225,7 @@ export function useCover(book, visible = true, near, scale = 0) {
     if (src) sourceCover(src, near).then(u => { if (!alive) return; if (u) setFound(u); else viaBangumi(); });
     else viaBangumi();
     return () => { alive = false; clearTimeout(retry); };
-  }, [book?.id, book?.title, visible, attempt, src, own]);
+  }, [book?.id, book?.title, comicIdentity, visible, attempt, src, own]);
   const real = !!(own || found);
   const onError = () => {
     if (own) { setBrokenOwn(own); return; }

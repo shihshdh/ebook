@@ -1,16 +1,16 @@
 // 看漫画：在启用的漫画源里搜、打开详情和章节、取图，记阅读进度。源怎么装、沙箱怎么开见 sources.js。
 //
 //   搜：启用的源一起搜（同时 4 个），谁先回来先显示；单个源 20 秒没回算超时。不同源的结果不合并（书名写法各不相同），按源分组
-//   取图：正文图（同时 4 张）和封面（同时 6 张）各排各的队；封面的 blob 地址留着（最多 300 张，最久没看的先放掉），
+//   取图：正文图（同时 4 张）和封面（同时 6 张）各排各的队；封面 Blob 留在有上限的内存缓存，组件各自拥有显示地址，
 //        正文页由阅读器自己管（翻走的章节整章放掉）
 //   进度：当前账户 kv 的 comic:progress（一条记录存全部，最多 200 本，最近看的在前）——「最近在看」和「继续看」都用它
 import { useEffect, useState } from 'react';
 import { idbGet, idbSet } from '../lib/idb.js';
 import { listComicSources, withSource } from './sources.js';
 import { fetchImage } from './images.js';
+import { coverLoader, firstCover } from './cover-loader.js';
 import { firstPageCache } from './first-page-cache.js';
 import { loadCover, saveCover, loadDetails, saveDetails } from './cover-cache.js';
-import { calm } from '../lib/calm.js';
 import { isIOS, mobileUI } from '../lib/native.js';
 import { localizeComics, localizeDetails } from './translate.js';
 
@@ -37,7 +37,7 @@ function limiter(max) {
 // 正文图和封面各排各的队：搜索结果、探索页一下要几十张封面，慢的站一张要等十几秒，不能把正在看的那一页堵在后面
 // 手机上并发调低：漫画源的沙箱（源脚本、解析网页、取图回调）和页面挤在同一个主线程上，iOS 的 WKWebView 尤其如此。
 // 正文图同时 3 张（正在看的那张排在最前，见 pageURL 的 front），封面同时 3 张（封面大多已经存在本机，cover-cache.js）
-const pageSlot = limiter(mobileUI ? 3 : 4), coverSlot = limiter(mobileUI ? 3 : 6);
+const pageSlot = limiter(mobileUI ? 3 : 4);
 
 // ---------- 搜 ----------
 /** 在启用的漫画源里搜。每个源一有结果就 onResult({ source: {id, name, key}, comics, error })，全部结束后 resolve */
@@ -130,7 +130,7 @@ export async function pageURL(sourceId, url, { comicId, epId, signal, front } = 
 // 封面好不好取，按源记：有的源图床把我们整个拦掉（包子漫画的 static-tw.baozimh.com 一律 Cloudflare 403，加什么请求头都没用）。
 // 一个源连着失败 3 张、一张没成过，就记成「封面取不到」，本机记 3 天（期间不再去取，省得占着排队名额）：
 // 同一部漫画有别的源时封面用别的源的（comicCover）、找名作时它排到后面、探索书墙里它的书往后放（comic/catalog.js）
-const COVER_BAD = 'comic:cover-bad', BAD_DAYS = 3;
+const COVER_BAD = 'comic:cover-bad:v2', BAD_DAYS = 3;
 const coverStats = new Map();   // 源 → { ok, fail }
 let badCovers;
 const badMap = () => {
@@ -152,42 +152,36 @@ function noteCover(sourceId, ok) {
   }
 }
 
-const covers = new Map();   // key → Promise<blob 地址>，Map 的顺序就是最近用过的顺序
-// 内存里留着的封面（blob 地址）：iOS 的 WKWebView 内存上限低，超了整页白屏重载；本机存着（cover-cache.js），放掉了再要也快
-const MAX_COVERS = isIOS ? 120 : mobileUI ? 180 : 300;
-/** 封面（走源的 onThumbnailLoad），blob 地址缓存着，不要自己 revoke */
-export function coverURL(sourceId, url) {
-  if (!url) return Promise.reject(new Error('没有封面'));
-  const key = `${sourceId}|${url}`;
-  let p = covers.get(key);
-  if (p) { covers.delete(key); covers.set(key, p); return p; }
-  // 先看本机存着没有（cover-cache.js），没有才排队经源下载；下好的存起来
-  p = loadCover(key).then(saved => {
-    if (saved) return saved;
+// Blobs can leave the LRU without invalidating a mounted disc or book tile.
+const getCoverBlob = coverLoader({
+  load: loadCover, save: saveCover, max: mobileUI ? 6 : 8, keep: isIOS ? 120 : 240,
+  fetch: async (sourceId, url, signal) => {
     if (coversBlocked(sourceId)) throw new Error('这个源的封面取不到');
-    // 封面经源下载：用户的手停下来再开工（lib/calm.js），滑书墙、拖光盘时不往那几帧里塞活
-    const net = coverSlot(() => calm().then(() => withSource(sourceId, box => fetchImage(box, url, { thumb: true }))));
-    net.then(blob => { noteCover(sourceId, true); saveCover(key, blob); }, (err) => { if (!/取消|abort/i.test(err?.message || '')) noteCover(sourceId, false); });
-    return net;
-  }).then(blob => URL.createObjectURL(blob));
-  p.catch(() => covers.delete(key));
-  covers.set(key, p);
-  while (covers.size > MAX_COVERS) {
-    const [oldKey, old] = covers.entries().next().value;
-    covers.delete(oldKey);
-    old.then(u => URL.revokeObjectURL(u), () => {});
-  }
-  return p;
+    try {
+      const blob = await withSource(sourceId, box => {
+        signal.throwIfAborted();
+        return fetchImage(box, url, { thumb: true, signal });
+      });
+      noteCover(sourceId, true);
+      return blob;
+    } catch (error) {
+      // Network timeouts are transient, not proof that a whole source is blocked.
+      if (!signal.aborted && /HTTP (403|404|410)|不是图片/.test(error.message)) noteCover(sourceId, false);
+      throw error;
+    }
+  },
+});
+/** Caller owns this URL and must revoke it after use. */
+export async function coverURL(sourceId, url, { near } = {}) {
+  if (!url) throw new Error('没有封面');
+  return URL.createObjectURL(await getCoverBlob(sourceId, url, near));
 }
-
-/** 一部漫画的封面：几个源里都有时一个个试，封面取不到的源放最后（搜索池、名作并进来的源都在 book.comics 里） */
-export async function comicCover(book) {
+export async function comicCover(book, { near } = {}) {
   const list = (book?.comics || []).filter(c => c.cover)
-    .map((c, i) => ({ c, i, bad: coversBlocked(c.sourceId) ? 1 : 0 })).sort((a, b) => a.bad - b.bad || a.i - b.i);
-  for (const { c } of list) {
-    try { return await coverURL(c.sourceId, c.cover); } catch { /* 换下一个源 */ }
-  }
-  throw new Error('没有取得到的封面');
+    .map((c, i) => ({ c, i, bad: coversBlocked(c.sourceId) ? 1 : 0 }))
+    .sort((a, b) => a.bad - b.bad || a.i - b.i).map(x => x.c);
+  const blob = await firstCover(list, c => getCoverBlob(c.sourceId, c.cover, near));
+  return URL.createObjectURL(blob);
 }
 
 // ---------- 进度 ----------

@@ -15,6 +15,7 @@ import { localizeComics } from './translate.js';
 import { chaptersOf, comicDetails, coversBlocked } from './library.js';
 import { calm } from '../lib/calm.js';
 import { mobileUI } from '../lib/native.js';
+import { idbGet, idbSet } from '../lib/idb.js';
 import { normTitle } from '../lib/pool.js';
 
 // 世界 → 分类名里出现这些就算（繁简、日文、英文的写法都有）
@@ -25,7 +26,7 @@ const WORLD_WORDS = {
   romance: /恋爱|戀愛|爱情|愛情|纯爱|純愛|romance/i,
   mystery: /悬疑|懸疑|推理|侦探|偵探|惊悚|驚悚|mystery|thriller/i,
 };
-const TIMEOUT = 30000;
+const TIMEOUT = 15000;
 
 function limiter(max) {
   let running = 0;
@@ -33,7 +34,7 @@ function limiter(max) {
   const next = () => { while (running < max && queue.length) { const { job, resolve, reject } = queue.shift(); running++; job().then(resolve, reject).finally(() => { running--; next(); }); } };
   return (job) => new Promise((resolve, reject) => { queue.push({ job, resolve, reject }); next(); });
 }
-const pool4 = limiter(mobileUI ? 2 : 4);   // 手机上同时两个（沙箱和页面挤一个主线程，iOS 尤其）
+const pool4 = limiter(mobileUI ? 4 : 6);   // Four mobile slots; slow sources no longer block the entire initial list.
 // 漫画那半看不见（切到轻小说、探索页不在前台）时，书单和名作查找先停着，显示出来再接着（ComicExplore 报给这里）。
 // 不然切到轻小说滑书墙、去首页书架，漫画源还在后台拉书单、解析网页，挤的是同一个主线程
 let paneShown = false;
@@ -274,14 +275,23 @@ function load(key) {
   const emit = () => entry.subs.forEach(fn => fn());
   (async () => {
     const sources = (await listComicSources()).filter(e => e.enabled);
+    const signature = sources.map(s => `${s.id}:${s.version}`).sort().join('|');
+    const cacheKey = `comic:catalog:v2:${key}`;
+    const saved = await idbGet('kv', cacheKey).catch(() => null);
+    let carry = saved?.signature === signature && Date.now() - saved.at < 864e5 && Array.isArray(saved.books) ? saved.books : [];
+    if (carry.length) { entry.books = carry; emit(); }
     const got = sources.map(source => ({ source, comics: [], cur: undefined, ids: new Set() }));
+    let saveTimer;
+    const persist = () => { clearTimeout(saveTimer); saveTimer = setTimeout(() => {
+      if (entry.books.length) idbSet('kv', cacheKey, { signature, at: Date.now(), books: entry.books.slice(0, 160) }).catch(() => {});
+    }, 700); };
     const famous = frontList(key), picks = famous.map(() => null);
     // 第一页（名作在前 + 各源第一页交错）之后，翻页取来的每一轮单独交错、接在最后（tail）：前面已经看过的一本都不挪
     let tail = [];
     const show = () => {
       const head = compose(famous, picks, got), names = new Set(head.map(b => normTitle(b.title)));
-      entry.books = [...head, ...tail.filter(b => !names.has(normTitle(b.title)))];
-      emit();
+      entry.books = [...head, ...tail.filter(b => !names.has(normTitle(b.title))), ...carry.filter(b => !names.has(normTitle(b.title)) && !tail.some(t => normTitle(t.title) === normTitle(b.title)))];
+      emit(); persist();
     };
     // 取一页：已经有的（同一个源翻页常有重的）不再要
     const take = async (g) => {
@@ -292,25 +302,33 @@ function load(key) {
     };
     // 书墙翻到底了（ComicExplore 的 onEnd）：每个还能翻的源各再取一页
     entry.more = async () => {
-      if (entry.loadingMore || entry.exhausted || !entry.done) return;
+      if (entry.loadingMore || entry.exhausted) return;
       const open = got.filter(g => g.cur);
-      if (!open.length) { entry.exhausted = true; emit(); return; }
+      if (!open.length) { entry.exhausted = entry.done; emit(); return; }
       entry.loadingMore = true; emit();
-      const round = await Promise.all(open.map(async g => ({ source: g.source, comics: await take(g) })));
-      const seen = new Set(entry.books.map(b => normTitle(b.title)));
-      tail = [...tail, ...blend(round).filter(b => !seen.has(normTitle(b.title)))];
-      show();
+      // Append each completed source immediately; do not wait for the slowest.
+      const round = [];
+      const base = tail;
+      await Promise.all(open.map(async g => {
+        round.push({ source: g.source, comics: await take(g) });
+        const seen = new Set(compose(famous, picks, got).map(b => normTitle(b.title)));
+        tail = [...base, ...blend(round).filter(b => !seen.has(normTitle(b.title)))];
+        show();
+      }));
       entry.loadingMore = false;
-      if (!got.some(g => g.cur)) entry.exhausted = true;
+      if (entry.done && !got.some(g => g.cur)) entry.exhausted = true;
       emit();
     };
     // 谁先回来先显示：每找到一部名作、每回来一个源就重新排一遍
-    await Promise.all([
-      ...famous.map(async (f, i) => { picks[i] = await findFamous(f, sources).catch(() => null); if (picks[i]) show(); }),
-      ...got.map(async (g) => { g.comics = await take(g); show(); }),
-    ]);
+    // Famous-title discovery can take minutes. It must not hold pagination
+    // or the ordinary source list's completion flag hostage.
+    Promise.all(famous.map(async (f, i) => { picks[i] = await findFamous(f, sources).catch(() => null); if (picks[i]) show(); })).catch(() => {});
+    await Promise.all(got.map(async (g) => { g.comics = await take(g); show(); }));
+    // Keep the last usable list when all sources are temporarily unavailable.
+    if (got.some(g => g.comics.length)) carry = [];
     entry.done = true;
-    emit();
+    show();
+
   })().catch(() => { entry.done = true; emit(); });
   return entry;
 }
@@ -341,13 +359,19 @@ export function useComicCollage(worlds, on) {
     let live = true;
     (async () => {
       const sources = (await listComicSources()).filter(e => e.enabled);
+      // Publish each hit as it arrives, including other worlds when one has
+      // a slow or missing title. No all-world barrier for the hero artwork.
       const out = {};
-      for (const w of worlds) {
-        const front = frontList(w.id);
-        const hits = await Promise.all(front.map(f => findFamous(f, sources).catch(() => null)));
-        out[w.id] = front.map((f, i) => hits[i] && pickBook(f, hits[i])).filter(Boolean);
-      }
-      if (live) setPicks(out);
+      await Promise.all(worlds.map(async w => {
+        const front = frontList(w.id), hits = front.map(() => null);
+        await Promise.all(front.map(async (f, i) => {
+          const hit = await findFamous(f, sources).catch(() => null);
+          if (!live || !hit) return;
+          hits[i] = pickBook(f, hit);
+          out[w.id] = hits.filter(Boolean);
+          setPicks({ ...out });
+        }));
+      }));
     })().catch(() => {});
     // 书单拉好了（用户进了某个世界）也刷新一下拼贴
     const fn = () => bump(n => n + 1);

@@ -104,6 +104,14 @@ if (appearance === 'dark') {
     byText('.route.is-active .explore-kind .chip', /^轻小说$/)?.click(); return await until(() => $$('.route.is-active .mw-tile').length, 30000) && $$('.route.is-active .mw-tile').length;`, { settle: 2500 });
   await step('explore-comic-top', `byText('.route.is-active .explore-kind .chip', /^漫画$/)?.click(); scrollTo(0, 0);
     return await until(() => $$('.route.is-active .explore-comic .mw-tile').length > 4, 90000) && $$('.route.is-active .explore-comic .mw-tile').length;`, { settle: 4000 });
+  await step('comic-disc-covers', `const discs = await until(() => $('.route.is-active .explore-comic .discshelf'), 90000);
+    if (!discs) throw Error('漫画光盘架没有出现'); discs.scrollIntoView({block:'center'});
+    const ready = await until(() => [...discs.querySelectorAll('.disc-face .cover.is-real img')].filter(i => i.complete && i.naturalWidth > 60).length >= 2, 60000);
+    return {real: !!ready, count: discs.querySelectorAll('.disc-face .cover.is-real').length};`, {settle:1000,timeout:160000});
+  await step('explore-novel-return', `byText('.route.is-active .explore-kind .chip', /^轻小说$/)?.click(); scrollTo(0,0); await sleep(400);
+    const page=$('.route.is-active .explore:not([hidden])'), hero=page?.querySelector('.ws');
+    return {top:hero?.getBoundingClientRect().top, hidden:$$('.route.is-active .page[hidden]').map(e=>e.getBoundingClientRect().height), safe:parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--native-safe-top'))||0};`,{settle:300});
+  await step('explore-comic-return', `byText('.route.is-active .explore-kind .chip', /^漫画$/)?.click();scrollTo(0,0);await sleep(500);return 1;`);
   await step('explore-comic-wall', `$('.route.is-active .explore-comic .filters, .route.is-active .filters')?.scrollIntoView({ block: 'start' }); scrollBy(0, -60); await sleep(2500);
     return $$('.route.is-active .explore-comic .mw-tile').slice(0, 6).map(t => t.getAttribute('aria-label') || t.textContent.trim().slice(0, 12));`, { settle: 1500 });
   await step('comic-sheet', `scrollTo(0, 0); await sleep(300); $('.route.is-active .explore-comic .mw-tile')?.click();
@@ -122,6 +130,7 @@ if (appearance === 'dark') {
   await step('shelf', `history.back(); await sleep(800); location.hash = '#/shelf'; await sleep(2500); return $$('.route.is-active .cover').length;`);
   await step('search', `location.hash = '#/search?q=' + encodeURIComponent('咒术回战'); return await until(() => /漫画 [1-9]/.test($('.route.is-active .results-count')?.textContent || ''), 60000) ? $('.route.is-active .results-count').textContent : 'no comic results';`, { settle: 2500 });
   await step('plugins', `location.hash = '#/plugins'; await sleep(1500); $('#comicsources')?.scrollIntoView({ block: 'start' }); scrollBy(0, -70); return $$('#comicsources .bs-list > li').length;`);
+  await step('comic-switch-shape', `const switches=$$('#comicsources .switch').slice(0,12);return switches.map(e=>{const r=e.getBoundingClientRect();return {w:r.width,h:r.height};});`,{settle:300});
   await step('novel-sheet', `location.hash = '#/'; await sleep(1500); scrollTo(0, 0); byText('.route.is-active button, .route.is-active a', /看看这本/)?.click();
     return await until(() => $('.sheet .sheet-title')?.textContent, 15000);`, { settle: 1800 });
   // 下载按钮先入架、不会自动打开。用固定本地TXT验证真实阅读器，避免把上游下载慢误算成阅读器失败。
@@ -137,6 +146,9 @@ if (appearance === 'dark') {
 
 // 检查实际内容：命令成功执行不代表漫画出图/目录就绪。
 const required = {
+  'comic-disc-covers': r => r?.real === true && r.count >= 2,
+  'explore-novel-return': r => r?.top >= 0 && r.top < r.safe + 44 && r.hidden.every(h=>h===0),
+  'comic-switch-shape': r => r?.length > 0 && r.every(s=>s.w===51&&s.h===31),
   'appearance-system': r => r?.theme === 'dark' && r?.systemDark && r?.selected === 'true',
   'explore-novel': r => Number(r) > 0,
   'explore-comic': r => Number(r) > 4,

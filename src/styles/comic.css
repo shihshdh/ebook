@@ -125,7 +125,7 @@
 .ui-mobile .comic-reader2 .rd-panel :is(.rd-btn, .liquid-tabs button) { min-height: 44px; }
 .ui-mobile .comic-reader2 .rd-settings label { font-size: 15px; }
 .ui-mobile .comic-reader2 .rd-toc button { min-height: 44px; font-size: 16px; }
-.ui-mobile :is(.cs-read, .cs-pick, .comicsources) button { min-height: 44px; }
+.ui-mobile :is(.cs-read, .cs-pick, .comicsources) button:not(.switch) { min-height: 44px; }
 
 .ui-mobile .comic-reader2 .rd-menu-trigger { width: 44px; height: 44px; }
 .ui-mobile .comicsources :is(.cs-input, select) { min-height: 44px; font-size: 16px; }

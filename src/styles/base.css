@@ -131,13 +131,9 @@ body::after {
 
 /* ---------- 页面容器 ---------- */
 .page { min-height: 100dvh; padding: calc(var(--bar-h) + 24px + var(--safe-t)) var(--gutter) 80px; }
-/* 探索页「轻小说 / 漫画」两半都留着，切换只是隐藏另一半。和后台页面一样用 content-visibility: hidden：排版结果留着，
-   切回来不用整半重排（display: none 会把排版扔掉，切回来几千个节点从头排）。上下留白收掉、左右不动（宽度不变，排版结果才作数）。
-   iOS 18 以前的 Safari 不认 content-visibility，退回 display: none */
+/* Keep inactive novel/comic panes out of layout. Cached DOM is retained by React;
+   content-visibility alone still leaves padding/min-height on WebKit. */
 .page[hidden] { display: none !important; }
-@supports (content-visibility: hidden) {
-  .page[hidden] { display: block !important; content-visibility: hidden; min-height: 0; padding-top: 0; padding-bottom: 0; }
-}
 .section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin: 0 0 22px; }
 .section-head h2 { margin: 0; font-family: var(--serif); font-weight: 600; font-size: clamp(24px, 3vw, 34px); letter-spacing: .02em; }
 .muted { color: var(--ink3); }

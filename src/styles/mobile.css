@@ -192,7 +192,8 @@
 .ui-mobile .seg-wide { display: flex; width: 100%; }
 .ui-mobile .seg-wide .chip { flex: 1; justify-content: center; }
 /* 开关（UISwitch 51×31）：开是系统绿；按住时圆钮拉长（iOS 的手感） */
-.ui-mobile .switch { width: 51px; height: 31px; border: 0; border-radius: 999px; background: var(--fill); transition: background-color 250ms ease; }
+.ui-mobile .switch { appearance: none; -webkit-appearance: none; box-sizing: border-box; flex: 0 0 51px; min-width: 51px; max-width: 51px; min-height: 31px; max-height: 31px; width: 51px; height: 31px; border: 0; border-radius: 999px; background: var(--fill); transition: background-color 250ms ease; }
+.ui-mobile .switch::before { content: ''; position: absolute; inset: -7px 0; }
 .ui-mobile .switch i {
   top: 2px; left: 2px; width: 27px; height: 27px; background: #fff;
   box-shadow: 0 3px 8px rgba(0, 0, 0, .15), 0 3px 1px rgba(0, 0, 0, .06), 0 0 0 .5px rgba(0, 0, 0, .04);

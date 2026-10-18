@@ -64,7 +64,7 @@
 /* 页面横向一律不超出屏幕：哪块内容不小心比屏幕宽（比如上面书架那种），超出的部分裁掉，不让整页在手机上被横着推偏。
    .pages 本来就和屏幕一样宽，裁掉的只是屏幕外看不见的部分；clip 不是滚动容器，吸顶（sticky）照常 */
 .pages { overflow-x: clip; }
-.route.is-kept { content-visibility: hidden; }
+.route.is-kept { content-visibility: hidden; height: 0; overflow: hidden; visibility: hidden; }
 /* 分块预排版（App.jsx 空闲预渲染，lib/warm.js）：正在排的（data-warming）临时解除 content-visibility，
    里面还没排的块各自 content-visibility: hidden，一块块放开（打上 data-warm），每段只排几毫秒。排完收回，排版结果留着。
    后台页面排的时候高 0、裁掉、不可见，不占位置也不画；首页下半截的区块本来就在屏幕外 */

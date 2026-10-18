@@ -146,7 +146,7 @@ function AnimatedWorldSwitch({ worlds, active, onChange, collage, total, onSettl
         <div className="ws-collage">
           {/* 全部 eager：拼贴平时被 clip-path 裁没了，推进时才露出来；不 eager 的封面要等「快到屏幕上」才去找真封面，
               被裁着就一直等不到，推进到一半才换图 */}
-          {books.slice(0, 14).map((b, i) => <Cover key={b.id} book={b} eager alt="" className={`ws-c ws-c${i}`} />)}
+          {books.slice(0, 14).map((b, i) => <Cover key={b.id} book={b} eager priority={zoomed ? 'auto' : 'low'} alt="" className={`ws-c ws-c${i}`} />)}
         </div>
         <div className="ws-shade" />
         <div ref={veil} className="ws-veil" />

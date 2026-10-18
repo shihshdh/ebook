@@ -110,7 +110,7 @@ export default function ComicExplore({ active, onChange, tabs, shown = true }) {
 
       {on && !list.books.length && <p className="cx-status muted">{list.done ? `${world ? `「${world.tag}」` : ''}这里暂时没有漫画：漫画源可能连不上，到插件页「测一遍」看看。` : '正在打开漫画书库…'}</p>}
       {on && list.books.length > 0 && <MasonryWall key={active || 'all'} books={list.books} onOpen={openBook} grow
-        onEnd={list.done && !list.exhausted ? list.more : undefined}
+        onEnd={!list.exhausted ? list.more : undefined}
         endNote={list.loadingMore ? '正在从各个漫画源取更多…' : list.exhausted ? '各个漫画源都翻到底了' : '继续往下翻…'} />}
     </>
   );

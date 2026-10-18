@@ -8,11 +8,13 @@ const serialize = job => { const next = writes.then(job); writes = next.catch(()
 export const persistComicProgress = (id, progress) => serialize(() => updateProgress(id, progress));
 async function thumbnail(sourceId, cover) {
   const url = await coverURL(sourceId, cover);
-  const img = new Image(); img.src = url; await img.decode();
-  const canvas = document.createElement('canvas');
-  canvas.width = 360; canvas.height = Math.max(1, Math.min(1440, Math.round(360 * img.naturalHeight / img.naturalWidth)));
-  canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL('image/jpeg', .84);
+  try {
+    const img = new Image(); img.src = url; await img.decode();
+    const canvas = document.createElement('canvas');
+    canvas.width = 360; canvas.height = Math.max(1, Math.min(1440, Math.round(360 * img.naturalHeight / img.naturalWidth)));
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', .84);
+  } finally { URL.revokeObjectURL(url); }
 }
 /** Insert immediately; a slow cover must not delay opening a chapter. */
 export function ensureComicShelf({ sourceId, sourceName, comicId, title, cover, author = '' }) {
