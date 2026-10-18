@@ -1,17 +1,17 @@
 {
-  "version": "0.4.2",
-  "notes": "修复漫画封面和光盘出图、书单拉取、轻小说顶部空白及漫画源开关变形。",
+  "version": "0.4.3",
+  "notes": "优化漫画预加载，翻页与跨话保留已显示画面；适配 iPhone 16 Pro 详情圆角并改进玻璃滑块。",
   "windows": {
-    "file": "EBOOK_0.4.2_x64-setup.exe",
-    "sha256": "6dfb6284969e9240f3c66875814b8096f09e7c1ad5e869aeb4394e42416da7e7"
+    "file": "EBOOK_0.4.3_x64-setup.exe",
+    "sha256": "84424d08379964d66809983a6550c413140ea64f5a66410537b6fb1522e9e0e7"
   },
   "android": {
-    "file": "EBOOK_0.4.2.apk",
-    "sha256": "6deb2b8b595d46fd5c7c498920c17c34727d3e84de2c2d886a347f55cfbcc472"
+    "file": "EBOOK_0.4.3.apk",
+    "sha256": "268f6bbb09b81d5580be5dc2239640692354b8e5bc07d931b92e99af4f8cb1a9"
   },
   "ios": {
-    "file": "EBOOK_0.4.2_ios-unsigned.ipa",
-    "sha256": "2ad8e3d0c873208531602a3893f4b9459b99f0a4d53245d43f7a13b97b4b5be4",
+    "file": "EBOOK_0.4.3_ios-unsigned.ipa",
+    "sha256": "5c7e805b395658498f7a7a1ea620432a1dc3742390249217a60645fa0934be69",
     "unsigned": true
   }
 }
