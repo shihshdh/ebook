@@ -50,17 +50,80 @@ function motif(kind, j, h) {
   }
 }
 
-/** 版面：配色、纹样、竖排书名每个字的位置（最多两列，每列最多 9 个字，字号随字数收） */
-function layout({ title = '', author = '', publisher = '' }) {
+// ---------- 竖排书名 ----------
+// 照日文竖排的规矩排（CSS 的 text-orientation: mixed 那一套）：
+//   · 汉字、假名一字一格；最多两列、每列最多 9 格，字号随长度收；两列还放不下，末尾换成「…」
+//   · 连着的英文按词横躺、顺时针转 90°，一个词占它自己那么长——以前一个字母一格往下堆，「海街diary」竖成一串，
+//     「SPY×FAMILY」还被拆到两列（「SPY×F」「AMILY」）
+//   · 一两位的数字、大写字母并排挤进一格（纵中横：「3月的狮子」「86」）；「ー」「—」「～」「…」、括号转 90°；「，」「。」挪到格子右上角
+// 长度的单位是字号，一格 CELL。英文词多宽：Canvas 那条量得到就量（measure），SVG 那条退路按字母估
+const CELL = 1.08, MAX_CELLS = 9, CAP = MAX_CELLS * CELL;
+const PAD = .32, SPACE = .2;   // 横躺的词前后各留一点；同一串英文里词和词之间多空一点
+const LAT = '[\\x21-\\x7e\\u00c0-\\u024f\\u00d7\\u2019]';
+const TOKEN = new RegExp(`(${LAT}+(?: ${LAT}+)*)|(\\S)`, 'gu');
+const TURN = new Set([...'ー—―–‐～〜…‥：；（）「」『』《》〈〉【】〔〕']);
+const CORNER = new Set([...'，。、．']);
+const estimate = (w) => [...w].reduce((s, c) => s + (/[ijlI.,:;'!|]/.test(c) ? .3 : /[ft\-]/.test(c) ? .36 : /[MW]/.test(c) ? .9
+  : /[mw]/.test(c) ? .74 : /[A-Z]/.test(c) ? .68 : /[a-z]/.test(c) ? .5 : /[0-9]/.test(c) ? .52 : .56), 0);
+const cell = (kind, text) => ({ kind, text, len: CELL, lead: 0 });
+
+function pieces(title, measure) {
+  const out = [];
+  for (const [, run, ch] of cleanTitle(title).matchAll(TOKEN)) {
+    if (ch) { out.push(cell(CORNER.has(ch) ? 'corner' : TURN.has(ch) ? 'turn' : 'char', ch)); continue; }
+    run.split(' ').forEach((word, k) => {
+      // 词两头的横线、波浪线单独竖过来：「86-不存在的战区-」是 86 纵中横 + 一道竖线
+      const [, head, core, tail] = word.match(/^([-~]*)(.*?)([-~]*)$/);
+      for (const c of head) out.push(cell('turn', c));
+      if (/^(?:[0-9]{1,2}|[A-Z]{1,2}|[!?]{1,2})$/.test(core)) out.push(cell('tcy', core));
+      else if (core.length === 1) out.push(cell('turn', core));
+      else if (core) {
+        // 一个词比一整列还长：压窄塞进一列
+        const lead = k > 0 ? SPACE : 0, w = Math.min(measure(core), CAP - PAD - lead);
+        out.push({ kind: 'word', text: core, w, len: lead + w + PAD, lead });
+      }
+      for (const c of tail) out.push(cell('turn', c));
+    });
+  }
+  return out;
+}
+
+// 分列：一列放得下就一列；否则两列，右边那列先排、略长一点（看每一项的中点过没过一半）
+function columns(items) {
+  const total = items.reduce((s, p) => s + p.len, 0);
+  if (total <= CAP + 1e-6) return [items];
+  const cols = [[], []], used = [0, 0], half = total / 2;
+  let ci = 0, acc = 0, cut = false;
+  for (const p of items) {
+    if (ci === 0 && used[0] > 0 && (acc + p.len / 2 > half || used[0] + p.len > CAP + 1e-6)) ci = 1;
+    if (used[ci] + p.len > CAP + 1e-6) { cut = true; break; }
+    cols[ci].push(p); used[ci] += p.len; acc += p.len;
+  }
+  if (cut) {
+    while (cols[1].length && used[1] + CELL > CAP + 1e-6) used[1] -= cols[1].pop().len;
+    cols[1].push(cell('turn', '…'));
+  }
+  return cols.filter(c => c.length);
+}
+
+/** 版面：配色、纹样、竖排书名每一项的位置（x 是列中线，y 是这一项的上沿）。measure：英文词的宽度（单位字号），不给就估 */
+function layout({ title = '', author = '', publisher = '' }, measure = estimate) {
   const h = hash(jacketKey({ title, author }));
   const j = JACKETS[h % JACKETS.length];
-  const chars = [...cleanTitle(title).replace(/\s/g, '')];
-  const perCol = chars.length > 9 ? Math.ceil(Math.min(chars.length, 18) / 2) : chars.length;
-  const cols = [chars.slice(0, perCol), chars.slice(perCol, perCol * 2)].filter(c => c.length);
-  const size = Math.max(22, Math.min(40, Math.floor(300 / Math.max(perCol, 6))));
-  const glyphs = cols.flatMap((col, ci) => col.map((ch, i) => ({ ch, x: 92 - ci * (size + 10), y: 62 + i * (size * 1.08) })));
+  const cols = columns(pieces(title, measure));
+  const cells = Math.max(0, ...cols.map(c => c.reduce((s, p) => s + p.len, 0))) / CELL;
+  const size = Math.max(22, Math.min(40, Math.floor(300 / Math.max(cells, 6))));
+  const glyphs = cols.flatMap((col, ci) => {
+    let y = 62;
+    return col.map(p => { const g = { ...p, x: 92 - ci * (size + 10), y }; y += p.len * size; return g; });
+  });
   return { j, shapes: motif(MOTIFS[(h >> 5) % MOTIFS.length], j, h), glyphs, size, author: author.slice(0, 12), publisher: (publisher || 'EBOOK').slice(0, 14) };
 }
+// 竖着、转过来、纵中横的这几种都按中心点画：一格的中心和旁边汉字的字身中心对齐；横躺的词在扣掉前面空隙的那段里居中
+const middle = (g, size) => g.y + (g.lead + (g.len - g.lead - (CELL - 1)) / 2) * size;
+const tcySize = (g, size) => (g.text.length > 1 ? .72 : .92) * size;
+// 「，」「。」在横排字形里落在格子左下，竖排要在右上：整个字往右上挪
+const CORNER_DX = .58, CORNER_DY = .56;
 
 // ---------- SVG ----------
 const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -69,6 +132,16 @@ const svgShape = (s) => {
   if (s.t === 'circle') return `<circle cx="${s.cx}" cy="${s.cy}" r="${s.r}" ${paint}/>`;
   if (s.t === 'line') return `<line x1="${s.x1}" y1="${s.y1}" x2="${s.x2}" y2="${s.y2}" ${paint}/>`;
   return `<path d="${s.d}" ${paint}/>`;
+};
+const svgGlyph = (g, size) => {
+  if (g.kind === 'char' || g.kind === 'corner') {
+    const [x, y] = g.kind === 'corner' ? [g.x + size * CORNER_DX, g.y - size * CORNER_DY] : [g.x, g.y];
+    return `<text x="${x}" y="${y}" font-size="${size}" text-anchor="middle" dominant-baseline="hanging">${esc(g.text)}</text>`;
+  }
+  const at = `translate(${g.x} ${middle(g, size)})${g.kind === 'tcy' ? '' : ' rotate(90)'}`;
+  // 估的宽度和实际字宽对不上时压到估的长度，免得戳出这一段
+  const fit = g.kind === 'word' ? ` textLength="${g.w * size}" lengthAdjust="spacingAndGlyphs"` : '';
+  return `<text transform="${at}" font-size="${g.kind === 'tcy' ? tcySize(g, size) : size}" text-anchor="middle" dominant-baseline="central"${fit}>${esc(g.text)}</text>`;
 };
 const svgCache = new Map();
 /** SVG data URL，可直接当 <img> */
@@ -84,7 +157,7 @@ export function jacketSvg(book) {
 <rect x="20" y="20" width="260" height="380" fill="none" stroke="${j.foil}" stroke-width=".5" opacity=".5"/>
 <line x1="128" y1="40" x2="128" y2="380" stroke="${j.foil}" stroke-width=".5" opacity=".45"/>
 ${shapes.map(svgShape).join('')}
-<g fill="${j.ink}" font-family="${SERIF.replace(/"/g, '')}" font-weight="600">${glyphs.map(g => `<text x="${g.x}" y="${g.y}" font-size="${size}" text-anchor="middle" dominant-baseline="hanging">${esc(g.ch)}</text>`).join('')}</g>
+<g fill="${j.ink}" font-family="${SERIF.replace(/"/g, '')}" font-weight="600">${glyphs.map(g => svgGlyph(g, size)).join('')}</g>
 <text x="270" y="384" fill="${j.ink}" opacity=".75" font-family="${SERIF_AUTHOR.replace(/"/g, '')}" font-size="13" text-anchor="end">${esc(author)}</text>
 <text x="270" y="364" fill="${j.foil}" font-family="${LATIN}" font-size="9" letter-spacing="2.5" text-anchor="end">${esc(publisher)}</text>
 </svg>`;
@@ -107,7 +180,7 @@ function drawShape(ctx, s) {
 }
 /** 在 300×420 的坐标里画（调用方先按需要的清晰度 scale） */
 export function jacketCanvas(ctx, book) {
-  const { j, shapes, glyphs, size, author, publisher } = layout(book);
+  const { j, shapes, glyphs, size, author, publisher } = layout(book, (w) => { ctx.font = `600 100px ${SERIF}`; return ctx.measureText(w).width / 100; });
   // 底色：SVG 里是按包围盒的对角渐变（0,0 → 1,1），在单位方块里画再拉伸到 300×420，和它一模一样
   ctx.save();
   ctx.scale(300, 420);
@@ -124,9 +197,23 @@ export function jacketCanvas(ctx, book) {
   for (const s of shapes) drawShape(ctx, s);
   // 竖排书名
   ctx.fillStyle = j.ink;
-  ctx.font = `600 ${size}px ${SERIF}`;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'hanging';
-  for (const c of glyphs) ctx.fillText(c.ch, c.x, c.y);
+  ctx.textAlign = 'center';
+  for (const g of glyphs) {
+    if (g.kind === 'char' || g.kind === 'corner') {
+      ctx.font = `600 ${size}px ${SERIF}`; ctx.textBaseline = 'hanging';
+      if (g.kind === 'corner') ctx.fillText(g.text, g.x + size * CORNER_DX, g.y - size * CORNER_DY);
+      else ctx.fillText(g.text, g.x, g.y);
+      continue;
+    }
+    ctx.save();
+    ctx.translate(g.x, middle(g, size));
+    if (g.kind !== 'tcy') ctx.rotate(Math.PI / 2);
+    ctx.font = `600 ${g.kind === 'tcy' ? tcySize(g, size) : size}px ${SERIF}`; ctx.textBaseline = 'middle';
+    if (g.kind === 'word') ctx.fillText(g.text, 0, 0, g.w * size);
+    else if (g.kind === 'tcy') ctx.fillText(g.text, 0, 0, size * .98);
+    else ctx.fillText(g.text, 0, 0);
+    ctx.restore();
+  }
   // 作者、出版方
   ctx.textAlign = 'end'; ctx.textBaseline = 'alphabetic';
   ctx.globalAlpha = .75; ctx.font = `13px ${SERIF_AUTHOR}`; ctx.fillText(author, 270, 384);

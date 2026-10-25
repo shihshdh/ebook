@@ -586,10 +586,21 @@ html.ui-mobile:has(.shelf-managebar) .toasts { bottom: calc(var(--chrome-b) + 70
 
 /* ---------- 世界切换：和电脑同一套推拉镜头，只把底部图标排换成玻璃 ---------- */
 .ui-mobile .ws { border: 0; }
+/* 和底栏同一种玻璃（--lg-*，跟着明暗走）。以前写死成深色，浅色主题里压在米色拼贴上是一条灰褐色，「全部」也看不清 */
 .ui-mobile .ws-dock {
   left: 12px; right: 12px; bottom: 12px; padding: 6px; border: 0;
-  background: rgba(30, 26, 22, .5); -webkit-backdrop-filter: blur(14px) saturate(1.6); backdrop-filter: blur(14px) saturate(1.6);
-  box-shadow: 0 0 0 .5px rgba(255, 255, 255, .14), inset 0 1px 1px rgba(255, 255, 255, .2), 0 10px 30px -10px rgba(0, 0, 0, .5);
+  background: var(--lg-bg); -webkit-backdrop-filter: var(--lg-filter); backdrop-filter: var(--lg-filter);
+  box-shadow: 0 0 0 .5px var(--lg-edge), inset 0 1px 1px var(--lg-hi), inset 0 -1px 1px var(--lg-lo), var(--lg-shadow);
+}
+.ui-mobile .ws-all:not(.on) { color: var(--label2-sm); }
+/* 标题压在拼贴上：左下这块压暗（浅色主题压亮）一些，封面上的竖排书名不再从「恋爱之境」中间穿过去；右上的封面照样看得清 */
+.ui-mobile .ws-shade {
+  background: linear-gradient(90deg, rgba(8, 7, 6, .92) 0%, rgba(8, 7, 6, .72) 42%, rgba(8, 7, 6, .1) 80%),
+    linear-gradient(0deg, rgba(8, 7, 6, .86) 0%, rgba(8, 7, 6, .6) 32%, transparent 64%);
+}
+.ui-mobile[data-theme="light"] .ws-shade {
+  background: linear-gradient(90deg, rgba(246, 241, 232, .96) 0%, rgba(246, 241, 232, .8) 42%, rgba(246, 241, 232, .1) 80%),
+    linear-gradient(0deg, rgba(246, 241, 232, .92) 0%, rgba(246, 241, 232, .68) 32%, transparent 64%);
 }
 .ui-mobile .ws-back-title { font-family: var(--sans); font-size: 30px; line-height: 36px; font-weight: 800; }
 .ui-mobile .ws-back { left: 20px; top: 26px; }

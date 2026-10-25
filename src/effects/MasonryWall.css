@@ -28,8 +28,11 @@
 }
 .mw-tile figcaption.always { transform: none; opacity: 1; }
 @media (hover: hover) { .mw-tile:hover figcaption { transform: none; opacity: 1; } }
-.mw-tile figcaption strong { font-family: var(--serif); font-weight: 600; font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.mw-tile figcaption span { font-size: 11.5px; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 字色写死成浅色：底下的渐变不分明暗主题都是深的。以前跟着 --ink 走，浅色主题里是黑字压在黑渐变上，书名、作者都看不见 */
+.mw-tile figcaption strong { color: #fff8ea; font-family: var(--serif); font-weight: 600; font-size: 14px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.mw-tile figcaption span { font-size: 11.5px; color: rgba(255, 248, 234, .72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 生成封面上已经印了书名和作者（lib/jacket-art.js），再叠一层说明就重了，还压住竖排书名的末尾。真封面到了说明再出来 */
+.mw-tile:has(> .cover.is-gen) figcaption { display: none; }
 
 /* 文字卡：大字短句里嵌一个小金点（仿灵感站 "Your ◎ doesn't know…"） */
 .mw-quote {
