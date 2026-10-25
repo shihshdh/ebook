@@ -66,7 +66,7 @@ tour() {   # 名字 设备类型 外观
   launch "$DEVICE" app.librarium.reader -EBOOK_TOUR
   timed 30 xcrun simctl ui "$DEVICE" appearance "$appearance"
   echo "== $name ($type, $appearance)"
-  if ! timed 900 node scripts/ios-tour.mjs "$DEVICE" "$OUT/$name" "$appearance"; then
+  if ! timed 900 node "${4:-scripts/ios-tour.mjs}" "$DEVICE" "$OUT/$name" "$appearance"; then
     FAILED=1
     # App 起不来时留下崩溃报告和系统日志
     mkdir -p "$OUT/$name"
@@ -82,4 +82,6 @@ want se && tour se com.apple.CoreSimulator.SimDeviceType.iPhone-SE-3rd-generatio
 want 16pro && tour 16pro com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro light
 want 16promax && tour 16promax com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro-Max light
 want 16pro-dark && tour 16pro-dark com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro dark
+# 漫画封面诊断（.github/workflows/ios-covers.yml）：只在点名时走
+if [[ "$ONLY" == covers ]]; then tour covers com.apple.CoreSimulator.SimDeviceType.iPhone-16-Pro light scripts/ios-cover-probe.mjs; fi
 exit $FAILED

@@ -1,0 +1,31 @@
+name: iOS comic covers
+# 漫画封面诊断：iPhone 16 Pro 模拟器冷启动，翻探索页「漫画」的「全部」和「恋爱」，记每屏封面出齐的时间、没出来的是哪个源哪个图床，
+# 再读插件页每个漫画源的封面统计（scripts/ios-cover-probe.mjs）。手动触发：gh workflow run ios-covers.yml --ref <分支>
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  covers:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Sync web assets into the iOS project
+        run: npm run ios:sync
+      - name: Probe comic covers on an iPhone simulator
+        timeout-minutes: 22
+        run: bash scripts/tour-ios.sh covers
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: EBOOK-iOS-covers
+          path: release/ios-tour/
+          if-no-files-found: warn
+          retention-days: 14
