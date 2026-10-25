@@ -1,17 +1,17 @@
 {
-  "version": "0.4.3",
-  "notes": "优化漫画预加载，翻页与跨话保留已显示画面；适配 iPhone 16 Pro 详情圆角并改进玻璃滑块。",
+  "version": "0.4.4",
+  "notes": "漫画封面大多不再经过漫画源脚本，提前下载、同时下载更多；插件页显示每个漫画源的封面情况。",
   "windows": {
-    "file": "EBOOK_0.4.3_x64-setup.exe",
-    "sha256": "84424d08379964d66809983a6550c413140ea64f5a66410537b6fb1522e9e0e7"
+    "file": "EBOOK_0.4.4_x64-setup.exe",
+    "sha256": "90764dbeac7cc046228907150b34a2722100cec67fa4c0b688d88203dc2faa50"
   },
   "android": {
-    "file": "EBOOK_0.4.3.apk",
-    "sha256": "268f6bbb09b81d5580be5dc2239640692354b8e5bc07d931b92e99af4f8cb1a9"
+    "file": "EBOOK_0.4.4.apk",
+    "sha256": "ed3a185bb2cf57052165173b549f6cbc42be4deb55b282342100f2a13e189767"
   },
   "ios": {
-    "file": "EBOOK_0.4.3_ios-unsigned.ipa",
-    "sha256": "5c7e805b395658498f7a7a1ea620432a1dc3742390249217a60645fa0934be69",
+    "file": "EBOOK_0.4.4_ios-unsigned.ipa",
+    "sha256": "56d45872785a93879293ec25fb5d4e4ee6d565b3d7b044dd90ae11cc7a4d0f25",
     "unsigned": true
   }
 }
