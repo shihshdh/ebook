@@ -11,6 +11,7 @@ import {
 } from '../comic/sources.js';
 import { translateOn, setTranslateOn } from '../comic/translate.js';
 import { forgetComicLists } from '../comic/catalog.js';
+import { coverHealth, unblockCovers, useCoverHealth } from '../comic/library.js';
 import '../styles/comic.css';
 
 const repoName = (id) => REPOS.find(r => r.id === id)?.name || id;
@@ -62,15 +63,33 @@ function Settings({ id }) {
   );
 }
 
+// 这次运行里封面取得怎么样：一行写在源名下面，展开后写原因。手机上封面出不来时，到这里一眼看出是哪个源、为什么
+const coverLine = (h) => h.blocked ? '封面取不到' : h.ok + h.fail ? `封面 ${h.ok}/${h.ok + h.fail}` : '';
+function CoverHealth({ id, h }) {
+  if (h.blocked) return (
+    <div className="cs-test bad">
+      <p>封面取不到{h.why ? `（${h.why}）` : ''}，先不去取，每次打开 App 会再试一张。<button className="btn btn-ghost sm" onClick={() => unblockCovers(id)}>现在再试</button></p>
+    </div>
+  );
+  if (!(h.ok + h.fail)) return <p className="cs-note muted">封面：这次还没取过。</p>;
+  return (
+    <p className={`cs-note ${h.ok ? 'muted' : 'bad'}`}>
+      封面：这次取到 <span className="num">{h.ok}</span> 张{h.ok ? <>，平均 <span className="num">{h.avg.toFixed(1)}</span> 秒</> : ''}
+      {h.fail ? <>；没取到 <span className="num">{h.fail}</span> 张（最近一次：{h.why}）</> : ''}。
+    </p>
+  );
+}
+
 function SourceRow({ e, open, onToggle }) {
   const t = e.test, state = t?.ok ? 'ok' : t ? 'bad' : 'part';
   const preview = t?.ok && previewOf(e.id);
+  const h = coverHealth(e.id);
   return (
     <li className={`bs-item ${e.enabled ? '' : 'is-off'}`}>
       <div className="bs-row">
         <div className="bs-name">
           <strong>{e.name}</strong>
-          <small className="muted">{repoName(e.repo)} · v{e.version}{isSelfHosted(e.key) ? ' · 自己的服务器' : ''}</small>
+          <small className="muted">{repoName(e.repo)} · v{e.version}{isSelfHosted(e.key) ? ' · 自己的服务器' : ''}{coverLine(h) && ` · ${coverLine(h)}`}</small>
         </div>
         <button className={`bs-badge ${state}`} onClick={onToggle} aria-expanded={open}>{t?.ok ? '能用' : t ? '没通过' : '未测'}</button>
         <button className={`switch ${e.enabled ? 'on' : ''}`} role="switch" aria-checked={e.enabled}
@@ -86,6 +105,7 @@ function SourceRow({ e, open, onToggle }) {
               <p>{t.ok ? <>测过：搜到「{t.title}」，<span className="num">{t.chapters}</span> 话，第一话 <span className="num">{t.images}</span> 张，第一张图取到了。</> : t.why}</p>
             </div>
           )}
+          <CoverHealth id={e.id} h={h} />
           <Settings id={e.id} />
         </div>
       )}
@@ -167,6 +187,7 @@ export default function ComicSources() {
   const [open, setOpen] = useState('');
   const [testing, setTesting] = useState(null);   // { done, total, ctl }
   const [updating, setUpdating] = useState(false);
+  useCoverHealth();   // 封面统计变了，列表里那一行跟着变
 
   // 源要弹的提示（UI.showMessage）
   useEffect(() => {

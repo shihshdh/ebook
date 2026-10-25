@@ -1,4 +1,4 @@
-import { mobileOS } from '../lib/native.js';
+import { mobileOS, nativeRequest } from '../lib/native.js';
 import { checkUrl } from './policy.js';
 import { decodeImageBytes } from './image-bytes.js';
 
@@ -73,10 +73,12 @@ export function imageType(bytes) {
 
 /**
  * 取一张图。sandbox：host.js 的 Sandbox；thumb：封面 / 缩略图（走 onThumbnailLoad）
+ * onRequest(req)：源给的请求配置（封面要记请求头时用，见 library.js）
  * @returns {Promise<Blob>}
  */
-export async function fetchImage(sandbox, url, { comicId, epId, thumb = false, signal, front = false } = {}) {
+export async function fetchImage(sandbox, url, { comicId, epId, thumb = false, signal, front = false, onRequest } = {}) {
   const req = await sandbox.call(thumb ? 'thumb' : 'image', thumb ? [url] : [url, comicId, epId], { signal });
+  onRequest?.(req);
   if (req.modifyImage) throw new Error('这个源的图片要重新拼接，暂不支持');
   const res = mobileOS === 'android' && !thumb
     ? await androidPageBytes(sandbox, req, signal, front)
@@ -87,4 +89,13 @@ export async function fetchImage(sandbox, url, { comicId, epId, thumb = false, s
   const type = imageType(new Uint8Array(buffer));
   if (!type) throw new Error('取到的不是图片');
   return new Blob([buffer], { type });
+}
+
+/** 不经沙箱、带着记下的请求头直接取一张封面（library.js 的 thumbHeaders） */
+export async function fetchImageDirect(url, headers, { signal } = {}) {
+  const res = await nativeRequest({ url: checkUrl(url), headers, raw: true, signal, timeout: 25000 });
+  if (res.status < 200 || res.status >= 300) throw new Error(`图片 HTTP ${res.status}`);
+  const type = imageType(res.bytes);
+  if (!type) throw new Error('取到的不是图片');
+  return new Blob([res.bytes], { type });
 }

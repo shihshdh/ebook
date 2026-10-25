@@ -34,3 +34,16 @@ test('scrolling a queued cover into view wakes free slots immediately',async()=>
  const started=[],gates=new Map();let near=false;const get=coverLoader({max:3,load:async()=>null,save:()=>{},fetch:async(s,u)=>{started.push(u);const gate=deferred();gates.set(u,gate);return gate.promise;}});
  const bg=get('a','https://slow/1',()=>false);const front=get('b','https://fast/2',()=>near);await pause(5);assert.equal(started.length,1);near=true;get.refresh();await pause(5);assert.equal(started.length,2);for(const g of gates.values())g.resolve(new Blob(['ok']));await Promise.all([bg,front]);
 });
+test('off-screen covers use several slots, not one',async()=>{
+ const started=[],gates=[];const get=coverLoader({max:8,perHost:4,low:3,load:async()=>null,save:()=>{},fetch:async(s,u)=>{started.push(u);const g=deferred();gates.push(g);return g.promise;}});
+ const all=[1,2,3,4,5].map(i=>get('s',`https://site/${i}`,()=>false));await pause(5);assert.equal(started.length,3);
+ for(const g of gates)g.resolve(new Blob(['ok']));await pause(5);for(const g of gates)g.resolve(new Blob(['ok']));await Promise.all(all);assert.equal(started.length,5);
+});
+test('alternate source waits until the queued primary actually starts',async()=>{
+ const started=[],gates=new Map();const get=coverLoader({max:1,load:async()=>null,save:()=>{},fetch:async(s,u)=>{started.push(u);const g=deferred();gates.set(u,g);return g.promise;}});
+ const busy=get('x','https://busy/1');await pause(5);
+ const out=firstCover(['https://a/1','https://b/1'],(u,hooks)=>get('s',u,()=>true,hooks),{stagger:10});await pause(40);
+ assert.deepEqual(started,['https://busy/1']);   // 首选还在排队：不该多塞一个备用源进来
+ gates.get('https://busy/1').resolve(new Blob(['x']));await busy;await pause(5);assert.deepEqual(started,['https://busy/1','https://a/1']);
+ gates.get('https://a/1').resolve(new Blob(['a']));assert.equal(await (await out).text(),'a');
+});

@@ -17,6 +17,11 @@ const watch = new Map();   // 元素 → { start(), near }
 const startIO = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver((entries) => {
   for (const e of entries) if (e.isIntersecting) { const w = watch.get(e.target); if (w) { w.start(); startIO.unobserve(e.target); } }
 }, { rootMargin: isIOS ? '300px 100px' : '800px 600px' });
+//   comic：漫画封面离屏幕一屏半就开始取。漫画封面要经原生 HTTP 一张张下（一张一两秒），不像轻小说封面走浏览器缓存，
+//          等快到跟前才去取，往下翻书墙每一屏都要先看一两秒生成的书衣。提前取的排在屏幕上的后面（near 为假），不抢位置
+const comicIO = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver((entries) => {
+  for (const e of entries) if (e.isIntersecting) { const w = watch.get(e.target); if (w) { w.start(); comicIO.unobserve(e.target); } }
+}, { rootMargin: '150% 100px' });
 const nearIO = typeof IntersectionObserver === 'undefined' ? null : new IntersectionObserver((entries) => {
   for (const e of entries) { const w = watch.get(e.target); if (w) w.near = e.isIntersecting; }
   prioritizeVisibleCovers();
@@ -31,16 +36,18 @@ const Cover = memo(forwardRef(function Cover({ book, className = '', alt, eager 
   const [visible, setVisible] = useState(eager || !startIO);
   const [scale, setScale] = useState(0);
   const watched = useRef({ near: eager, start: () => setVisible(true), size: (s) => setScale(prev => Math.max(prev, s)) });
+  const comic = book?.source === 'comic';
   useEffect(() => {
     const el = box.current;
     if (!el || !startIO) return;
+    const io = comic ? comicIO : startIO;
     watch.set(el, watched.current);
-    if (!eager) startIO.observe(el);
+    if (!eager) io.observe(el);
     nearIO.observe(el);
     sizeRO?.observe(el);
     if (!sizeRO) watched.current.size(jacketScale(180));
-    return () => { startIO.unobserve(el); nearIO.unobserve(el); sizeRO?.unobserve(el); watch.delete(el); };
-  }, [eager]);
+    return () => { io.unobserve(el); nearIO.unobserve(el); sizeRO?.unobserve(el); watch.delete(el); };
+  }, [eager, comic]);
   // eager 后来才变成 true（光盘翻到跟前）也要马上去取：useState(eager) 只认第一次，光盘上又常常等不到进视口的判定，盘就一直没图
   useEffect(() => { if (eager) { setVisible(true); watched.current.near = true; } }, [eager]);
   watched.current.priority = priority;

@@ -1,13 +1,14 @@
 // 看漫画：在启用的漫画源里搜、打开详情和章节、取图，记阅读进度。源怎么装、沙箱怎么开见 sources.js。
 //
 //   搜：启用的源一起搜（同时 4 个），谁先回来先显示；单个源 20 秒没回算超时。不同源的结果不合并（书名写法各不相同），按源分组
-//   取图：正文图（同时 4 张）和封面（同时 6 张）各排各的队；封面 Blob 留在有上限的内存缓存，组件各自拥有显示地址，
+//   取图：正文图（同时 4 张）和封面（同时 8 张，见 getCoverBlob）各排各的队；封面 Blob 留在有上限的内存缓存，组件各自拥有显示地址，
 //        正文页由阅读器自己管（翻走的章节整章放掉）
 //   进度：当前账户 kv 的 comic:progress（一条记录存全部，最多 200 本，最近看的在前）——「最近在看」和「继续看」都用它
 import { useEffect, useState } from 'react';
 import { idbGet, idbSet } from '../lib/idb.js';
 import { listComicSources, withSource } from './sources.js';
-import { fetchImage } from './images.js';
+import { fetchImage, fetchImageDirect } from './images.js';
+import { checkUrl } from './policy.js';
 import { measureSource, sourcePriority } from './source-metrics.js';
 import { requestBudget, transientComicError } from './request-budget.js';
 import { coverLoader, firstCover } from './cover-loader.js';
@@ -38,7 +39,7 @@ function limiter(max) {
 }
 // 正文图和封面各排各的队：搜索结果、探索页一下要几十张封面，慢的站一张要等十几秒，不能把正在看的那一页堵在后面
 // 手机上并发调低：漫画源的沙箱（源脚本、解析网页、取图回调）和页面挤在同一个主线程上，iOS 的 WKWebView 尤其如此。
-// 正文图同时 3 张（正在看的那张排在最前，见 pageURL 的 front），封面同时 3 张（封面大多已经存在本机，cover-cache.js）
+// 正文图同时 3 张（正在看的那张排在最前，见 pageURL 的 front）；封面另排（getCoverBlob），大多不经沙箱
 const pageSlot = limiter(mobileUI ? 3 : 4);
 
 // ---------- 搜 ----------
@@ -150,10 +151,12 @@ export async function pageURL(sourceId, url, { comicId, epId, signal, front } = 
 }
 
 // 封面好不好取，按源记：有的源图床把我们整个拦掉（包子漫画的 static-tw.baozimh.com 一律 Cloudflare 403，加什么请求头都没用）。
-// 一个源连着失败 3 张、一张没成过，就记成「封面取不到」，本机记 3 天（期间不再去取，省得占着排队名额）：
-// 同一部漫画有别的源时封面用别的源的（comicCover）、找名作时它排到后面、探索书墙里它的书往后放（comic/catalog.js）
+// 一个源连着被拒 3 张（403 / 404 / 不是图片）、一张没成过，就记成「封面取不到」，本机记 3 天（期间不占排队名额）：
+// 同一部漫画有别的源时封面用别的源的（comicCover）、找名作时它排到后面、探索书墙里它的书往后放（comic/catalog.js）。
+// 记着的源每次打开 App 还会再试一张（probed）：以前一记就是整整 3 天，换了网络、源站好了也不知道，名作封面一直是生成的书衣
 const COVER_BAD = 'comic:cover-bad:v2', BAD_DAYS = 3;
-const coverStats = new Map();   // 源 → { ok, fail }
+const coverStats = new Map();   // 源 → { ok, fail, hard（被拒的次数）, ms（成功的总耗时）, why（最近一次失败） }
+const probed = new Set();       // 这次运行里已经重新试过的「取不到」的源
 let badCovers;
 const badMap = () => {
   if (!badCovers) { try { badCovers = JSON.parse(localStorage.getItem(COVER_BAD)) || {}; } catch { badCovers = {}; } }
@@ -162,33 +165,117 @@ const badMap = () => {
 const saveBad = () => { try { localStorage.setItem(COVER_BAD, JSON.stringify(badCovers)); } catch { /* 存不下就只管这次 */ } };
 /** 这个源的封面现在取不到（记着的 3 天内） */
 export function coversBlocked(sourceId) { const at = badMap()[sourceId]; return !!at && Date.now() - at < BAD_DAYS * 864e5; }
-function noteCover(sourceId, ok) {
-  const s = coverStats.get(sourceId) || { ok: 0, fail: 0 };
-  if (ok) s.ok++; else s.fail++;
+const healthSubs = new Set();
+let healthTimer = 0;
+const healthChanged = () => { if (!healthTimer) healthTimer = setTimeout(() => { healthTimer = 0; healthSubs.forEach(fn => fn()); }, 800); };
+const coverWhy = (error) => {
+  const m = String(error?.message || error || '');
+  const code = /HTTP\s*(\d{3})/.exec(m)?.[1];
+  if (code) return `图床返回 ${code}`;
+  if (/不是图片/.test(m)) return '取到的不是图片（多半被防盗链挡了）';
+  if (/超时|timed? ?out/i.test(m)) return '超时';
+  if (/network|connect|fetch|dns|refused|reset|证书|certificate|tls|ssl/i.test(m)) return '连不上图床';
+  return m.slice(0, 40) || '出错了';
+};
+function noteCover(sourceId, ok, { ms = 0, error, hard = false } = {}) {
+  const s = coverStats.get(sourceId) || { ok: 0, fail: 0, hard: 0, ms: 0, why: '' };
+  if (ok) { s.ok++; s.ms += ms; } else { s.fail++; s.why = coverWhy(error); if (hard) s.hard++; }
   coverStats.set(sourceId, s);
+  healthChanged();
   const m = badMap();
-  if (ok && m[sourceId]) { delete m[sourceId]; saveBad(); }
-  else if (!ok && !s.ok && s.fail >= 3 && !coversBlocked(sourceId)) {
+  if (ok && m[sourceId]) { delete m[sourceId]; saveBad(); window.dispatchEvent(new CustomEvent('librarium:comic-covers', { detail: sourceId })); }
+  else if (!ok && hard && !s.ok && s.hard >= 3 && !coversBlocked(sourceId)) {
     m[sourceId] = Date.now(); saveBad();
     window.dispatchEvent(new CustomEvent('librarium:comic-covers', { detail: sourceId }));   // 书单换掉这个源的名作（catalog.js）
   }
 }
+/** 插件页看的：这次运行里这个源的封面取得怎么样。{ ok, fail, avg（秒）, why, blocked } */
+export function coverHealth(sourceId) {
+  const s = coverStats.get(sourceId);
+  return { ok: s?.ok || 0, fail: s?.fail || 0, avg: s?.ok ? s.ms / s.ok / 1000 : 0, why: s?.why || '', blocked: coversBlocked(sourceId) };
+}
+/** 「再试试」：不再记成取不到，马上重新取 */
+export function unblockCovers(sourceId) {
+  const m = badMap();
+  if (m[sourceId]) { delete m[sourceId]; saveBad(); }
+  const s = coverStats.get(sourceId);
+  if (s) s.hard = 0;
+  healthChanged();
+  window.dispatchEvent(new CustomEvent('librarium:comic-covers', { detail: sourceId }));
+}
+/** 封面情况变了就重渲染（插件页的漫画源列表） */
+export function useCoverHealth() {
+  const [, setTick] = useState(0);
+  useEffect(() => { const fn = () => setTick(t => t + 1); healthSubs.add(fn); return () => healthSubs.delete(fn); }, []);
+}
+
+// 封面的请求头记在本机，同一个图床以后不用再开源的沙箱：
+//   源的封面钩子（onThumbnailLoad）只是给几个固定的请求头（Referer、UA），没写钩子的源就是浏览器 UA + 这个图床的 cookie。
+//   以前每张封面都要经那个源的沙箱问一遍——iPhone 上同时只留 3 个沙箱，封面分散在十几个源里，
+//   实测冷启动 40 秒开了 50 次沙箱、关了 46 次，图片请求反而没发出去几个。
+//   现在每个源、每个图床第一张封面经沙箱取，源给的请求只是「原地址 + 请求头」（没有改地址、解密、拼图）就把请求头记下来，
+//   之后同一图床直接用原生 HTTP 取。记 3 天；直接取被拒（403、不是图片）就忘掉，退回经沙箱取
+const THUMB_KEY = 'comic:thumb-headers:v1', THUMB_DAYS = 3;
+let thumbMemo;
+const thumbMap = () => {
+  if (!thumbMemo) { try { thumbMemo = JSON.parse(localStorage.getItem(THUMB_KEY)) || {}; } catch { thumbMemo = {}; } }
+  return thumbMemo;
+};
+const thumbKey = (sourceId, url) => { try { return `${sourceId}|${new URL(url).host}`; } catch { return ''; } };
+let thumbSave = 0;
+const saveThumbs = () => { clearTimeout(thumbSave); thumbSave = setTimeout(() => { try { localStorage.setItem(THUMB_KEY, JSON.stringify(thumbMemo)); } catch { /* 存不下就只管这次 */ } }, 1000); };
+function thumbHeaders(sourceId, url) {
+  const hit = thumbMap()[thumbKey(sourceId, url)];
+  return hit && Date.now() - hit.at < THUMB_DAYS * 864e5 ? hit.headers : null;
+}
+function rememberThumb(sourceId, url, req) {
+  const key = thumbKey(sourceId, url);
+  if (!key) return;
+  try { checkUrl(url); } catch { return; }   // 自建的源（局域网）只能经沙箱取，不记
+  const plain = req && req.url === url && req.method === 'GET' && req.body == null && !req.onResponse && !req.modifyImage;
+  const m = thumbMap();
+  if (plain) m[key] = { headers: req.headers || {}, at: Date.now() }; else if (m[key]) delete m[key]; else return;
+  saveThumbs();
+}
+function forgetThumb(sourceId, url) {
+  const m = thumbMap(), key = thumbKey(sourceId, url);
+  if (m[key]) { delete m[key]; saveThumbs(); }
+}
 
 // Blobs can leave the LRU without invalidating a mounted disc or book tile.
+// 屏幕外同时 3 张（以前 1 张），同一图床同时 4 张（以前 2 张）：手机原生 HTTP 一个图床本来就开 4–6 条连接
 const getCoverBlob = coverLoader({
-  load: loadCover, save: saveCover, max: mobileUI ? 6 : 8, keep: isIOS ? 120 : 240,
+  load: loadCover, save: saveCover, max: 8, perHost: 4, low: 3, timeout: 10000, keep: isIOS ? 120 : 240,
   fetch: async (sourceId, url, signal) => {
-    if (coversBlocked(sourceId)) throw new Error('这个源的封面取不到');
+    if (coversBlocked(sourceId)) {
+      if (probed.has(sourceId)) throw new Error('这个源的封面取不到');
+      probed.add(sourceId);   // 这次运行头一回：再试一张，成了就解除
+    }
+    const t0 = performance.now();
     try {
-      const blob = await withSource(sourceId, box => {
-        signal.throwIfAborted();
-        return fetchImage(box, url, { thumb: true, signal });
-      });
-      noteCover(sourceId, true);
+      let blob;
+      const headers = thumbHeaders(sourceId, url);
+      if (headers) {
+        try { blob = await fetchImageDirect(url, headers, { signal }); }
+        catch (error) {
+          // 超时、断网照常算这次失败（排队器会再试）；被拒了才是记下的请求头不灵了，经沙箱重新问
+          if (signal.aborted || !/HTTP 4\d\d|不是图片|网址|局域网/.test(error.message)) throw error;
+          forgetThumb(sourceId, url);
+        }
+      }
+      if (!blob) {
+        let req;
+        blob = await withSource(sourceId, box => {
+          signal.throwIfAborted();
+          return fetchImage(box, url, { thumb: true, signal, onRequest: r => { req = r; } });
+        });
+        rememberThumb(sourceId, url, req);
+      }
+      noteCover(sourceId, true, { ms: performance.now() - t0 });
       return blob;
     } catch (error) {
-      // Network timeouts are transient, not proof that a whole source is blocked.
-      if (!signal.aborted && /HTTP (403|404|410)|不是图片/.test(error.message)) noteCover(sourceId, false);
+      // Network timeouts are transient, not proof that a whole source is blocked.（排队器只在超时时中止，所以中止了就是超时）
+      noteCover(sourceId, false, { error: signal.aborted ? new Error('超时') : error, hard: !signal.aborted && /HTTP (403|404|410)|不是图片/.test(error.message) });
       throw error;
     }
   },
@@ -203,7 +290,7 @@ export async function comicCover(book, { near } = {}) {
   const list = (book?.comics || []).filter(c => c.cover)
     .map((c, i) => ({ c, i, bad: coversBlocked(c.sourceId) ? 1 : 0 }))
     .sort((a, b) => a.bad - b.bad || a.i - b.i).map(x => x.c);
-  const blob = await firstCover(list, c => getCoverBlob(c.sourceId, c.cover, near));
+  const blob = await firstCover(list, (c, hooks) => getCoverBlob(c.sourceId, c.cover, near, hooks));
   return URL.createObjectURL(blob);
 }
 

@@ -213,7 +213,8 @@ export function useCover(book, visible = true, near, scale = 0) {
       if (book.comics?.some(c => c.cover)) import('../comic/library.js')
         .then(m => { comicAPI = m; return m.comicCover(book, { near: () => alive && (!near || near()) }); })
         .then(u => { if (alive) { owned = u; setFound(u); } else URL.revokeObjectURL(u); }, () => {
-          if (alive && attempt < 3) retry = setTimeout(() => setAttempt(a => a + 1), 3500);
+          // 超时多半是一时的（手机网络、源站慢）：隔得越来越久再试，最多 5 次。以前 3 次就一直停在生成的书衣上
+          if (alive && attempt < 5) retry = setTimeout(() => setAttempt(a => a + 1), 3500 * (attempt + 1));
         });
       return () => { alive = false; clearTimeout(retry); if (owned) URL.revokeObjectURL(owned); };
     }
